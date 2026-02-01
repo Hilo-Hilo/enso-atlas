@@ -64,12 +64,35 @@ class ReportResponse(BaseModel):
     summary_text: str
 
 
+class PatientContext(BaseModel):
+    """Patient demographic and clinical context for a slide."""
+    age: Optional[int] = None
+    sex: Optional[str] = None
+    stage: Optional[str] = None
+    grade: Optional[str] = None
+    prior_lines: Optional[int] = None
+    histology: Optional[str] = None
+
+
 class SlideInfo(BaseModel):
     slide_id: str
     patient_id: Optional[str] = None
     has_embeddings: bool = False
     label: Optional[str] = None
     num_patches: Optional[int] = None
+    patient: Optional[PatientContext] = None
+
+
+class SlideQCResponse(BaseModel):
+    """Quality control metrics for a slide."""
+    slide_id: str
+    tissue_coverage: float
+    blur_score: float
+    stain_uniformity: float
+    artifact_detected: bool
+    pen_marks: bool
+    fold_detected: bool
+    overall_quality: str
 
 
 class EmbedRequest(BaseModel):
@@ -321,10 +344,10 @@ def create_app(
 
     @app.get("/api/slides", response_model=List[SlideInfo])
     async def list_slides():
-        """List all available slides."""
+        """List all available slides with patient context."""
         slides = []
         labels_path = embeddings_dir.parent / "labels.csv"
-        labels = {}
+        slide_data = {}
 
         if labels_path.exists():
             import csv
@@ -342,8 +365,30 @@ def create_app(
                         # Derive label from treatment_response
                         response = row.get("treatment_response", "")
                         label = "1" if response == "responder" else "0" if response == "non-responder" else ""
+
                     if sid:
-                        labels[sid] = label
+                        # Parse patient context from CSV
+                        patient_ctx = None
+                        if any(k in row for k in ["age", "sex", "stage", "grade", "prior_treatments", "histology"]):
+                            try:
+                                age_val = row.get("age")
+                                prior_val = row.get("prior_treatments")
+                                patient_ctx = PatientContext(
+                                    age=int(age_val) if age_val else None,
+                                    sex=row.get("sex") or None,
+                                    stage=row.get("stage") or None,
+                                    grade=row.get("grade") or None,
+                                    prior_lines=int(prior_val) if prior_val else None,
+                                    histology=row.get("histology") or None,
+                                )
+                            except (ValueError, TypeError):
+                                patient_ctx = None
+
+                        slide_data[sid] = {
+                            "label": label,
+                            "patient": patient_ctx,
+                        }
+
         for slide_id in available_slides:
             # Get patch count
             emb_path = embeddings_dir / f"{slide_id}.npy"
@@ -355,11 +400,13 @@ def create_app(
                 except Exception:
                     pass
 
+            data = slide_data.get(slide_id, {})
             slides.append(SlideInfo(
                 slide_id=slide_id,
                 has_embeddings=True,
-                label=labels.get(slide_id),
+                label=data.get("label"),
                 num_patches=num_patches,
+                patient=data.get("patient"),
             ))
 
         return slides

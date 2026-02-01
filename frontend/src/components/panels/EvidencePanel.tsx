@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -20,64 +20,91 @@ import {
   AlertCircle,
   RefreshCw,
   Circle,
+  Filter,
+  X,
 } from "lucide-react";
-import type { EvidencePatch, PatchCoordinates } from "@/types";
+import type { EvidencePatch, PatchCoordinates, TissueType } from "@/types";
 
-// Tissue type classification based on morphology description
-// In production, this would come from a tissue classifier model
-type TissueType = "tumor" | "stroma" | "necrosis" | "inflammatory" | "normal" | "unknown";
+// Extended tissue type to include artifact
+type ExtendedTissueType = TissueType | "artifact";
 
 interface TissueTypeInfo {
   label: string;
+  shortLabel: string;
   color: string;
   bgColor: string;
   borderColor: string;
+  hoverBg: string;
 }
 
-const TISSUE_TYPES: Record<TissueType, TissueTypeInfo> = {
+const TISSUE_TYPES: Record<ExtendedTissueType, TissueTypeInfo> = {
   tumor: {
     label: "Tumor Region",
+    shortLabel: "Tumor",
     color: "text-red-700",
     bgColor: "bg-red-100",
     borderColor: "border-red-300",
+    hoverBg: "hover:bg-red-200",
   },
   stroma: {
     label: "Stromal Tissue",
+    shortLabel: "Stroma",
     color: "text-blue-700",
     bgColor: "bg-blue-100",
     borderColor: "border-blue-300",
+    hoverBg: "hover:bg-blue-200",
   },
   necrosis: {
     label: "Necrosis",
+    shortLabel: "Necrosis",
     color: "text-gray-700",
     bgColor: "bg-gray-200",
     borderColor: "border-gray-400",
+    hoverBg: "hover:bg-gray-300",
   },
   inflammatory: {
     label: "Inflammatory Infiltrate",
+    shortLabel: "Inflam.",
     color: "text-purple-700",
     bgColor: "bg-purple-100",
     borderColor: "border-purple-300",
+    hoverBg: "hover:bg-purple-200",
   },
   normal: {
     label: "Normal Tissue",
+    shortLabel: "Normal",
     color: "text-green-700",
     bgColor: "bg-green-100",
     borderColor: "border-green-300",
+    hoverBg: "hover:bg-green-200",
+  },
+  artifact: {
+    label: "Artifact",
+    shortLabel: "Artifact",
+    color: "text-amber-700",
+    bgColor: "bg-amber-100",
+    borderColor: "border-amber-300",
+    hoverBg: "hover:bg-amber-200",
   },
   unknown: {
     label: "Unclassified",
+    shortLabel: "Unknown",
     color: "text-gray-500",
     bgColor: "bg-gray-100",
     borderColor: "border-gray-200",
+    hoverBg: "hover:bg-gray-200",
   },
 };
 
-// Infer tissue type from morphology description
-// In production, this would be a separate classifier model output
-function inferTissueType(description?: string): TissueType {
-  if (!description) return "unknown";
-  const lower = description.toLowerCase();
+// Get tissue type - prefer backend classification, fall back to inference from description
+function getTissueType(patch: EvidencePatch): ExtendedTissueType {
+  // Use backend tissue type if available
+  if (patch.tissueType && patch.tissueType !== "unknown") {
+    return patch.tissueType as ExtendedTissueType;
+  }
+  // Fall back to inference from morphology description
+  if (!patch.morphologyDescription) return "unknown";
+  const lower = patch.morphologyDescription.toLowerCase();
   
   if (lower.includes("necrotic") || lower.includes("necrosis")) {
     return "necrosis";
@@ -95,6 +122,9 @@ function inferTissueType(description?: string): TissueType {
   }
   if (lower.includes("normal") || lower.includes("benign")) {
     return "normal";
+  }
+  if (lower.includes("artifact") || lower.includes("blur") || lower.includes("fold")) {
+    return "artifact";
   }
   return "unknown";
 }
@@ -120,15 +150,46 @@ export function EvidencePanel({
 }: EvidencePanelProps) {
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [currentPage, setCurrentPage] = useState(0);
+  const [tissueFilter, setTissueFilter] = useState<ExtendedTissueType | null>(null);
   const patchesPerPage = viewMode === "grid" ? 6 : 4;
 
-  const totalPages = Math.ceil(patches.length / patchesPerPage);
-  const visiblePatches = patches.slice(
+  // Count patches by tissue type for filter buttons
+  const tissueTypeCounts = useMemo(() => {
+    const counts: Record<ExtendedTissueType, number> = {
+      tumor: 0,
+      stroma: 0,
+      necrosis: 0,
+      inflammatory: 0,
+      normal: 0,
+      artifact: 0,
+      unknown: 0,
+    };
+    patches.forEach((patch) => {
+      const type = getTissueType(patch);
+      counts[type]++;
+    });
+    return counts;
+  }, [patches]);
+
+  // Filter patches by tissue type
+  const filteredPatches = useMemo(() => {
+    if (!tissueFilter) return patches;
+    return patches.filter((patch) => getTissueType(patch) === tissueFilter);
+  }, [patches, tissueFilter]);
+
+  // Reset page when filter changes
+  const handleFilterChange = (type: ExtendedTissueType | null) => {
+    setTissueFilter(type);
+    setCurrentPage(0);
+  };
+
+  const totalPages = Math.ceil(filteredPatches.length / patchesPerPage);
+  const visiblePatches = filteredPatches.slice(
     currentPage * patchesPerPage,
     (currentPage + 1) * patchesPerPage
   );
 
-  // Sort patches by attention weight for ranking
+  // Sort patches by attention weight for ranking (based on original list)
   const sortedPatches = [...patches].sort(
     (a, b) => b.attentionWeight - a.attentionWeight
   );

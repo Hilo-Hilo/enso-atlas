@@ -1,6 +1,16 @@
 // Enso Atlas - Type Definitions
 // Professional pathology evidence engine types
 
+// Patient demographic and clinical context
+export interface PatientContext {
+  age?: number;
+  sex?: string;
+  stage?: string;
+  grade?: string;
+  prior_lines?: number;
+  histology?: string;
+}
+
 // Slide metadata from the backend
 export interface SlideInfo {
   id: string;
@@ -17,6 +27,7 @@ export interface SlideInfo {
   label?: string;
   hasEmbeddings?: boolean;
   numPatches?: number;
+  patient?: PatientContext;
 }
 
 // Patch coordinates and metadata

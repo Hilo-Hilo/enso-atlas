@@ -116,6 +116,8 @@ interface BackendAnalysisResponse {
     patch_index: number;
     attention_weight: number;
     coordinates?: [number, number];
+    tissue_type?: string;
+    tissue_confidence?: number;
   }>;
   similar_cases: Array<{
     slide_id: string;
@@ -164,6 +166,8 @@ export async function analyzeSlide(
       attentionWeight: e.attention_weight,
       thumbnailUrl: "",
       rank: e.rank,
+      tissueType: e.tissue_type as import("@/types").TissueType | undefined,
+      tissueConfidence: e.tissue_confidence,
     })),
     similarCases: backend.similar_cases.map(s => ({
       slideId: s.slide_id,

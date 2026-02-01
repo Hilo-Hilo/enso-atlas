@@ -1,6 +1,6 @@
-patient_id,slide_file,diagnosis,vital_status,treatment_response
-TCGA-04-1360,TCGA-04-1360-01A-01-TS1.svs,Serous cystadenocarcinoma,Alive,responder
-TCGA-09-2056,TCGA-09-2056-01B-01-TS1.svs,Serous cystadenocarcinoma,Alive,responder
-TCGA-13-1489,TCGA-13-1489-01A-01-TS1.svs,Serous cystadenocarcinoma,Dead,non-responder
-TCGA-29-1691,TCGA-29-1691-01A-01-BS1.svs,Serous cystadenocarcinoma,Dead,non-responder
-TCGA-61-1730,TCGA-61-1730-01A-01-BS1.svs,Serous cystadenocarcinoma,Dead,non-responder
+patient_id,slide_file,diagnosis,vital_status,treatment_response,age,sex,stage,grade,prior_treatments,histology
+TCGA-04-1360,TCGA-04-1360-01A-01-TS1.svs,Serous cystadenocarcinoma,Alive,responder,58,F,IIIA,High,1,High-grade serous
+TCGA-09-2056,TCGA-09-2056-01B-01-TS1.svs,Serous cystadenocarcinoma,Alive,responder,54,F,IIB,High,0,High-grade serous
+TCGA-13-1489,TCGA-13-1489-01A-01-TS1.svs,Serous cystadenocarcinoma,Dead,non-responder,62,F,IIIC,High,2,High-grade serous
+TCGA-29-1691,TCGA-29-1691-01A-01-BS1.svs,Serous cystadenocarcinoma,Dead,non-responder,67,F,IV,High,3,High-grade serous
+TCGA-61-1730,TCGA-61-1730-01A-01-BS1.svs,Serous cystadenocarcinoma,Dead,non-responder,71,F,IIIC,High,2,High-grade serous
