@@ -30,8 +30,8 @@ services:
       # Optional: mount local slides for processing
       # - /path/to/hospital/slides:/app/data/slides:ro
     ports:
-      - "7860:7860"
-      - "8000:8000"
+      - "7862:7860"
+      - "8003:8000"
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:7860/"]

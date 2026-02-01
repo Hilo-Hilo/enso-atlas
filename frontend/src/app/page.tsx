@@ -223,7 +223,7 @@ export default function HomePage() {
       {/* Main Content */}
       <main className="flex-1 flex overflow-hidden">
         {/* Left Sidebar - Slide Selection */}
-        <aside className="w-80 border-r border-surface-border bg-white p-4 overflow-y-auto shrink-0">
+        <aside className="w-80 border-r border-surface-border bg-white p-4 overflow-y-auto shrink-0 space-y-4">
           <SlideSelector
             selectedSlideId={selectedSlide?.id ?? null}
             onSlideSelect={handleSlideSelect}
@@ -233,7 +233,7 @@ export default function HomePage() {
 
           {/* Error Display */}
           {error && (
-            <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+            <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
               <p className="text-sm text-red-700">{error}</p>
               <button
                 onClick={clearError}
@@ -243,6 +243,12 @@ export default function HomePage() {
               </button>
             </div>
           )}
+
+          {/* Quick Stats Dashboard */}
+          <QuickStatsPanel />
+
+          {/* Case Notes */}
+          <CaseNotesPanel slideId={selectedSlide?.id ?? null} />
         </aside>
 
         {/* Center - WSI Viewer */}
@@ -339,6 +345,16 @@ export default function HomePage() {
 
       {/* Footer */}
       <Footer version="0.1.0" />
+
+      {/* Patch Zoom Modal */}
+      <PatchZoomModal
+        isOpen={zoomModalOpen}
+        onClose={() => setZoomModalOpen(false)}
+        patch={zoomedPatch}
+        allPatches={analysisResult?.evidencePatches ?? []}
+        onNavigate={handlePatchModalNavigate}
+        slideId={selectedSlide?.id}
+      />
     </div>
   );
 }

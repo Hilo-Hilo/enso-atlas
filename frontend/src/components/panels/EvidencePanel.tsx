@@ -23,6 +23,7 @@ interface EvidencePanelProps {
   patches: EvidencePatch[];
   isLoading?: boolean;
   onPatchClick?: (coords: PatchCoordinates) => void;
+  onPatchZoom?: (patch: EvidencePatch) => void;
   selectedPatchId?: string;
 }
 
@@ -30,6 +31,7 @@ export function EvidencePanel({
   patches,
   isLoading,
   onPatchClick,
+  onPatchZoom,
   selectedPatchId,
 }: EvidencePanelProps) {
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
@@ -151,6 +153,7 @@ export function EvidencePanel({
                 rank={getRank(patch.id)}
                 isSelected={selectedPatchId === patch.id}
                 onClick={() => onPatchClick?.(patch.coordinates)}
+                onZoom={() => onPatchZoom?.(patch)}
               />
             ))}
           </div>
@@ -163,6 +166,7 @@ export function EvidencePanel({
                 rank={getRank(patch.id)}
                 isSelected={selectedPatchId === patch.id}
                 onClick={() => onPatchClick?.(patch.coordinates)}
+                onZoom={() => onPatchZoom?.(patch)}
               />
             ))}
           </div>
@@ -231,6 +235,7 @@ interface PatchThumbnailProps {
   rank: number;
   isSelected: boolean;
   onClick: () => void;
+  onZoom?: () => void;
 }
 
 function PatchThumbnail({
@@ -238,6 +243,7 @@ function PatchThumbnail({
   rank,
   isSelected,
   onClick,
+  onZoom,
 }: PatchThumbnailProps) {
   const attentionPercent = Math.round(patch.attentionWeight * 100);
   const attentionColor =
@@ -293,7 +299,16 @@ function PatchThumbnail({
                 ({patch.coordinates.x}, {patch.coordinates.y})
               </span>
             </div>
-            <ZoomIn className="h-4 w-4" />
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onZoom?.();
+              }}
+              className="p-1 bg-white/20 rounded hover:bg-white/40 transition-colors"
+              title="View enlarged"
+            >
+              <ZoomIn className="h-4 w-4" />
+            </button>
           </div>
         </div>
       </div>
@@ -312,6 +327,7 @@ interface PatchListItemProps {
   rank: number;
   isSelected: boolean;
   onClick: () => void;
+  onZoom?: () => void;
 }
 
 function PatchListItem({
@@ -319,6 +335,7 @@ function PatchListItem({
   rank,
   isSelected,
   onClick,
+  onZoom,
 }: PatchListItemProps) {
   const attentionPercent = Math.round(patch.attentionWeight * 100);
 
@@ -381,10 +398,17 @@ function PatchListItem({
         )}
       </div>
 
-      {/* Navigate indicator */}
-      <div className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+      {/* Zoom button */}
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          onZoom?.();
+        }}
+        className="shrink-0 p-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-all hover:bg-clinical-100"
+        title="View enlarged"
+      >
         <ZoomIn className="h-4 w-4 text-clinical-600" />
-      </div>
+      </button>
     </button>
   );
 }
