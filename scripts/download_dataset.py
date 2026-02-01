@@ -185,7 +185,7 @@ def main():
     print(f"  - ca125_labels.xlsx (treatment effect labels)")
     print(f"  - labels.csv (generated, ready for training)")
     
-    print("\n⚠️  WSI DOWNLOAD (253.8 GB) requires IBM Aspera:")
+    print("\nWSI DOWNLOAD (253.8 GB) requires IBM Aspera:")
     print("1. Visit: https://www.cancerimagingarchive.net/collection/ovarian-bevacizumab-response/")
     print("2. Click 'Download' under 'Tissue Slide Images'")
     print("3. Follow Aspera/Faspex instructions")

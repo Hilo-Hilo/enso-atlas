@@ -280,7 +280,7 @@ This tool is for research purposes only. Do not use for clinical decision-making
     ) as app:
         
         gr.Markdown("""
-# 🔬 Enso Atlas
+# Enso Atlas
 
 **On-Prem Pathology Evidence Engine for Treatment-Response Insight**
 
@@ -299,8 +299,8 @@ This demo shows the core explainability features:
                     value=available_slides[0] if available_slides else None,
                 )
                 
-                analyze_btn = gr.Button("🔍 Analyze Slide", variant="primary", size="lg")
-                report_btn = gr.Button("📋 Generate Report", variant="secondary")
+                analyze_btn = gr.Button("Analyze Slide", variant="primary", size="lg")
+                report_btn = gr.Button("Generate Report", variant="secondary")
                 
                 result_text = gr.Markdown(label="Prediction Results")
             
@@ -333,7 +333,7 @@ This demo shows the core explainability features:
         
         gr.Markdown("""
 ---
-⚠️ **Research Tool Notice:** This is a demonstration using synthetic data. 
+**Research Tool Notice:** This is a demonstration using synthetic data. 
 In production:
 - Real WSI files are processed with Path Foundation embeddings
 - MedGemma generates detailed tumor board reports

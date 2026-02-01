@@ -170,7 +170,7 @@ def main():
         print("=" * 50)
         train_demo_model(args.output_dir, Path("models/demo_clam.pt"))
     
-    print("\n✅ Demo data created successfully!")
+    print("\nDemo data created successfully!")
     print(f"\nTo test the UI with demo data:")
     print(f"  python -m enso_atlas.ui.app")
 

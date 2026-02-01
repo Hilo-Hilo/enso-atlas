@@ -161,7 +161,7 @@ def create_app(config_path: Optional[str] = None):
         
         gr.Markdown(
             """
-            # 🔬 Enso Atlas
+            # Enso Atlas
             ### On-Prem Pathology Evidence Engine for Treatment-Response Insight
             
             Upload a whole-slide image (WSI) to analyze treatment response prediction with interpretable evidence.
@@ -183,7 +183,7 @@ def create_app(config_path: Optional[str] = None):
                 )
                 
                 analyze_btn = gr.Button(
-                    "🔍 Analyze Slide",
+                    "Analyze Slide",
                     variant="primary",
                     size="lg",
                 )
@@ -224,7 +224,7 @@ def create_app(config_path: Optional[str] = None):
                 gr.Markdown("## Tumor Board Report")
                 
                 report_btn = gr.Button(
-                    "📋 Generate Report",
+                    "Generate Report",
                     variant="secondary",
                 )
                 
@@ -248,7 +248,7 @@ def create_app(config_path: Optional[str] = None):
         gr.Markdown(
             """
             ---
-            ⚠️ **Safety Notice:** This is a research decision-support tool, not a medical device. 
+            **Safety Notice:** This is a research decision-support tool, not a medical device. 
             All predictions and reports require validation by qualified pathologists. 
             Do not use for standalone clinical decision-making.
             
