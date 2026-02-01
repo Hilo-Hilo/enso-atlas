@@ -19,6 +19,40 @@ Enso Atlas is an on-premise pathology evidence engine that analyzes whole-slide 
 
 ---
 
+## Screenshots
+
+### Main Application View
+
+![Main View](docs/screenshots/main-view.png)
+
+*Enso Atlas main interface showing the case selection panel, WSI viewer, and analysis panels.*
+
+### Analysis Results with Prediction Panel
+
+![Analysis Results](docs/screenshots/analysis-results.png)
+
+*Complete analysis showing NON-RESPONDER prediction with high confidence (100%), response probability bar, and evidence patches grid.*
+
+### WSI Viewer with Heatmap Overlay
+
+![WSI Viewer](docs/screenshots/wsi-viewer.png)
+
+*OpenSeadragon-based whole-slide image viewer with attention heatmap overlay toggle, zoom controls, and minimap navigation.*
+
+### Similar Cases Panel
+
+![Similar Cases](docs/screenshots/similar-cases.png)
+
+*FAISS-powered similar case retrieval showing morphologically similar cases from the reference cohort with similarity scores.*
+
+### Prediction and Evidence Panels
+
+![Prediction Panel](docs/screenshots/prediction-panel.png)
+
+*Detailed view showing the prediction results (confidence score, response probability threshold), evidence patches ranked by attention weight, and calibration notes.*
+
+---
+
 ## Quick Start
 
 ### Prerequisites
