@@ -28,6 +28,9 @@ export interface PatchCoordinates {
   height: number;
 }
 
+// Tissue type classification
+export type TissueType = "tumor" | "stroma" | "necrosis" | "inflammatory" | "normal" | "artifact" | "unknown";
+
 // Evidence patch with attention weight
 export interface EvidencePatch {
   id: string;
@@ -36,6 +39,8 @@ export interface EvidencePatch {
   attentionWeight: number;
   thumbnailUrl: string;
   morphologyDescription?: string;
+  tissueType?: TissueType;
+  tissueConfidence?: number;
 }
 
 // Similar case from FAISS retrieval

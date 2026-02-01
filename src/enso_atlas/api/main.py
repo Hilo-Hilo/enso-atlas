@@ -364,6 +364,51 @@ def create_app(
 
         return slides
 
+    # Tissue type constants for classification
+    TISSUE_TYPES = ["tumor", "stroma", "necrosis", "inflammatory", "normal", "artifact"]
+    TISSUE_DESCRIPTIONS = {
+        "tumor": "Region appears to contain tumor tissue with atypical cellular morphology",
+        "stroma": "Region shows stromal tissue with fibrous connective tissue patterns",
+        "necrosis": "Region displays necrotic tissue with cell death indicators",
+        "inflammatory": "Region contains inflammatory infiltrate with immune cell presence",
+        "normal": "Region appears to contain normal tissue architecture",
+        "artifact": "Region may contain processing artifacts or technical issues",
+    }
+
+    def classify_tissue_type(x: int, y: int, patch_index: Optional[int] = None) -> dict:
+        """Classify tissue type of a region. Mock implementation - deterministic based on coordinates."""
+        # Use patch_index if provided for more consistent results, otherwise use coordinates
+        if patch_index is not None:
+            idx = patch_index % len(TISSUE_TYPES)
+        else:
+            idx = (x + y) % len(TISSUE_TYPES)
+        tissue_type = TISSUE_TYPES[idx]
+        # Generate confidence based on hash for variety (0.70 - 0.95 range)
+        confidence = 0.70 + ((x * 7 + y * 13) % 26) / 100.0
+        return {
+            "tissue_type": tissue_type,
+            "confidence": round(confidence, 2),
+            "description": TISSUE_DESCRIPTIONS[tissue_type],
+        }
+
+    @app.post("/api/classify-region", response_model=ClassifyRegionResponse)
+    async def classify_region(request: ClassifyRegionRequest):
+        """Classify tissue type of a region.
+
+        In production, this would use a trained tissue classifier model.
+        Current implementation is deterministic based on coordinates for demo purposes.
+
+        Tissue types:
+        - tumor: Neoplastic cells with atypical morphology
+        - stroma: Fibrous connective tissue
+        - necrosis: Dead/dying tissue
+        - inflammatory: Immune cell infiltrates
+        - normal: Healthy tissue architecture
+        - artifact: Technical issues (blur, folds, etc.)
+        """
+        result = classify_tissue_type(request.x, request.y, request.patch_index)
+        return ClassifyRegionResponse(**result)
+
     @app.post("/api/analyze", response_model=AnalyzeResponse)
     async def analyze_slide(request: AnalyzeRequest):
         """Analyze a slide and return prediction with evidence."""
@@ -384,16 +429,32 @@ def create_app(
         label = "RESPONDER" if score > 0.5 else "NON-RESPONDER"
         confidence = abs(score - 0.5) * 2
 
+        # Load coordinates if available for tissue classification
+        coord_path = embeddings_dir / f"{slide_id}_coords.npy"
+        coords = None
+        if coord_path.exists():
+            coords = np.load(coord_path)
+
         # Get top evidence patches
         top_k = min(8, len(attention))
         top_indices = np.argsort(attention)[-top_k:][::-1]
 
         top_evidence = []
         for i, idx in enumerate(top_indices):
+            # Get coordinates for this patch
+            patch_x = int(coords[idx][0]) if coords is not None else 0
+            patch_y = int(coords[idx][1]) if coords is not None else 0
+
+            # Classify tissue type for this patch
+            tissue_info = classify_tissue_type(patch_x, patch_y, int(idx))
+
             top_evidence.append({
                 "rank": i + 1,
                 "patch_index": int(idx),
                 "attention_weight": float(attention[idx]),
+                "coordinates": [patch_x, patch_y],
+                "tissue_type": tissue_info["tissue_type"],
+                "tissue_confidence": tissue_info["confidence"],
             })
 
         # Get similar cases using FAISS

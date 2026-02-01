@@ -285,7 +285,7 @@ export function ReportPanel({
               <p className="text-xs text-blue-700 leading-relaxed">
                 <strong>Interpretation guidance:</strong> These recommendations are generated 
                 based on the morphological patterns identified by the model. They should be 
-                evaluated in the context of the patient's complete clinical picture, imaging 
+                evaluated in the context of the patient&apos;s complete clinical picture, imaging 
                 findings, and other laboratory results.
               </p>
             </div>

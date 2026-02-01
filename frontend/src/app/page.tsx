@@ -585,50 +585,89 @@ export default function HomePage() {
           <CaseNotesPanel slideId={selectedSlide?.id ?? null} />
         </aside>
 
-        {/* Center - WSI Viewer */}
+        {/* Center - WSI Viewer or Oncologist Summary */}
         <section
           ref={viewerRef as React.RefObject<HTMLElement>}
           tabIndex={-1}
-          className="flex-1 p-4 overflow-hidden focus:outline-none focus:ring-2 focus:ring-inset focus:ring-clinical-500"
+          className="flex-1 flex flex-col overflow-hidden focus:outline-none focus:ring-2 focus:ring-inset focus:ring-clinical-500"
         >
-          {selectedSlide && dziUrl ? (
-            <WSIViewer
-              slideId={selectedSlide.id}
-              dziUrl={dziUrl}
-              heatmap={heatmapData}
-              mpp={selectedSlide.mpp}
-              onRegionClick={handlePatchClick}
-              className="h-full"
-            />
-          ) : (
-            <div className="h-full flex items-center justify-center bg-gray-100 rounded-lg border-2 border-dashed border-gray-300">
-              <div className="text-center">
-                <div className="w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <svg
-                    className="w-8 h-8 text-gray-400"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
-                    />
-                  </svg>
-                </div>
-                <h3 className="text-lg font-medium text-gray-900 mb-1">
-                  No Slide Selected
-                </h3>
-                <p className="text-sm text-gray-500 max-w-sm">
-                  Select a whole-slide image from the sidebar to begin analysis.
-                  The slide will be displayed here with interactive viewing and
-                  heatmap overlay capabilities.
-                </p>
+          {/* View Mode Toggle */}
+          {selectedSlide && analysisResult && (
+            <div className="flex items-center justify-center gap-2 p-2 bg-white border-b border-gray-200">
+              <span className="text-xs text-gray-500 mr-2">View Mode:</span>
+              <div className="flex items-center bg-gray-100 rounded-lg p-1">
+                <button
+                  onClick={() => setViewMode("wsi")}
+                  className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
+                    viewMode === "wsi"
+                      ? "bg-white text-clinical-700 shadow-sm"
+                      : "text-gray-600 hover:text-gray-900"
+                  }`}
+                >
+                  Full WSI Viewer
+                </button>
+                <button
+                  onClick={() => setViewMode("summary")}
+                  className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
+                    viewMode === "summary"
+                      ? "bg-white text-clinical-700 shadow-sm"
+                      : "text-gray-600 hover:text-gray-900"
+                  }`}
+                >
+                  Oncologist Summary
+                </button>
               </div>
             </div>
           )}
+
+          {/* Content Area */}
+          <div className="flex-1 p-4 overflow-hidden">
+            {viewMode === "summary" && analysisResult ? (
+              <OncologistSummaryView
+                analysisResult={analysisResult}
+                report={report}
+                onPatchZoom={handlePatchZoom}
+                onSwitchToFullView={() => setViewMode("wsi")}
+              />
+            ) : selectedSlide && dziUrl ? (
+              <WSIViewer
+                slideId={selectedSlide.id}
+                dziUrl={dziUrl}
+                heatmap={heatmapData}
+                mpp={selectedSlide.mpp}
+                onRegionClick={handlePatchClick}
+                className="h-full"
+              />
+            ) : (
+              <div className="h-full flex items-center justify-center bg-gray-100 rounded-lg border-2 border-dashed border-gray-300">
+                <div className="text-center">
+                  <div className="w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <svg
+                      className="w-8 h-8 text-gray-400"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                      />
+                    </svg>
+                  </div>
+                  <h3 className="text-lg font-medium text-gray-900 mb-1">
+                    No Slide Selected
+                  </h3>
+                  <p className="text-sm text-gray-500 max-w-sm">
+                    Select a whole-slide image from the sidebar to begin analysis.
+                    The slide will be displayed here with interactive viewing and
+                    heatmap overlay capabilities.
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
         </section>
 
         {/* Right Sidebar - Results */}
