@@ -4,6 +4,8 @@ Train CLAM Attention MIL model on TCGA Ovarian Cancer Treatment Response data.
 
 Uses leave-one-out cross-validation given the small dataset (5 slides).
 Saves best model to models/clam_ovarian.pt
+
+Architecture matches src/enso_atlas/mil/clam.py CLAMClassifier exactly.
 """
 
 import sys
@@ -38,12 +40,44 @@ class TrainingConfig:
     patience: int = 20
 
 
-class CLAMModel(nn.Module):
-    """CLAM model with gated attention for MIL."""
+class GatedAttention(nn.Module):
+    """Gated attention mechanism for CLAM - matches clam.py exactly."""
 
     def __init__(self, input_dim: int, hidden_dim: int, n_heads: int = 1, dropout: float = 0.25):
         super().__init__()
         self.n_heads = n_heads
+
+        self.attention_V = nn.Sequential(
+            nn.Linear(input_dim, hidden_dim),
+            nn.Tanh()
+        )
+
+        self.attention_U = nn.Sequential(
+            nn.Linear(input_dim, hidden_dim),
+            nn.Sigmoid()
+        )
+
+        self.attention_weights = nn.Linear(hidden_dim, n_heads)
+        self.dropout = nn.Dropout(dropout)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        # x: (n_patches, input_dim)
+        V = self.attention_V(x)  # (n_patches, hidden_dim)
+        U = self.attention_U(x)  # (n_patches, hidden_dim)
+
+        # Gated attention
+        A = self.attention_weights(V * U)  # (n_patches, n_heads)
+        A = torch.softmax(A, dim=0)  # Normalize over patches
+
+        return A
+
+
+class CLAMModel(nn.Module):
+    """Full CLAM model with gated attention and instance clustering - matches clam.py exactly."""
+
+    def __init__(self, input_dim: int, hidden_dim: int, n_heads: int, dropout: float, n_classes: int = 2):
+        super().__init__()
+        self.n_classes = n_classes
 
         # Feature transformation
         self.feature_extractor = nn.Sequential(
@@ -53,15 +87,12 @@ class CLAMModel(nn.Module):
         )
 
         # Gated attention
-        self.attention_V = nn.Sequential(
-            nn.Linear(hidden_dim, hidden_dim // 2),
-            nn.Tanh()
-        )
-        self.attention_U = nn.Sequential(
-            nn.Linear(hidden_dim, hidden_dim // 2),
-            nn.Sigmoid()
-        )
-        self.attention_weights = nn.Linear(hidden_dim // 2, n_heads)
+        self.attention = GatedAttention(hidden_dim, hidden_dim // 2, n_heads, dropout)
+
+        # Instance-level classifier (for pseudo-labels)
+        self.instance_classifier = nn.ModuleList([
+            nn.Linear(hidden_dim, 2) for _ in range(n_classes)
+        ])
 
         # Bag-level classifier
         self.bag_classifier = nn.Sequential(
@@ -86,11 +117,8 @@ class CLAMModel(nn.Module):
         # Transform features
         h = self.feature_extractor(x)  # (n_patches, hidden_dim)
 
-        # Gated attention
-        V = self.attention_V(h)
-        U = self.attention_U(h)
-        A = self.attention_weights(V * U)  # (n_patches, n_heads)
-        A = torch.softmax(A, dim=0)  # Normalize over patches
+        # Compute attention
+        A = self.attention(h)  # (n_patches, n_heads)
 
         # Aggregate with attention
         M = torch.mm(A.T, h)  # (n_heads, hidden_dim)
@@ -100,7 +128,8 @@ class CLAMModel(nn.Module):
         prob = self.bag_classifier(M)
 
         if return_attention:
-            attn_weights = A.mean(dim=1)  # Average across heads
+            # Average attention across heads
+            attn_weights = A.mean(dim=1)  # (n_patches,)
             return prob, attn_weights
 
         return prob, None
@@ -431,31 +460,31 @@ def main():
     torch.save(final_model.state_dict(), output_path)
     logger.info(f"\nSaved trained model to {output_path}")
 
-    # Verify model loads correctly
-    test_model = CLAMModel(
+    # Verify model loads correctly with the existing CLAMClassifier
+    logger.info("\nVerifying model compatibility with CLAMClassifier...")
+    from enso_atlas.config import MILConfig
+    from enso_atlas.mil.clam import CLAMClassifier
+
+    mil_config = MILConfig(
         input_dim=config.input_dim,
         hidden_dim=config.hidden_dim,
-        n_heads=config.attention_heads,
+        attention_heads=config.attention_heads,
         dropout=config.dropout
     )
-    test_model.load_state_dict(torch.load(output_path))
-    test_model.eval()
-    logger.info("Model verified: loads correctly")
+    classifier = CLAMClassifier(mil_config)
+    classifier.load(output_path)
+    logger.info("Model verified: compatible with CLAMClassifier")
 
     # Final predictions with trained model
     logger.info(f"\n{'='*60}")
-    logger.info("FINAL MODEL PREDICTIONS (trained on all data)")
+    logger.info("FINAL MODEL PREDICTIONS (via CLAMClassifier)")
     logger.info(f"{'='*60}")
 
-    test_model.to(device)
-    with torch.no_grad():
-        for emb, label, slide_id in zip(embeddings_list, labels, slide_ids):
-            x = torch.from_numpy(emb).float().to(device)
-            pred, attn = test_model(x)
-            pred_prob = pred.item()
-            pred_class = "responder" if pred_prob > 0.5 else "non-responder"
-            true_class = "responder" if label == 1 else "non-responder"
-            logger.info(f"  {slide_id}: pred={pred_prob:.4f} ({pred_class}), true={true_class}")
+    for emb, label, slide_id in zip(embeddings_list, labels, slide_ids):
+        prob, attn = classifier.predict(emb)
+        pred_class = "responder" if prob > 0.5 else "non-responder"
+        true_class = "responder" if label == 1 else "non-responder"
+        logger.info(f"  {slide_id}: pred={prob:.4f} ({pred_class}), true={true_class}")
 
 
 if __name__ == "__main__":
