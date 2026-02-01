@@ -52,13 +52,6 @@ const TISSUE_TYPES: Record<TissueType, { label: string; color: string; bgColor: 
   unknown: { label: "Unclassified", color: "text-gray-500", bgColor: "bg-gray-100" },
 };
 
-// Ordinal likelihood
-function getLikelihood(score: number): { label: string; color: string } {
-  if (score >= 0.7) return { label: "High Likelihood", color: "text-green-700" };
-  if (score >= 0.4) return { label: "Medium Likelihood", color: "text-amber-700" };
-  return { label: "Low Likelihood", color: "text-red-700" };
-}
-
 export function OncologistSummaryView({
   analysisResult,
   report,
@@ -83,7 +76,6 @@ export function OncologistSummaryView({
 
   const { prediction, evidencePatches } = analysisResult;
   const isResponder = prediction.score >= 0.5;
-  const likelihood = getLikelihood(prediction.score);
   const topPatches = evidencePatches.slice(0, 3);
 
   // Group similar cases by outcome
@@ -148,8 +140,8 @@ export function OncologistSummaryView({
               )}>
                 {prediction.label}
               </h3>
-              <p className={cn("text-lg font-semibold", likelihood.color)}>
-                {likelihood.label}
+              <p className="text-lg font-mono font-semibold text-gray-700">
+                {Math.round(prediction.score * 100)}% <span className="text-sm font-normal text-gray-500">raw score</span>
               </p>
             </div>
           </div>

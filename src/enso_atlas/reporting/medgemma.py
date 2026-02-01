@@ -123,6 +123,39 @@ class MedGemmaReporter:
         self._model.eval()
         logger.info("MedGemma model loaded successfully")
 
+    def _format_patient_context(self, patient_context: Optional[Dict]) -> str:
+        """Format patient context into a clinical description."""
+        if not patient_context:
+            return "No patient demographics available."
+
+        parts = []
+        if patient_context.get("age"):
+            parts.append(f"{patient_context['age']}-year-old")
+        if patient_context.get("sex"):
+            sex_full = "female" if patient_context["sex"].upper() == "F" else "male" if patient_context["sex"].upper() == "M" else patient_context["sex"]
+            parts.append(sex_full)
+
+        desc = " ".join(parts) if parts else "Patient"
+
+        clinical_parts = []
+        if patient_context.get("stage"):
+            clinical_parts.append(f"Stage {patient_context['stage']}")
+        if patient_context.get("grade"):
+            clinical_parts.append(f"{patient_context['grade']} grade")
+        if patient_context.get("histology"):
+            clinical_parts.append(patient_context["histology"])
+        if clinical_parts:
+            desc += " with " + ", ".join(clinical_parts)
+
+        if patient_context.get("prior_lines") is not None:
+            lines = patient_context["prior_lines"]
+            if lines == 0:
+                desc += ". Treatment-naive."
+            else:
+                desc += f". {lines} prior line{'s' if lines > 1 else ''} of therapy."
+
+        return desc
+
     def _build_prompt(
         self,
         evidence_patches: List[Dict],
@@ -130,8 +163,12 @@ class MedGemmaReporter:
         label: str,
         similar_cases: List[Dict],
         case_id: str = "unknown",
+        patient_context: Optional[Dict] = None,
     ) -> str:
         """Build the prompt for MedGemma."""
+
+        # Format patient context
+        patient_desc = self._format_patient_context(patient_context)
 
         # Build evidence description
         evidence_text = "\n".join([
@@ -160,6 +197,9 @@ class MedGemmaReporter:
         prompt = f"""You are a medical AI assistant helping prepare a tumor board summary for a pathology case. You must be cautious, factual, and clearly state limitations.
 
 CASE ID: {case_id}
+
+PATIENT CONTEXT:
+{patient_desc}
 
 MODEL PREDICTION:
 - Classification: {label}
@@ -274,6 +314,7 @@ Generate the JSON report:"""
         similar_cases: List[Dict],
         case_id: str = "unknown",
         max_retries: int = 2,
+        patient_context: Optional[Dict] = None,
     ) -> Dict:
         """
         Generate a structured report.
@@ -285,6 +326,7 @@ Generate the JSON report:"""
             similar_cases: List of similar case dicts
             case_id: Case identifier
             max_retries: Number of retries on failure
+            patient_context: Patient demographic/clinical context
 
         Returns:
             Structured report dictionary
@@ -294,7 +336,7 @@ Generate the JSON report:"""
         import torch
 
         prompt = self._build_prompt(
-            evidence_patches, score, label, similar_cases, case_id
+            evidence_patches, score, label, similar_cases, case_id, patient_context
         )
 
         for attempt in range(max_retries + 1):

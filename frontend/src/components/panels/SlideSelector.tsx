@@ -25,10 +25,13 @@ import {
   ShieldCheck,
   ShieldAlert,
   ShieldX,
+  User,
+  Calendar,
+  Activity,
 } from "lucide-react";
 import { getSlides, getSlideQC } from "@/lib/api";
 import { ANALYSIS_STEPS } from "@/hooks/useAnalysis";
-import type { SlideInfo, SlideQCMetrics } from "@/types";
+import type { SlideInfo, SlideQCMetrics, PatientContext } from "@/types";
 
 interface SlideSelectorProps {
   selectedSlideId: string | null;
@@ -333,6 +336,55 @@ export function SlideSelector({
                 </div>
               )}
             </div>
+
+            {/* Patient Demographics Card */}
+            {selectedSlide.patient && (
+              <div className="mt-3 p-3 bg-white border border-clinical-200 rounded-lg">
+                <div className="flex items-center gap-2 mb-2">
+                  <User className="h-3.5 w-3.5 text-clinical-600" />
+                  <span className="text-xs font-semibold text-clinical-800">Patient Context</span>
+                </div>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs">
+                  {selectedSlide.patient.age && (
+                    <div className="flex items-center gap-1.5 text-gray-700">
+                      <Calendar className="h-3 w-3 text-gray-400" />
+                      <span>Age: {selectedSlide.patient.age}</span>
+                    </div>
+                  )}
+                  {selectedSlide.patient.sex && (
+                    <div className="flex items-center gap-1.5 text-gray-700">
+                      <User className="h-3 w-3 text-gray-400" />
+                      <span>Sex: {selectedSlide.patient.sex}</span>
+                    </div>
+                  )}
+                  {selectedSlide.patient.stage && (
+                    <div className="flex items-center gap-1.5 text-gray-700">
+                      <Activity className="h-3 w-3 text-gray-400" />
+                      <span>Stage: {selectedSlide.patient.stage}</span>
+                    </div>
+                  )}
+                  {selectedSlide.patient.grade && (
+                    <div className="flex items-center gap-1.5 text-gray-700">
+                      <Hash className="h-3 w-3 text-gray-400" />
+                      <span>Grade: {selectedSlide.patient.grade}</span>
+                    </div>
+                  )}
+                  {selectedSlide.patient.prior_lines !== undefined && (
+                    <div className="flex items-center gap-1.5 text-gray-700 col-span-2">
+                      <Activity className="h-3 w-3 text-gray-400" />
+                      <span>Prior Lines: {selectedSlide.patient.prior_lines}</span>
+                    </div>
+                  )}
+                  {selectedSlide.patient.histology && (
+                    <div className="col-span-2 mt-1">
+                      <Badge variant="info" size="sm">
+                        {selectedSlide.patient.histology}
+                      </Badge>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         )}
 

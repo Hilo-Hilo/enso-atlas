@@ -24,33 +24,6 @@ import {
 import type { PredictionResult, SlideQCMetrics } from "@/types";
 import { ANALYSIS_STEPS } from "@/hooks/useAnalysis";
 
-// Helper function to convert raw score to ordinal likelihood category
-function getLikelihoodCategory(score: number): {
-  label: string;
-  description: string;
-  variant: "high" | "medium" | "low";
-} {
-  if (score >= 0.7) {
-    return {
-      label: "High Likelihood",
-      description: "Strong indication of positive treatment response",
-      variant: "high",
-    };
-  } else if (score >= 0.4) {
-    return {
-      label: "Moderate Likelihood",
-      description: "Uncertain response - consider additional factors",
-      variant: "medium",
-    };
-  } else {
-    return {
-      label: "Low Likelihood",
-      description: "Limited indication of positive treatment response",
-      variant: "low",
-    };
-  }
-}
-
 interface PredictionPanelProps {
   prediction: PredictionResult | null;
   isLoading?: boolean;
@@ -187,9 +160,6 @@ export function PredictionPanel({
     low: "Low Confidence",
   };
 
-  // Ordinal likelihood category (instead of raw %)
-  const likelihood = getLikelihoodCategory(prediction.score);
-
   return (
     <Card>
       <CardHeader>
@@ -259,32 +229,17 @@ export function PredictionPanel({
             </Badge>
           </div>
 
-          {/* Ordinal Likelihood Display (instead of raw probability) */}
+          {/* Raw Score Display */}
           <div className="space-y-2">
             <div className="flex items-center gap-2">
-              <span
-                className={cn(
-                  "text-2xl font-bold",
-                  likelihood.variant === "high"
-                    ? "text-green-700"
-                    : likelihood.variant === "medium"
-                    ? "text-amber-700"
-                    : "text-red-700"
-                )}
-              >
-                {likelihood.label}
+              <span className="text-2xl font-bold font-mono text-gray-900">
+                {probabilityPercent}%
               </span>
+              <span className="text-sm text-gray-500">raw score</span>
             </div>
-            <p className="text-sm text-gray-600">{likelihood.description}</p>
-          </div>
-
-          {/* Raw score shown smaller with warning */}
-          <div className="mt-3 pt-3 border-t border-gray-200">
-            <div className="flex items-center gap-2 text-xs text-gray-500">
-              <AlertTriangle className="h-3 w-3" />
-              <span>
-                Raw model output: {probabilityPercent}% (uncalibrated, do not interpret as true probability)
-              </span>
+            <div className="flex items-center gap-2 text-xs text-amber-700 bg-amber-50 px-2 py-1 rounded">
+              <AlertTriangle className="h-3 w-3 shrink-0" />
+              <span>Uncalibrated - do not interpret as true probability</span>
             </div>
           </div>
         </div>

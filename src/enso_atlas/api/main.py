@@ -7,6 +7,7 @@ Provides REST API endpoints for the professional frontend:
 - Similar case retrieval (FAISS)
 - Report generation (MedGemma)
 - Patch embedding (Path Foundation)
+- Analysis history and audit trail
 """
 
 from pathlib import Path
@@ -15,6 +16,8 @@ import logging
 import json
 import base64
 import io
+from datetime import datetime
+from collections import deque
 
 import numpy as np
 from PIL import Image
@@ -25,6 +28,67 @@ from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
+
+
+# Analysis History Storage
+# In-memory deque for fast access, limited to 100 entries
+MAX_HISTORY_SIZE = 100
+analysis_history: deque = deque(maxlen=MAX_HISTORY_SIZE)
+audit_log: deque = deque(maxlen=500)  # Audit trail for compliance
+
+
+def get_timestamp() -> str:
+    """Get current ISO timestamp."""
+    return datetime.utcnow().isoformat() + "Z"
+
+
+def log_audit_event(
+    event_type: str,
+    slide_id: Optional[str] = None,
+    user_id: str = "clinician",
+    details: Optional[Dict[str, Any]] = None,
+):
+    """Log an audit event for compliance tracking."""
+    entry = {
+        "timestamp": get_timestamp(),
+        "event_type": event_type,
+        "user_id": user_id,
+        "slide_id": slide_id,
+        "details": details or {},
+    }
+    audit_log.append(entry)
+    logger.info(f"AUDIT: {event_type} - slide={slide_id} user={user_id}")
+
+
+def save_analysis_to_history(
+    slide_id: str,
+    prediction: str,
+    score: float,
+    confidence: float,
+    patches_analyzed: int,
+    top_evidence: List[Dict[str, Any]],
+    similar_cases: List[Dict[str, Any]],
+    user_id: str = "clinician",
+) -> Dict[str, Any]:
+    """Save analysis result to history and return the entry."""
+    entry = {
+        "id": f"{slide_id}_{datetime.utcnow().strftime('%Y%m%d%H%M%S%f')}",
+        "timestamp": get_timestamp(),
+        "slide_id": slide_id,
+        "user_id": user_id,
+        "prediction": prediction,
+        "score": score,
+        "confidence": confidence,
+        "patches_analyzed": patches_analyzed,
+        "top_evidence_count": len(top_evidence),
+        "similar_cases_count": len(similar_cases),
+    }
+    analysis_history.append(entry)
+    log_audit_event("analysis_completed", slide_id, user_id, {
+        "prediction": prediction,
+        "confidence": confidence,
+    })
+    return entry
 
 
 def _check_cuda() -> bool:
@@ -142,6 +206,41 @@ class SimilarResponse(BaseModel):
     slide_id: str
     similar_cases: List[Dict[str, Any]]
     num_queries: int
+
+
+class AnalysisHistoryEntry(BaseModel):
+    """Single analysis history entry."""
+    id: str
+    timestamp: str
+    slide_id: str
+    user_id: str
+    prediction: str
+    score: float
+    confidence: float
+    patches_analyzed: int
+    top_evidence_count: int
+    similar_cases_count: int
+
+
+class AnalysisHistoryResponse(BaseModel):
+    """Response containing analysis history."""
+    analyses: List[AnalysisHistoryEntry]
+    total: int
+
+
+class AuditLogEntry(BaseModel):
+    """Single audit log entry."""
+    timestamp: str
+    event_type: str
+    user_id: str
+    slide_id: Optional[str] = None
+    details: Dict[str, Any] = Field(default_factory=dict)
+
+
+class AuditLogResponse(BaseModel):
+    """Response containing audit log entries."""
+    entries: List[AuditLogEntry]
+    total: int
 
 
 class SemanticSearchRequest(BaseModel):
@@ -534,6 +633,17 @@ def create_app(
                             "similarity_score": float(np.random.uniform(0.7, 0.95)),
                         })
 
+        # Save to analysis history for audit trail
+        save_analysis_to_history(
+            slide_id=slide_id,
+            prediction=label,
+            score=float(score),
+            confidence=float(confidence),
+            patches_analyzed=len(embeddings),
+            top_evidence=top_evidence,
+            similar_cases=similar_cases[:5],
+        )
+
         return AnalyzeResponse(
             slide_id=slide_id,
             prediction=label,
@@ -543,6 +653,191 @@ def create_app(
             top_evidence=top_evidence,
             similar_cases=similar_cases[:5],
         )
+
+    # ====== Analysis History Endpoints ======
+
+    @app.get("/api/history", response_model=AnalysisHistoryResponse)
+    async def get_analysis_history(
+        limit: int = 50,
+        offset: int = 0,
+        slide_id: Optional[str] = None,
+        prediction: Optional[str] = None,
+    ):
+        """
+        Get recent analysis history.
+
+        Args:
+            limit: Maximum number of entries to return (default 50, max 100)
+            offset: Number of entries to skip
+            slide_id: Filter by specific slide ID
+            prediction: Filter by prediction result (RESPONDER/NON-RESPONDER)
+
+        Returns:
+            List of analysis history entries, most recent first.
+        """
+        # Convert deque to list for filtering and slicing
+        all_entries = list(analysis_history)
+
+        # Apply filters
+        if slide_id:
+            all_entries = [e for e in all_entries if e["slide_id"] == slide_id]
+        if prediction:
+            all_entries = [e for e in all_entries if e["prediction"] == prediction.upper()]
+
+        # Sort by timestamp descending (most recent first)
+        all_entries.sort(key=lambda x: x["timestamp"], reverse=True)
+
+        # Apply pagination
+        limit = min(limit, 100)
+        paginated = all_entries[offset:offset + limit]
+
+        return AnalysisHistoryResponse(
+            analyses=[AnalysisHistoryEntry(**e) for e in paginated],
+            total=len(all_entries),
+        )
+
+    @app.get("/api/slides/{slide_id}/history", response_model=AnalysisHistoryResponse)
+    async def get_slide_history(slide_id: str, limit: int = 20):
+        """
+        Get analysis history for a specific slide.
+
+        Args:
+            slide_id: The slide ID to get history for
+            limit: Maximum number of entries to return (default 20)
+
+        Returns:
+            List of analysis history entries for this slide, most recent first.
+        """
+        # Filter entries for this slide
+        slide_entries = [e for e in analysis_history if e["slide_id"] == slide_id]
+
+        # Sort by timestamp descending
+        slide_entries.sort(key=lambda x: x["timestamp"], reverse=True)
+
+        # Apply limit
+        limit = min(limit, 50)
+        paginated = slide_entries[:limit]
+
+        return AnalysisHistoryResponse(
+            analyses=[AnalysisHistoryEntry(**e) for e in paginated],
+            total=len(slide_entries),
+        )
+
+    @app.get("/api/audit-log", response_model=AuditLogResponse)
+    async def get_audit_log(
+        limit: int = 100,
+        offset: int = 0,
+        event_type: Optional[str] = None,
+        slide_id: Optional[str] = None,
+    ):
+        """
+        Get audit log entries for compliance tracking.
+
+        Event types:
+        - analysis_completed: Slide analysis was run
+        - report_generated: Clinical report was generated
+        - pdf_exported: Report was exported as PDF
+        - json_exported: Report was exported as JSON
+
+        Args:
+            limit: Maximum number of entries to return (default 100)
+            offset: Number of entries to skip
+            event_type: Filter by event type
+            slide_id: Filter by slide ID
+
+        Returns:
+            List of audit log entries, most recent first.
+        """
+        all_entries = list(audit_log)
+
+        # Apply filters
+        if event_type:
+            all_entries = [e for e in all_entries if e["event_type"] == event_type]
+        if slide_id:
+            all_entries = [e for e in all_entries if e.get("slide_id") == slide_id]
+
+        # Sort by timestamp descending
+        all_entries.sort(key=lambda x: x["timestamp"], reverse=True)
+
+        # Apply pagination
+        limit = min(limit, 500)
+        paginated = all_entries[offset:offset + limit]
+
+        return AuditLogResponse(
+            entries=[AuditLogEntry(**e) for e in paginated],
+            total=len(all_entries),
+        )
+
+    def _load_patient_context(slide_id: str) -> Optional[Dict[str, Any]]:
+        """Load patient context from labels.csv for a given slide."""
+        labels_path = embeddings_dir.parent / "labels.csv"
+        if not labels_path.exists():
+            return None
+
+        import csv
+        with open(labels_path) as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                # Handle different CSV formats
+                if "slide_id" in row:
+                    sid = row["slide_id"]
+                else:
+                    slide_file = row.get("slide_file", "")
+                    sid = slide_file.replace(".svs", "").replace(".SVS", "")
+
+                if sid == slide_id:
+                    patient_ctx = {}
+                    if row.get("age"):
+                        try:
+                            patient_ctx["age"] = int(row["age"])
+                        except ValueError:
+                            pass
+                    if row.get("sex"):
+                        patient_ctx["sex"] = row["sex"]
+                    if row.get("stage"):
+                        patient_ctx["stage"] = row["stage"]
+                    if row.get("grade"):
+                        patient_ctx["grade"] = row["grade"]
+                    if row.get("prior_treatments"):
+                        try:
+                            patient_ctx["prior_lines"] = int(row["prior_treatments"])
+                        except ValueError:
+                            pass
+                    if row.get("histology"):
+                        patient_ctx["histology"] = row["histology"]
+                    return patient_ctx if patient_ctx else None
+        return None
+
+    def _format_patient_summary(patient_ctx: Optional[Dict[str, Any]]) -> str:
+        """Format patient context into a clinical summary sentence."""
+        if not patient_ctx:
+            return ""
+
+        parts = []
+        if patient_ctx.get("age"):
+            parts.append(f"{patient_ctx['age']}-year-old")
+        if patient_ctx.get("sex"):
+            sex_full = "female" if patient_ctx["sex"].upper() == "F" else "male" if patient_ctx["sex"].upper() == "M" else patient_ctx["sex"]
+            parts.append(sex_full)
+
+        summary = " ".join(parts) if parts else "Patient"
+
+        clinical_parts = []
+        if patient_ctx.get("stage"):
+            clinical_parts.append(f"Stage {patient_ctx['stage']}")
+        if patient_ctx.get("histology"):
+            clinical_parts.append(patient_ctx["histology"].lower())
+        if clinical_parts:
+            summary += " with " + " ".join(clinical_parts)
+
+        if patient_ctx.get("prior_lines") is not None:
+            lines = patient_ctx["prior_lines"]
+            if lines == 0:
+                summary += ", treatment-naive"
+            else:
+                summary += f", {lines} prior line{'s' if lines > 1 else ''} of therapy"
+
+        return summary
 
     @app.post("/api/report", response_model=ReportResponse)
     async def generate_report(request: ReportRequest):
@@ -560,6 +855,9 @@ def create_app(
         embeddings = np.load(emb_path)
         score, attention = classifier.predict(embeddings)
         label = "responder" if score > 0.5 else "non-responder"
+
+        # Load patient context
+        patient_ctx = _load_patient_context(slide_id)
 
         # Get top evidence patches with coordinates
         top_k = min(8, len(attention))
@@ -601,6 +899,7 @@ def create_app(
                     label=label,
                     similar_cases=similar_cases,
                     case_id=slide_id,
+                    patient_context=patient_ctx,
                 )
 
                 return ReportResponse(
@@ -611,10 +910,14 @@ def create_app(
             except Exception as e:
                 logger.warning(f"MedGemma report generation failed, using template: {e}")
 
+        # Format patient summary for report
+        patient_summary = _format_patient_summary(patient_ctx)
+
         # Fallback to template report
         report_json = {
             "case_id": slide_id,
             "task": "Bevacizumab treatment response prediction",
+            "patient_context": patient_ctx,
             "model_output": {
                 "label": label,
                 "probability": float(score),
@@ -636,7 +939,10 @@ def create_app(
             "safety_statement": "This is a research tool. All findings require validation by qualified pathologists.",
         }
 
-        summary_text = f"""Case: {slide_id}
+        # Build summary with patient context
+        patient_intro = f"{patient_summary}.\n\n" if patient_summary else ""
+
+        summary_text = f"""{patient_intro}Case: {slide_id}
 Prediction: {label.upper()}
 Score: {score:.3f}
 

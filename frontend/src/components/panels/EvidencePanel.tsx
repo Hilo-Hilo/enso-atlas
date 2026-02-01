@@ -387,32 +387,34 @@ export function EvidencePanel({
         )}
 
         {/* Patch Grid/List */}
-        {filteredPatches.length > 0 && viewMode === "grid" ? (
-          <div className="grid grid-cols-3 gap-2">
-            {visiblePatches.map((patch) => (
-              <PatchThumbnail
-                key={patch.id}
-                patch={patch}
-                rank={getRank(patch.id)}
-                isSelected={selectedPatchId === patch.id}
-                onClick={() => onPatchClick?.(patch.coordinates)}
-                onZoom={() => onPatchZoom?.(patch)}
-              />
-            ))}
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {visiblePatches.map((patch) => (
-              <PatchListItem
-                key={patch.id}
-                patch={patch}
-                rank={getRank(patch.id)}
-                isSelected={selectedPatchId === patch.id}
-                onClick={() => onPatchClick?.(patch.coordinates)}
-                onZoom={() => onPatchZoom?.(patch)}
-              />
-            ))}
-          </div>
+        {filteredPatches.length > 0 && (
+          viewMode === "grid" ? (
+            <div className="grid grid-cols-3 gap-2">
+              {visiblePatches.map((patch) => (
+                <PatchThumbnail
+                  key={patch.id}
+                  patch={patch}
+                  rank={getRank(patch.id)}
+                  isSelected={selectedPatchId === patch.id}
+                  onClick={() => onPatchClick?.(patch.coordinates)}
+                  onZoom={() => onPatchZoom?.(patch)}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {visiblePatches.map((patch) => (
+                <PatchListItem
+                  key={patch.id}
+                  patch={patch}
+                  rank={getRank(patch.id)}
+                  isSelected={selectedPatchId === patch.id}
+                  onClick={() => onPatchClick?.(patch.coordinates)}
+                  onZoom={() => onPatchZoom?.(patch)}
+                />
+              ))}
+            </div>
+          )
         )}
 
         {/* Pagination */}
@@ -496,7 +498,7 @@ function PatchThumbnail({
       ? "bg-amber-500"
       : "bg-blue-500";
 
-  // Infer tissue type from morphology description
+  // Get tissue type from backend classification or infer from description
   const tissueType = getTissueType(patch);
   const tissueInfo = TISSUE_TYPES[tissueType];
 
@@ -595,7 +597,7 @@ function PatchListItem({
 }: PatchListItemProps) {
   const attentionPercent = Math.round(patch.attentionWeight * 100);
 
-  // Infer tissue type from morphology description
+  // Get tissue type from backend classification or infer from description
   const tissueType = getTissueType(patch);
   const tissueInfo = TISSUE_TYPES[tissueType];
 
