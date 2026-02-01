@@ -666,32 +666,26 @@ reviewed and validated by qualified pathologists before any clinical decision-ma
 
         # Check for cached MedSigLIP embeddings for this slide
         siglip_cache_key = f"{slide_id}_siglip"
+        use_siglip_search = True
+
         if siglip_cache_key in slide_siglip_embeddings:
             siglip_embeddings = slide_siglip_embeddings[siglip_cache_key]
             logger.info(f"Using cached MedSigLIP embeddings for {slide_id}")
         else:
-            # Need to generate MedSigLIP embeddings from patches
-            # For now, we'll use the Path Foundation embeddings as a proxy
-            # In production, we would load patch images and embed with MedSigLIP
-            logger.info(f"Generating MedSigLIP embeddings for {slide_id}")
-
-            # Load Path Foundation embeddings as fallback
-            pf_embeddings = np.load(emb_path)
-
-            # Try to load or generate SigLIP embeddings
+            # Try to load pre-computed SigLIP embeddings
             siglip_cache_path = embeddings_dir / "medsiglip_cache" / f"{slide_id}_siglip.npy"
             if siglip_cache_path.exists():
                 siglip_embeddings = np.load(siglip_cache_path)
                 slide_siglip_embeddings[siglip_cache_key] = siglip_embeddings
+                logger.info(f"Loaded MedSigLIP embeddings from cache for {slide_id}")
             else:
-                # For the hackathon demo, use Path Foundation embeddings with text-based heuristics
-                # In production, this would embed actual patch images with MedSigLIP
+                # MedSigLIP embeddings not available - use attention-based fallback
                 logger.warning(
                     f"MedSigLIP embeddings not pre-computed for {slide_id}. "
-                    "Using Path Foundation embeddings with text similarity heuristics."
+                    "Using attention-weighted fallback search."
                 )
-                siglip_embeddings = pf_embeddings
-                slide_siglip_embeddings[siglip_cache_key] = siglip_embeddings
+                use_siglip_search = False
+                siglip_embeddings = None
 
         # Load coordinates if available
         coords = None
@@ -699,13 +693,15 @@ reviewed and validated by qualified pathologists before any clinical decision-ma
             coords = np.load(coord_path)
 
         # Get attention weights for additional context
+        pf_embeddings = np.load(emb_path)
         attention_weights = None
         if classifier is not None:
-            _, attention_weights = classifier.predict(np.load(emb_path))
+            _, attention_weights = classifier.predict(pf_embeddings)
 
         # Build metadata for search results
+        num_patches = len(pf_embeddings) if siglip_embeddings is None else len(siglip_embeddings)
         metadata = []
-        for i in range(len(siglip_embeddings)):
+        for i in range(num_patches):
             meta = {"index": i}
             if coords is not None and i < len(coords):
                 meta["coordinates"] = [int(coords[i][0]), int(coords[i][1])]
@@ -715,12 +711,37 @@ reviewed and validated by qualified pathologists before any clinical decision-ma
 
         # Perform semantic search
         try:
-            search_results = medsiglip_embedder.search(
-                query=request.query,
-                top_k=request.top_k,
-                embeddings=siglip_embeddings,
-                metadata=metadata,
-            )
+            if use_siglip_search and siglip_embeddings is not None:
+                # Full MedSigLIP semantic search
+                search_results = medsiglip_embedder.search(
+                    query=request.query,
+                    top_k=request.top_k,
+                    embeddings=siglip_embeddings,
+                    metadata=metadata,
+                )
+            else:
+                # Fallback: return top attention-weighted patches
+                # This provides reasonable results for demos without pre-computed embeddings
+                logger.info(f"Using attention-weighted fallback for query: {request.query}")
+
+                if attention_weights is None:
+                    # No attention weights, return random selection
+                    indices = np.random.choice(num_patches, min(request.top_k, num_patches), replace=False)
+                    scores = np.ones(len(indices)) * 0.5
+                else:
+                    # Sort by attention weight (higher = more relevant)
+                    sorted_indices = np.argsort(attention_weights)[::-1]
+                    indices = sorted_indices[:request.top_k]
+                    scores = attention_weights[indices]
+
+                search_results = []
+                for idx, score in zip(indices, scores):
+                    search_results.append({
+                        "patch_index": int(idx),
+                        "similarity_score": float(score),
+                        "metadata": metadata[idx] if idx < len(metadata) else {},
+                    })
+
         except Exception as e:
             logger.error(f"Semantic search failed: {e}")
             raise HTTPException(
@@ -739,11 +760,14 @@ reviewed and validated by qualified pathologists before any clinical decision-ma
             )
             results.append(result)
 
+        # Determine which model was used
+        model_used = medsiglip_embedder.config.model_id if use_siglip_search else "attention-fallback"
+
         return SemanticSearchResponse(
             slide_id=slide_id,
             query=request.query,
             results=results,
-            embedding_model=medsiglip_embedder.config.model_id,
+            embedding_model=model_used,
         )
 
     @app.get("/api/semantic-search/status")
