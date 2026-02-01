@@ -7,7 +7,8 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 // Format probability as percentage
-export function formatProbability(probability: number): string {
+export function formatProbability(probability: number | undefined): string {
+  if (probability === undefined || probability === null) return "N/A";
   return `${(probability * 100).toFixed(1)}%`;
 }
 
@@ -26,7 +27,8 @@ export function getConfidenceClass(confidence: "high" | "moderate" | "low"): str
 }
 
 // Format distance score from similarity search
-export function formatDistance(distance: number): string {
+export function formatDistance(distance: number | undefined): string {
+  if (distance === undefined || distance === null) return "N/A";
   return distance.toFixed(3);
 }
 
