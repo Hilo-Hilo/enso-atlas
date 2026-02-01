@@ -254,11 +254,30 @@ Enso Atlas is designed for deployment in academic medical centers and community 
 
 ### Limitations and Future Work
 
-**Current Limitations**:
-- Validated on single-center cohort; multi-site validation needed
-- Domain shift from scanner/staining variation requires calibration
-- Response prediction labels inherently noisy in observational data
-- Not validated as a medical device; research use only
+**Known Limitations:**
+
+1. **Model Training Status**: The CLAM MIL head is not trained on real treatment response labels. The current demonstration uses:
+   - DINOv2 embeddings as a fallback from Path Foundation (which requires gated access)
+   - Randomly initialized or minimally trained attention weights
+   - Result: uniform attention distribution with no class discrimination
+   - Current behavior: model predicts all cases as NON-RESPONDER
+
+2. **Expected vs Demo Behavior**:
+   - In production: Model would be trained on a labeled cohort (e.g., bevacizumab responders vs non-responders from the full dataset)
+   - In demo: Shows infrastructure and workflow capabilities, not clinical accuracy
+   - The pipeline demonstrates the end-to-end architecture from WSI to report, but predictions are not clinically meaningful
+
+3. **Path to Production**:
+   - Train CLAM head on labeled WSI dataset with proper train/validation/test splits
+   - Validate on held-out test set with appropriate metrics (AUC, sensitivity, specificity)
+   - Calibrate probability outputs to reflect true response rates
+   - External validation on independent cohort before any clinical use
+
+4. **Additional Limitations**:
+   - Validated on single-center cohort; multi-site validation needed
+   - Domain shift from scanner/staining variation requires calibration
+   - Response prediction labels inherently noisy in observational data
+   - Not validated as a medical device; research use only
 
 **Future Directions**:
 - Stain normalization (Macenko) for cross-site robustness

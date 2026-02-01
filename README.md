@@ -10,6 +10,27 @@ Enso Atlas is an on-premise pathology evidence engine that analyzes whole-slide 
 
 ---
 
+## Important Disclaimer: Demo vs Production
+
+**This is a demonstration prototype, not a production-ready clinical tool.**
+
+The current implementation has the following limitations:
+
+- **No trained classification model**: The CLAM MIL head uses randomly initialized or minimally trained weights. It is not trained on real treatment response labels.
+- **Fallback embeddings**: Uses DINOv2 embeddings instead of Path Foundation (which requires gated access).
+- **Uniform predictions**: The model currently predicts all cases as NON-RESPONDER due to lack of training on labeled data.
+- **Infrastructure demonstration only**: This prototype demonstrates the end-to-end pipeline architecture (WSI processing, embedding, attention visualization, similar case retrieval, report generation) but does not provide clinically meaningful predictions.
+
+**For production use**, the CLAM head would need to be:
+1. Trained on a labeled cohort with known treatment outcomes
+2. Validated on a held-out test set
+3. Calibrated for probability outputs
+4. Externally validated before clinical deployment
+
+This software is for research and demonstration purposes only. It has not been validated as a medical device.
+
+---
+
 ## Highlights
 
 - **Local-first**: Runs entirely on-premise; no PHI leaves the hospital network
