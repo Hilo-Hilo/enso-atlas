@@ -157,6 +157,7 @@ export async function analyzeSlide(
         y: e.coordinates?.[1] ?? 0,
         width: 224,
         height: 224,
+        level: 0,
       },
       attentionWeight: e.attention_weight,
       thumbnailUrl: "",

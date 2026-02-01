@@ -163,7 +163,8 @@ function SimilarCaseItem({
   onViewCase,
 }: SimilarCaseItemProps) {
   // Calculate similarity score (inverse of distance, normalized)
-  const similarityScore = Math.max(0, Math.min(100, 100 - case_.distance * 100));
+  const distance = case_.distance ?? 0;
+  const similarityScore = Math.max(0, Math.min(100, 100 - distance * 100));
 
   return (
     <div
@@ -245,13 +246,13 @@ function SimilarCaseItem({
             <div>
               <span className="text-gray-500">Patch:</span>
               <span className="ml-1 font-mono text-gray-700">
-                {case_.patchId.slice(0, 8)}
+                {case_.patchId?.slice(0, 8) ?? "N/A"}
               </span>
             </div>
             <div className="col-span-2">
               <span className="text-gray-500">Coordinates:</span>
               <span className="ml-1 font-mono text-gray-700">
-                ({case_.coordinates.x}, {case_.coordinates.y})
+                {case_.coordinates ? `(${case_.coordinates.x}, ${case_.coordinates.y})` : "N/A"}
               </span>
             </div>
           </div>

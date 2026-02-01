@@ -35,6 +35,7 @@ export function WSIViewer({
   const heatmapOverlayRef = useRef<HTMLImageElement | null>(null);
 
   const [isReady, setIsReady] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [showHeatmap, setShowHeatmap] = useState(false);
   const [heatmapOpacity, setHeatmapOpacity] = useState(0.5);
   const [zoom, setZoom] = useState(1);
@@ -43,6 +44,10 @@ export function WSIViewer({
   // Initialize OpenSeadragon viewer
   useEffect(() => {
     if (!containerRef.current || !dziUrl) return;
+
+    // Reset error state on new slide
+    setLoadError(null);
+    setIsReady(false);
 
     const containerId = `wsi-viewer-${slideId}`;
     containerRef.current.id = containerId;
@@ -76,6 +81,23 @@ export function WSIViewer({
 
     viewer.addHandler("open", () => {
       setIsReady(true);
+      setLoadError(null);
+    });
+
+    viewer.addHandler("open-failed", (event: OpenSeadragon.OpenFailedEvent) => {
+      const message = event.message || "Failed to load slide";
+      // Check if it's a 404 error
+      if (message.includes("404") || message.includes("Unable to open")) {
+        setLoadError("WSI preview unavailable - embeddings only");
+      } else {
+        setLoadError(message);
+      }
+      setIsReady(false);
+    });
+
+    viewer.addHandler("tile-load-failed", () => {
+      // Individual tile failures - don't show error for these
+      // as partial loading is acceptable
     });
 
     viewer.addHandler("zoom", (event: OpenSeadragon.ZoomEvent) => {
@@ -206,11 +228,41 @@ export function WSIViewer({
       />
 
       {/* Loading Indicator */}
-      {!isReady && (
+      {!isReady && !loadError && (
         <div className="absolute inset-0 flex items-center justify-center bg-gray-900">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-clinical-400 mx-auto" />
             <p className="mt-4 text-sm text-gray-400">Loading slide...</p>
+          </div>
+        </div>
+      )}
+
+      {/* Error State - WSI Unavailable */}
+      {loadError && (
+        <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-gray-800 to-gray-900">
+          <div className="text-center max-w-md px-6">
+            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gray-700 flex items-center justify-center">
+              <svg
+                className="w-8 h-8 text-gray-400"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={1.5}
+                  d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                />
+              </svg>
+            </div>
+            <h3 className="text-lg font-medium text-gray-200 mb-2">
+              {loadError}
+            </h3>
+            <p className="text-sm text-gray-400">
+              The whole slide image is not available for this sample.
+              Predictions are based on pre-computed patch embeddings.
+            </p>
           </div>
         </div>
       )}

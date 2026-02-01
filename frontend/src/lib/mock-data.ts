@@ -45,8 +45,8 @@ export const mockSlides: SlideInfo[] = [
 // Mock prediction result
 export const mockPrediction: PredictionResult = {
   label: "Bevacizumab Responder",
-  probability: 0.78,
-  confidence: "high",
+  score: 0.78,
+  confidence: 0.85,
   calibrationNote:
     "Model calibration based on validation cohort (n=156). Probability reflects estimated likelihood of treatment response.",
 };
@@ -109,6 +109,7 @@ export const mockSimilarCases: SimilarCase[] = [
     caseId: "case-ref-001",
     slideId: "slide-ref-001",
     patchId: "ref-patch-001",
+    similarity: 0.88,
     distance: 0.12,
     label: "Responder",
     thumbnailUrl: "/api/placeholder/patch",
@@ -118,6 +119,7 @@ export const mockSimilarCases: SimilarCase[] = [
     caseId: "case-ref-002",
     slideId: "slide-ref-002",
     patchId: "ref-patch-002",
+    similarity: 0.82,
     distance: 0.18,
     label: "Responder",
     thumbnailUrl: "/api/placeholder/patch",
@@ -127,6 +129,7 @@ export const mockSimilarCases: SimilarCase[] = [
     caseId: "case-ref-003",
     slideId: "slide-ref-003",
     patchId: "ref-patch-003",
+    similarity: 0.76,
     distance: 0.24,
     label: "Non-Responder",
     thumbnailUrl: "/api/placeholder/patch",
@@ -136,6 +139,7 @@ export const mockSimilarCases: SimilarCase[] = [
     caseId: "case-ref-004",
     slideId: "slide-ref-004",
     patchId: "ref-patch-004",
+    similarity: 0.69,
     distance: 0.31,
     label: "Responder",
     thumbnailUrl: "/api/placeholder/patch",
@@ -145,6 +149,7 @@ export const mockSimilarCases: SimilarCase[] = [
     caseId: "case-ref-005",
     slideId: "slide-ref-005",
     patchId: "ref-patch-005",
+    similarity: 0.62,
     distance: 0.38,
     label: "Non-Responder",
     thumbnailUrl: "/api/placeholder/patch",
