@@ -10,6 +10,7 @@ import type {
   StructuredReport,
   ApiError,
   SemanticSearchResponse,
+  SlideQCMetrics,
 } from "@/types";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -273,4 +274,36 @@ export async function semanticSearch(
       top_k: topK,
     }),
   });
+}
+
+// Backend QC response (snake_case)
+interface BackendSlideQCResponse {
+  slide_id: string;
+  tissue_coverage: number;
+  blur_score: number;
+  stain_uniformity: number;
+  artifact_detected: boolean;
+  pen_marks: boolean;
+  fold_detected: boolean;
+  overall_quality: "poor" | "acceptable" | "good";
+}
+
+/**
+ * Get quality control metrics for a slide
+ */
+export async function getSlideQC(slideId: string): Promise<SlideQCMetrics> {
+  const backend = await fetchApi<BackendSlideQCResponse>(
+    `/api/slides/${slideId}/qc`
+  );
+
+  return {
+    slideId: backend.slide_id,
+    tissueCoverage: backend.tissue_coverage,
+    blurScore: backend.blur_score,
+    stainUniformity: backend.stain_uniformity,
+    artifactDetected: backend.artifact_detected,
+    penMarks: backend.pen_marks,
+    foldDetected: backend.fold_detected,
+    overallQuality: backend.overall_quality,
+  };
 }

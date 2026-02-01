@@ -802,6 +802,68 @@ reviewed and validated by qualified pathologists before any clinical decision-ma
             "cached_slides": list(slide_siglip_embeddings.keys()) if slide_siglip_embeddings else [],
         }
 
+    # ====== Slide Quality Control ======
+
+    @app.get("/api/slides/{slide_id}/qc", response_model=SlideQCResponse)
+    async def slide_quality_check(slide_id: str):
+        """
+        Check slide quality metrics.
+
+        Returns quality indicators that help oncologists assess whether
+        a slide has quality issues that might affect prediction accuracy.
+
+        For demo purposes, this returns mock values based on slide_id hash.
+        Real implementation would analyze tile sharpness, tissue mask,
+        stain normalization, and detect artifacts.
+        """
+        emb_path = embeddings_dir / f"{slide_id}.npy"
+
+        if not emb_path.exists():
+            raise HTTPException(status_code=404, detail=f"Slide {slide_id} not found")
+
+        # Generate deterministic mock QC values based on slide_id hash
+        # This ensures consistent results for the same slide across requests
+        import hashlib
+        hash_val = int(hashlib.md5(slide_id.encode()).hexdigest(), 16)
+
+        # Use hash to generate pseudo-random but deterministic values
+        tissue_coverage = 0.60 + (hash_val % 40) / 100.0  # 0.60 - 0.99
+        blur_score = (hash_val % 30) / 100.0  # 0.00 - 0.29
+        stain_uniformity = 0.70 + (hash_val % 30) / 100.0  # 0.70 - 0.99
+
+        # Artifacts based on hash bits
+        artifact_detected = (hash_val % 10) == 0  # ~10% chance
+        pen_marks = (hash_val % 15) == 0  # ~7% chance
+        fold_detected = (hash_val % 12) == 0  # ~8% chance
+
+        # Determine overall quality based on metrics
+        quality_score = (
+            tissue_coverage * 0.3 +
+            (1 - blur_score) * 0.3 +
+            stain_uniformity * 0.2 +
+            (0 if artifact_detected else 0.1) +
+            (0 if pen_marks else 0.05) +
+            (0 if fold_detected else 0.05)
+        )
+
+        if quality_score >= 0.75:
+            overall_quality = "good"
+        elif quality_score >= 0.50:
+            overall_quality = "acceptable"
+        else:
+            overall_quality = "poor"
+
+        return SlideQCResponse(
+            slide_id=slide_id,
+            tissue_coverage=round(tissue_coverage, 2),
+            blur_score=round(blur_score, 2),
+            stain_uniformity=round(stain_uniformity, 2),
+            artifact_detected=artifact_detected,
+            pen_marks=pen_marks,
+            fold_detected=fold_detected,
+            overall_quality=overall_quality,
+        )
+
     # WSI / DZI Tile Serving
     # Cache for OpenSlide objects and DeepZoom generators
     # slides are at data/slides (not inside demo/)

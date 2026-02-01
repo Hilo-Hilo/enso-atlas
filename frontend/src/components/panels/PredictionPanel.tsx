@@ -10,6 +10,7 @@ import { cn, formatProbability } from "@/lib/utils";
 import {
   Activity,
   AlertCircle,
+  AlertTriangle,
   CheckCircle,
   XCircle,
   TrendingUp,
@@ -17,9 +18,38 @@ import {
   Clock,
   Target,
   RefreshCw,
+  ShieldAlert,
+  FlaskConical,
 } from "lucide-react";
-import type { PredictionResult } from "@/types";
+import type { PredictionResult, SlideQCMetrics } from "@/types";
 import { ANALYSIS_STEPS } from "@/hooks/useAnalysis";
+
+// Helper function to convert raw score to ordinal likelihood category
+function getLikelihoodCategory(score: number): {
+  label: string;
+  description: string;
+  variant: "high" | "medium" | "low";
+} {
+  if (score >= 0.7) {
+    return {
+      label: "High Likelihood",
+      description: "Strong indication of positive treatment response",
+      variant: "high",
+    };
+  } else if (score >= 0.4) {
+    return {
+      label: "Moderate Likelihood",
+      description: "Uncertain response - consider additional factors",
+      variant: "medium",
+    };
+  } else {
+    return {
+      label: "Low Likelihood",
+      description: "Limited indication of positive treatment response",
+      variant: "low",
+    };
+  }
+}
 
 interface PredictionPanelProps {
   prediction: PredictionResult | null;
@@ -28,6 +58,7 @@ interface PredictionPanelProps {
   analysisStep?: number;
   error?: string | null;
   onRetry?: () => void;
+  qcMetrics?: SlideQCMetrics | null;
 }
 
 export function PredictionPanel({
@@ -37,6 +68,7 @@ export function PredictionPanel({
   analysisStep = -1,
   error,
   onRetry,
+  qcMetrics,
 }: PredictionPanelProps) {
   // Show error state with retry
   if (error && !isLoading) {
@@ -155,6 +187,9 @@ export function PredictionPanel({
     low: "Low Confidence",
   };
 
+  // Ordinal likelihood category (instead of raw %)
+  const likelihood = getLikelihoodCategory(prediction.score);
+
   return (
     <Card>
       <CardHeader>
@@ -174,6 +209,14 @@ export function PredictionPanel({
         </div>
       </CardHeader>
       <CardContent className="space-y-5">
+        {/* UNCALIBRATED WARNING BANNER */}
+        <div className="flex items-center gap-2 px-3 py-2 bg-amber-100 border border-amber-300 rounded-lg">
+          <FlaskConical className="h-4 w-4 text-amber-700 shrink-0" />
+          <span className="text-xs font-bold text-amber-800 uppercase tracking-wide">
+            Uncalibrated - Research Use Only
+          </span>
+        </div>
+
         {/* Primary Prediction Display */}
         <div
           className={cn(
@@ -216,29 +259,33 @@ export function PredictionPanel({
             </Badge>
           </div>
 
-          {/* Large Probability Display */}
-          <div className="flex items-baseline gap-1">
-            <span
-              className={cn(
-                "text-4xl font-bold font-mono tabular-nums",
-                isResponder
-                  ? "text-responder-positive"
-                  : "text-responder-negative"
-              )}
-            >
-              {probabilityPercent}
-            </span>
-            <span
-              className={cn(
-                "text-xl font-medium",
-                isResponder
-                  ? "text-responder-positive/70"
-                  : "text-responder-negative/70"
-              )}
-            >
-              %
-            </span>
-            <span className="text-sm text-gray-500 ml-2">probability</span>
+          {/* Ordinal Likelihood Display (instead of raw probability) */}
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <span
+                className={cn(
+                  "text-2xl font-bold",
+                  likelihood.variant === "high"
+                    ? "text-green-700"
+                    : likelihood.variant === "medium"
+                    ? "text-amber-700"
+                    : "text-red-700"
+                )}
+              >
+                {likelihood.label}
+              </span>
+            </div>
+            <p className="text-sm text-gray-600">{likelihood.description}</p>
+          </div>
+
+          {/* Raw score shown smaller with warning */}
+          <div className="mt-3 pt-3 border-t border-gray-200">
+            <div className="flex items-center gap-2 text-xs text-gray-500">
+              <AlertTriangle className="h-3 w-3" />
+              <span>
+                Raw model output: {probabilityPercent}% (uncalibrated, do not interpret as true probability)
+              </span>
+            </div>
           </div>
         </div>
 
@@ -312,6 +359,50 @@ export function PredictionPanel({
             <span>High</span>
           </div>
         </div>
+
+        {/* Slide Quality Warning */}
+        {qcMetrics && qcMetrics.overallQuality === "poor" && (
+          <div className="p-3 bg-red-50 border border-red-200 rounded-lg animate-fade-in">
+            <div className="flex items-start gap-2">
+              <ShieldAlert className="h-4 w-4 text-red-600 mt-0.5 shrink-0" />
+              <div>
+                <p className="text-xs font-semibold text-red-800">
+                  Slide Quality Warning
+                </p>
+                <p className="text-xs text-red-700 mt-1 leading-relaxed">
+                  Slide quality may affect prediction accuracy. Issues detected:{" "}
+                  {[
+                    qcMetrics.blurScore > 0.2 && "blur",
+                    qcMetrics.tissueCoverage < 0.5 && "low tissue coverage",
+                    qcMetrics.stainUniformity < 0.6 && "uneven staining",
+                    qcMetrics.artifactDetected && "artifacts",
+                    qcMetrics.penMarks && "pen marks",
+                    qcMetrics.foldDetected && "tissue folds",
+                  ]
+                    .filter(Boolean)
+                    .join(", ") || "general quality concerns"}.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Acceptable Quality Note */}
+        {qcMetrics && qcMetrics.overallQuality === "acceptable" && (
+          <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg animate-fade-in">
+            <div className="flex items-start gap-2">
+              <ShieldAlert className="h-4 w-4 text-yellow-600 mt-0.5 shrink-0" />
+              <div>
+                <p className="text-xs font-semibold text-yellow-800">
+                  Quality Note
+                </p>
+                <p className="text-xs text-yellow-700 mt-1 leading-relaxed">
+                  Slide quality is acceptable but not optimal. Review prediction with caution.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Calibration Note */}
         {prediction.calibrationNote && (

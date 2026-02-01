@@ -34,8 +34,35 @@ interface CaseNotesPanelProps {
   onNotesUpdate?: (notes: CaseNote[]) => void;
 }
 
-// In-memory storage for demo (would be API calls in production)
-const notesStore: Map<string, CaseNote[]> = new Map();
+// LocalStorage key prefix
+const NOTES_STORAGE_KEY = "atlas-case-notes";
+
+// Helper to get notes from localStorage
+function loadNotes(slideId: string): CaseNote[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const stored = localStorage.getItem(`${NOTES_STORAGE_KEY}-${slideId}`);
+    return stored ? JSON.parse(stored) : [];
+  } catch (err) {
+    console.error("Failed to load notes from localStorage:", err);
+    return [];
+  }
+}
+
+// Helper to save notes to localStorage
+function saveNotes(slideId: string, notes: CaseNote[]): void {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(`${NOTES_STORAGE_KEY}-${slideId}`, JSON.stringify(notes));
+  } catch (err) {
+    console.error("Failed to save notes to localStorage:", err);
+  }
+}
+
+// Export function to get notes for PDF export
+export function getCaseNotes(slideId: string): CaseNote[] {
+  return loadNotes(slideId);
+}
 
 export function CaseNotesPanel({ slideId, onNotesUpdate }: CaseNotesPanelProps) {
   const [notes, setNotes] = useState<CaseNote[]>([]);
@@ -55,12 +82,10 @@ export function CaseNotesPanel({ slideId, onNotesUpdate }: CaseNotesPanelProps) 
     }
 
     setIsLoading(true);
-    // Simulate API fetch
-    setTimeout(() => {
-      const storedNotes = notesStore.get(slideId) || [];
-      setNotes(storedNotes);
-      setIsLoading(false);
-    }, 200);
+    // Load from localStorage
+    const storedNotes = loadNotes(slideId);
+    setNotes(storedNotes);
+    setIsLoading(false);
   }, [slideId]);
 
   const handleAddNote = useCallback(() => {
@@ -77,7 +102,7 @@ export function CaseNotesPanel({ slideId, onNotesUpdate }: CaseNotesPanelProps) 
 
     const updatedNotes = [...notes, newNote];
     setNotes(updatedNotes);
-    notesStore.set(slideId, updatedNotes);
+    saveNotes(slideId, updatedNotes);
     onNotesUpdate?.(updatedNotes);
 
     setNewNoteContent("");
@@ -94,7 +119,7 @@ export function CaseNotesPanel({ slideId, onNotesUpdate }: CaseNotesPanelProps) 
           : n
       );
       setNotes(updatedNotes);
-      notesStore.set(slideId, updatedNotes);
+      saveNotes(slideId, updatedNotes);
       onNotesUpdate?.(updatedNotes);
       setEditingId(null);
     },
@@ -107,7 +132,7 @@ export function CaseNotesPanel({ slideId, onNotesUpdate }: CaseNotesPanelProps) 
 
       const updatedNotes = notes.filter((n) => n.id !== noteId);
       setNotes(updatedNotes);
-      notesStore.set(slideId, updatedNotes);
+      saveNotes(slideId, updatedNotes);
       onNotesUpdate?.(updatedNotes);
     },
     [slideId, notes, onNotesUpdate]

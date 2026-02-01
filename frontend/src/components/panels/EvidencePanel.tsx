@@ -19,8 +19,85 @@ import {
   Info,
   AlertCircle,
   RefreshCw,
+  Circle,
 } from "lucide-react";
 import type { EvidencePatch, PatchCoordinates } from "@/types";
+
+// Tissue type classification based on morphology description
+// In production, this would come from a tissue classifier model
+type TissueType = "tumor" | "stroma" | "necrosis" | "inflammatory" | "normal" | "unknown";
+
+interface TissueTypeInfo {
+  label: string;
+  color: string;
+  bgColor: string;
+  borderColor: string;
+}
+
+const TISSUE_TYPES: Record<TissueType, TissueTypeInfo> = {
+  tumor: {
+    label: "Tumor Region",
+    color: "text-red-700",
+    bgColor: "bg-red-100",
+    borderColor: "border-red-300",
+  },
+  stroma: {
+    label: "Stromal Tissue",
+    color: "text-blue-700",
+    bgColor: "bg-blue-100",
+    borderColor: "border-blue-300",
+  },
+  necrosis: {
+    label: "Necrosis",
+    color: "text-gray-700",
+    bgColor: "bg-gray-200",
+    borderColor: "border-gray-400",
+  },
+  inflammatory: {
+    label: "Inflammatory Infiltrate",
+    color: "text-purple-700",
+    bgColor: "bg-purple-100",
+    borderColor: "border-purple-300",
+  },
+  normal: {
+    label: "Normal Tissue",
+    color: "text-green-700",
+    bgColor: "bg-green-100",
+    borderColor: "border-green-300",
+  },
+  unknown: {
+    label: "Unclassified",
+    color: "text-gray-500",
+    bgColor: "bg-gray-100",
+    borderColor: "border-gray-200",
+  },
+};
+
+// Infer tissue type from morphology description
+// In production, this would be a separate classifier model output
+function inferTissueType(description?: string): TissueType {
+  if (!description) return "unknown";
+  const lower = description.toLowerCase();
+  
+  if (lower.includes("necrotic") || lower.includes("necrosis")) {
+    return "necrosis";
+  }
+  if (lower.includes("lymphocytic") || lower.includes("inflammatory") || lower.includes("infiltrate")) {
+    return "inflammatory";
+  }
+  if (lower.includes("stromal") || lower.includes("stroma") || lower.includes("desmoplasia")) {
+    return "stroma";
+  }
+  if (lower.includes("carcinoma") || lower.includes("tumor") || lower.includes("papillary") || 
+      lower.includes("mitotic") || lower.includes("atypia") || lower.includes("cribriform") ||
+      lower.includes("solid growth")) {
+    return "tumor";
+  }
+  if (lower.includes("normal") || lower.includes("benign")) {
+    return "normal";
+  }
+  return "unknown";
+}
 
 interface EvidencePanelProps {
   patches: EvidencePatch[];
@@ -288,6 +365,10 @@ function PatchThumbnail({
       ? "bg-amber-500"
       : "bg-blue-500";
 
+  // Infer tissue type from morphology description
+  const tissueType = inferTissueType(patch.morphologyDescription);
+  const tissueInfo = TISSUE_TYPES[tissueType];
+
   return (
     <button
       onClick={onClick}
@@ -322,6 +403,15 @@ function PatchThumbnail({
         >
           {attentionPercent}
         </div>
+      </div>
+
+      {/* Tissue Type Tag */}
+      <div className={cn(
+        "absolute bottom-1 left-1 right-1 px-1.5 py-0.5 rounded text-2xs font-semibold text-center truncate",
+        tissueInfo.bgColor,
+        tissueInfo.color
+      )}>
+        {tissueInfo.label}
       </div>
 
       {/* Hover overlay */}
@@ -374,6 +464,10 @@ function PatchListItem({
 }: PatchListItemProps) {
   const attentionPercent = Math.round(patch.attentionWeight * 100);
 
+  // Infer tissue type from morphology description
+  const tissueType = inferTissueType(patch.morphologyDescription);
+  const tissueInfo = TISSUE_TYPES[tissueType];
+
   return (
     <button
       onClick={onClick}
@@ -417,6 +511,20 @@ function PatchListItem({
           >
             {attentionPercent}%
           </Badge>
+        </div>
+
+        {/* Tissue Type Tag */}
+        <div className="flex items-center gap-2 mb-1.5">
+          <span className={cn(
+            "inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium",
+            tissueInfo.bgColor,
+            tissueInfo.color,
+            tissueInfo.borderColor,
+            "border"
+          )}>
+            <Circle className="h-2 w-2 fill-current" />
+            {tissueInfo.label}
+          </span>
         </div>
 
         <div className="flex items-center gap-2 text-xs text-gray-500">

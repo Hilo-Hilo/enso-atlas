@@ -14,12 +14,14 @@ import {
   CaseNotesPanel,
   QuickStatsPanel,
   recordAnalysis,
+  getCaseNotes,
 } from "@/components/panels";
 import { PatchZoomModal, KeyboardShortcutsModal } from "@/components/modals";
 import { useAnalysis } from "@/hooks/useAnalysis";
 import { useKeyboardShortcuts, type KeyboardShortcut } from "@/hooks/useKeyboardShortcuts";
-import { getDziUrl, healthCheck, exportReportPdf, semanticSearch } from "@/lib/api";
-import type { SlideInfo, PatchCoordinates, SemanticSearchResult, EvidencePatch } from "@/types";
+import { getDziUrl, healthCheck, semanticSearch, getSlideQC } from "@/lib/api";
+import { generatePdfReport, downloadPdf } from "@/lib/pdfExport";
+import type { SlideInfo, PatchCoordinates, SemanticSearchResult, EvidencePatch, SlideQCMetrics } from "@/types";
 
 // Dynamically import WSIViewer to prevent SSR issues with OpenSeadragon
 const WSIViewer = nextDynamic(
@@ -45,6 +47,9 @@ export default function HomePage() {
   const [semanticResults, setSemanticResults] = useState<SemanticSearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
+
+  // Slide QC metrics state
+  const [slideQCMetrics, setSlideQCMetrics] = useState<SlideQCMetrics | null>(null);
 
   // Slide list state for keyboard navigation
   const [slideList, setSlideList] = useState<SlideInfo[]>([]);
@@ -186,12 +191,22 @@ export default function HomePage() {
 
   // Handle slide selection
   const handleSlideSelect = useCallback(
-    (slide: SlideInfo) => {
+    async (slide: SlideInfo) => {
       setSelectedSlide(slide);
       clearResults();
       setSelectedPatchId(undefined);
       setSemanticResults([]);
       setSearchError(null);
+      setSlideQCMetrics(null);
+
+      // Fetch QC metrics for the selected slide
+      try {
+        const qcMetrics = await getSlideQC(slide.id);
+        setSlideQCMetrics(qcMetrics);
+      } catch (err) {
+        console.error("Failed to fetch QC metrics:", err);
+        // QC metrics are optional, don't block on failure
+      }
     },
     [clearResults]
   );
@@ -448,22 +463,28 @@ export default function HomePage() {
     shortcuts: keyboardShortcuts,
   });
 
-  // Handle PDF export
+  // Handle PDF export (client-side generation)
   const handleExportPdf = useCallback(async () => {
-    if (!selectedSlide) return;
+    if (!selectedSlide || !report) return;
     if (typeof document === "undefined") return;
     try {
-      const blob = await exportReportPdf(selectedSlide.id);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `atlas-report-${selectedSlide.id}.pdf`;
-      a.click();
-      URL.revokeObjectURL(url);
+      // Get case notes for this slide
+      const caseNotes = getCaseNotes(selectedSlide.id);
+      
+      // Generate PDF client-side
+      const blob = await generatePdfReport({
+        report,
+        slideId: selectedSlide.id,
+        caseNotes,
+        institutionName: "Enso Labs",
+      });
+      
+      // Download the PDF
+      downloadPdf(blob, `atlas-report-${selectedSlide.id}.pdf`);
     } catch (err) {
       console.error("PDF export failed:", err);
     }
-  }, [selectedSlide]);
+  }, [selectedSlide, report]);
 
   // Handle JSON export
   const handleExportJson = useCallback(async () => {
@@ -617,6 +638,7 @@ export default function HomePage() {
               analysisStep={analysisStep}
               error={!isAnalyzing && !analysisResult ? error : null}
               onRetry={retryAnalysis}
+              qcMetrics={slideQCMetrics}
             />
           </div>
 

@@ -39,16 +39,68 @@ interface QuickStatsPanelProps {
   onRefresh?: () => void;
 }
 
-// In-memory stats storage for demo
-let statsStore: AnalysisStats = {
-  totalAnalyzed: 0,
-  todayAnalyzed: 0,
-  avgConfidence: 0,
-  responderCount: 0,
-  nonResponderCount: 0,
-  avgProcessingTime: 0,
-  recentAnalyses: [],
-};
+// LocalStorage key for stats
+const STATS_STORAGE_KEY = "atlas-quick-stats";
+
+// Helper to get today's date string
+function getTodayKey(): string {
+  return new Date().toISOString().split("T")[0];
+}
+
+// Helper to load stats from localStorage
+function loadStats(): AnalysisStats {
+  if (typeof window === "undefined") {
+    return getDefaultStats();
+  }
+  try {
+    const stored = localStorage.getItem(STATS_STORAGE_KEY);
+    if (!stored) return getDefaultStats();
+    const stats = JSON.parse(stored);
+    // Reset todayAnalyzed if it's a new day
+    if (stats.lastDate !== getTodayKey()) {
+      stats.todayAnalyzed = 0;
+      stats.lastDate = getTodayKey();
+    }
+    return stats;
+  } catch (err) {
+    console.error("Failed to load stats from localStorage:", err);
+    return getDefaultStats();
+  }
+}
+
+// Helper to save stats to localStorage
+function saveStats(stats: AnalysisStats): void {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(STATS_STORAGE_KEY, JSON.stringify({
+      ...stats,
+      lastDate: getTodayKey(),
+    }));
+  } catch (err) {
+    console.error("Failed to save stats to localStorage:", err);
+  }
+}
+
+// Default stats
+function getDefaultStats(): AnalysisStats {
+  return {
+    totalAnalyzed: 0,
+    todayAnalyzed: 0,
+    avgConfidence: 0,
+    responderCount: 0,
+    nonResponderCount: 0,
+    avgProcessingTime: 0,
+    recentAnalyses: [],
+  };
+}
+
+// Persistent stats store
+let statsStore: AnalysisStats = getDefaultStats();
+
+// Initialize from localStorage on load
+if (typeof window !== "undefined") {
+  statsStore = loadStats();
+}
 
 // Function to record a new analysis (called from main page)
 export function recordAnalysis(
@@ -57,6 +109,9 @@ export function recordAnalysis(
   confidence: number,
   processingTime: number
 ) {
+  // Reload from localStorage to get latest
+  statsStore = loadStats();
+
   statsStore.totalAnalyzed += 1;
   statsStore.todayAnalyzed += 1;
 
@@ -89,11 +144,21 @@ export function recordAnalysis(
   if (statsStore.recentAnalyses.length > 10) {
     statsStore.recentAnalyses.pop();
   }
+
+  // Persist to localStorage
+  saveStats(statsStore);
 }
 
 // Function to get current stats
 export function getStats(): AnalysisStats {
+  statsStore = loadStats();
   return { ...statsStore };
+}
+
+// Function to reset stats (for testing or user request)
+export function resetStats(): void {
+  statsStore = getDefaultStats();
+  saveStats(statsStore);
 }
 
 export function QuickStatsPanel({ onRefresh }: QuickStatsPanelProps) {

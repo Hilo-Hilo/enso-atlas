@@ -22,10 +22,13 @@ import {
   Microscope,
   Hash,
   Layers,
+  ShieldCheck,
+  ShieldAlert,
+  ShieldX,
 } from "lucide-react";
-import { getSlides } from "@/lib/api";
+import { getSlides, getSlideQC } from "@/lib/api";
 import { ANALYSIS_STEPS } from "@/hooks/useAnalysis";
-import type { SlideInfo } from "@/types";
+import type { SlideInfo, SlideQCMetrics } from "@/types";
 
 interface SlideSelectorProps {
   selectedSlideId: string | null;
@@ -52,6 +55,7 @@ export function SlideSelector({
   const [sortField, setSortField] = useState<SortField>("filename");
   const [sortOrder, setSortOrder] = useState<SortOrder>("asc");
   const [showFilters, setShowFilters] = useState(false);
+  const [qcMetrics, setQcMetrics] = useState<Record<string, SlideQCMetrics>>({});
 
   const loadSlides = async () => {
     setIsLoading(true);
@@ -59,6 +63,25 @@ export function SlideSelector({
     try {
       const response = await getSlides();
       setSlides(response.slides);
+
+      // Fetch QC metrics for all slides in parallel
+      const qcPromises = response.slides.map(async (slide) => {
+        try {
+          const qc = await getSlideQC(slide.id);
+          return { id: slide.id, qc };
+        } catch {
+          return null;
+        }
+      });
+
+      const qcResults = await Promise.all(qcPromises);
+      const qcMap: Record<string, SlideQCMetrics> = {};
+      qcResults.forEach((result) => {
+        if (result) {
+          qcMap[result.id] = result.qc;
+        }
+      });
+      setQcMetrics(qcMap);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load slides");
     } finally {
@@ -246,6 +269,7 @@ export function SlideSelector({
                     slide={slide}
                     isSelected={selectedSlideId === slide.id}
                     onClick={() => onSlideSelect(slide)}
+                    qcMetrics={qcMetrics[slide.id]}
                   />
                 ))}
               </>
@@ -379,14 +403,82 @@ function SortButton({
   );
 }
 
+// QC Badge Component
+function QCBadge({ qc }: { qc: SlideQCMetrics }) {
+  const getQCConfig = () => {
+    switch (qc.overallQuality) {
+      case "good":
+        return {
+          icon: ShieldCheck,
+          color: "text-green-600",
+          bg: "bg-green-50",
+          border: "border-green-200",
+          label: "Good Quality",
+        };
+      case "acceptable":
+        return {
+          icon: ShieldAlert,
+          color: "text-yellow-600",
+          bg: "bg-yellow-50",
+          border: "border-yellow-200",
+          label: "Acceptable",
+        };
+      case "poor":
+        return {
+          icon: ShieldX,
+          color: "text-red-600",
+          bg: "bg-red-50",
+          border: "border-red-200",
+          label: "Poor Quality",
+        };
+    }
+  };
+
+  const config = getQCConfig();
+  const Icon = config.icon;
+
+  // Build tooltip details
+  const issues = [];
+  if (qc.blurScore > 0.2) issues.push("Blur detected");
+  if (qc.tissueCoverage < 0.5) issues.push("Low tissue coverage");
+  if (qc.stainUniformity < 0.6) issues.push("Uneven staining");
+  if (qc.artifactDetected) issues.push("Artifacts present");
+  if (qc.penMarks) issues.push("Pen marks");
+  if (qc.foldDetected) issues.push("Tissue folds");
+
+  const tooltipText = [
+    config.label,
+    `Tissue: ${Math.round(qc.tissueCoverage * 100)}%`,
+    `Sharpness: ${Math.round((1 - qc.blurScore) * 100)}%`,
+    `Stain: ${Math.round(qc.stainUniformity * 100)}%`,
+    ...(issues.length > 0 ? [`Issues: ${issues.join(", ")}`] : []),
+  ].join("\n");
+
+  return (
+    <div
+      className={cn(
+        "flex items-center gap-1 px-1.5 py-0.5 rounded text-2xs font-medium",
+        config.bg,
+        config.border,
+        "border"
+      )}
+      title={tooltipText}
+    >
+      <Icon className={cn("h-3 w-3", config.color)} />
+      <span className={config.color}>{qc.overallQuality.toUpperCase()}</span>
+    </div>
+  );
+}
+
 // Slide Item Component
 interface SlideItemProps {
   slide: SlideInfo;
   isSelected: boolean;
   onClick: () => void;
+  qcMetrics?: SlideQCMetrics;
 }
 
-function SlideItem({ slide, isSelected, onClick }: SlideItemProps) {
+function SlideItem({ slide, isSelected, onClick, qcMetrics }: SlideItemProps) {
   const formattedDate = new Date(slide.createdAt).toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
@@ -420,9 +512,12 @@ function SlideItem({ slide, isSelected, onClick }: SlideItemProps) {
 
       {/* Info */}
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-gray-900 truncate">
-          {slide.filename}
-        </p>
+        <div className="flex items-center gap-2">
+          <p className="text-sm font-medium text-gray-900 truncate flex-1">
+            {slide.filename}
+          </p>
+          {qcMetrics && <QCBadge qc={qcMetrics} />}
+        </div>
         <div className="flex items-center gap-2 mt-1.5">
           <span className="text-xs text-gray-500 font-mono">
             {slide.dimensions.width.toLocaleString()} x {slide.dimensions.height.toLocaleString()}

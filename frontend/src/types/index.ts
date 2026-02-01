@@ -165,3 +165,15 @@ export interface SemanticSearchResponse {
   query: string;
   results: SemanticSearchResult[];
 }
+
+// Slide quality control metrics
+export interface SlideQCMetrics {
+  slideId: string;
+  tissueCoverage: number;  // 0-1, percentage of slide with tissue
+  blurScore: number;       // 0-1, 0=sharp, 1=blurry
+  stainUniformity: number; // 0-1, 0=poor, 1=excellent
+  artifactDetected: boolean;
+  penMarks: boolean;
+  foldDetected: boolean;
+  overallQuality: "poor" | "acceptable" | "good";
+}

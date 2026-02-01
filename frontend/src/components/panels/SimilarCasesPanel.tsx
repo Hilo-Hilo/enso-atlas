@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -18,8 +18,31 @@ import {
   BarChart3,
   AlertCircle,
   RefreshCw,
+  CheckCircle,
+  XCircle,
+  HelpCircle,
 } from "lucide-react";
 import type { SimilarCase } from "@/types";
+
+// Helper to classify case outcome
+function classifyOutcome(label?: string): "responder" | "non-responder" | "unknown" {
+  if (!label) return "unknown";
+  const lower = label.toLowerCase();
+  if (lower.includes("positive") || lower.includes("responder") && !lower.includes("non")) {
+    return "responder";
+  }
+  if (lower.includes("negative") || lower.includes("non")) {
+    return "non-responder";
+  }
+  return "unknown";
+}
+
+// Group cases by outcome
+interface GroupedCases {
+  responders: SimilarCase[];
+  nonResponders: SimilarCase[];
+  unknown: SimilarCase[];
+}
 
 interface SimilarCasesPanelProps {
   cases: SimilarCase[];
@@ -38,29 +61,30 @@ export function SimilarCasesPanel({
 }: SimilarCasesPanelProps) {
   const [expandedCase, setExpandedCase] = useState<string | null>(null);
   const [showAll, setShowAll] = useState(false);
+  const [viewMode, setViewMode] = useState<"grouped" | "list">("grouped");
+
+  // Group cases by outcome
+  const groupedCases = useMemo<GroupedCases>(() => {
+    return cases.reduce<GroupedCases>(
+      (acc, c) => {
+        const outcome = classifyOutcome(c.label);
+        if (outcome === "responder") acc.responders.push(c);
+        else if (outcome === "non-responder") acc.nonResponders.push(c);
+        else acc.unknown.push(c);
+        return acc;
+      },
+      { responders: [], nonResponders: [], unknown: [] }
+    );
+  }, [cases]);
 
   const visibleCases = showAll ? cases : cases.slice(0, 5);
 
   // Calculate outcome summary
-  const outcomeSummary = cases.reduce(
-    (acc, c) => {
-      if (c.label) {
-        const isResponder =
-          c.label.toLowerCase().includes("positive") ||
-          c.label.toLowerCase().includes("responder");
-        const isNonResponder =
-          c.label.toLowerCase().includes("negative") ||
-          c.label.toLowerCase().includes("non");
-        if (isResponder) acc.responders++;
-        else if (isNonResponder) acc.nonResponders++;
-        else acc.unknown++;
-      } else {
-        acc.unknown++;
-      }
-      return acc;
-    },
-    { responders: 0, nonResponders: 0, unknown: 0 }
-  );
+  const outcomeSummary = {
+    responders: groupedCases.responders.length,
+    nonResponders: groupedCases.nonResponders.length,
+    unknown: groupedCases.unknown.length,
+  };
 
   // Error state
   if (error && !isLoading) {
@@ -217,45 +241,179 @@ export function SimilarCasesPanel({
           </div>
         )}
 
-        {/* Cases List */}
-        <div className="space-y-2">
-          {visibleCases.map((similarCase, index) => (
-            <SimilarCaseItem
-              key={`${similarCase.caseId || similarCase.slideId}-${similarCase.patchId || index}`}
-              case_={similarCase}
-              rank={index + 1}
-              isExpanded={expandedCase === (similarCase.caseId || similarCase.slideId)}
-              onToggleExpand={() => {
-                const caseKey = similarCase.caseId || similarCase.slideId;
-                setExpandedCase(expandedCase === caseKey ? null : caseKey);
-              }}
-              onViewCase={() =>
-                onCaseClick?.(similarCase.caseId || similarCase.slideId || "")
-              }
-            />
-          ))}
+        {/* View Mode Toggle */}
+        <div className="flex items-center justify-end gap-2">
+          <span className="text-xs text-gray-500">View:</span>
+          <div className="flex items-center gap-1 bg-surface-secondary rounded-lg p-0.5">
+            <button
+              onClick={() => setViewMode("grouped")}
+              className={cn(
+                "px-2 py-1 rounded text-xs font-medium transition-all",
+                viewMode === "grouped"
+                  ? "bg-white shadow-clinical text-clinical-700"
+                  : "text-gray-500 hover:text-gray-700"
+              )}
+            >
+              By Outcome
+            </button>
+            <button
+              onClick={() => setViewMode("list")}
+              className={cn(
+                "px-2 py-1 rounded text-xs font-medium transition-all",
+                viewMode === "list"
+                  ? "bg-white shadow-clinical text-clinical-700"
+                  : "text-gray-500 hover:text-gray-700"
+              )}
+            >
+              All
+            </button>
+          </div>
         </div>
 
-        {/* Show More/Less */}
-        {cases.length > 5 && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setShowAll(!showAll)}
-            className="w-full text-gray-600 hover:text-gray-900"
-          >
-            {showAll ? (
-              <>
-                <ChevronUp className="h-4 w-4 mr-1" />
-                Show Less
-              </>
-            ) : (
-              <>
-                <ChevronDown className="h-4 w-4 mr-1" />
-                Show {cases.length - 5} More Cases
-              </>
+        {/* Grouped View - Cases by Outcome */}
+        {viewMode === "grouped" ? (
+          <div className="space-y-4">
+            {/* Similar Responders */}
+            {groupedCases.responders.length > 0 && (
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 pb-1 border-b border-green-200">
+                  <CheckCircle className="h-4 w-4 text-green-600" />
+                  <span className="text-sm font-semibold text-green-800">
+                    Similar Responders (N={groupedCases.responders.length})
+                  </span>
+                </div>
+                <div className="space-y-2 pl-1">
+                  {groupedCases.responders.map((similarCase, index) => (
+                    <SimilarCaseItem
+                      key={`resp-${similarCase.caseId || similarCase.slideId}-${index}`}
+                      case_={similarCase}
+                      rank={index + 1}
+                      isExpanded={expandedCase === (similarCase.caseId || similarCase.slideId)}
+                      onToggleExpand={() => {
+                        const caseKey = similarCase.caseId || similarCase.slideId;
+                        setExpandedCase(expandedCase === caseKey ? null : caseKey);
+                      }}
+                      onViewCase={() =>
+                        onCaseClick?.(similarCase.caseId || similarCase.slideId || "")
+                      }
+                    />
+                  ))}
+                </div>
+              </div>
             )}
-          </Button>
+
+            {/* Similar Non-Responders */}
+            {groupedCases.nonResponders.length > 0 && (
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 pb-1 border-b border-red-200">
+                  <XCircle className="h-4 w-4 text-red-600" />
+                  <span className="text-sm font-semibold text-red-800">
+                    Similar Non-Responders (N={groupedCases.nonResponders.length})
+                  </span>
+                </div>
+                <div className="space-y-2 pl-1">
+                  {groupedCases.nonResponders.map((similarCase, index) => (
+                    <SimilarCaseItem
+                      key={`nonresp-${similarCase.caseId || similarCase.slideId}-${index}`}
+                      case_={similarCase}
+                      rank={index + 1}
+                      isExpanded={expandedCase === (similarCase.caseId || similarCase.slideId)}
+                      onToggleExpand={() => {
+                        const caseKey = similarCase.caseId || similarCase.slideId;
+                        setExpandedCase(expandedCase === caseKey ? null : caseKey);
+                      }}
+                      onViewCase={() =>
+                        onCaseClick?.(similarCase.caseId || similarCase.slideId || "")
+                      }
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Unknown Outcome */}
+            {groupedCases.unknown.length > 0 && (
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 pb-1 border-b border-gray-200">
+                  <HelpCircle className="h-4 w-4 text-gray-500" />
+                  <span className="text-sm font-semibold text-gray-600">
+                    Unknown Outcome (N={groupedCases.unknown.length})
+                  </span>
+                </div>
+                <div className="space-y-2 pl-1">
+                  {groupedCases.unknown.map((similarCase, index) => (
+                    <SimilarCaseItem
+                      key={`unk-${similarCase.caseId || similarCase.slideId}-${index}`}
+                      case_={similarCase}
+                      rank={index + 1}
+                      isExpanded={expandedCase === (similarCase.caseId || similarCase.slideId)}
+                      onToggleExpand={() => {
+                        const caseKey = similarCase.caseId || similarCase.slideId;
+                        setExpandedCase(expandedCase === caseKey ? null : caseKey);
+                      }}
+                      onViewCase={() =>
+                        onCaseClick?.(similarCase.caseId || similarCase.slideId || "")
+                      }
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Outcome Comparison Note */}
+            {groupedCases.responders.length > 0 && groupedCases.nonResponders.length > 0 && (
+              <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <p className="text-xs text-blue-800 leading-relaxed">
+                  <strong>Comparison note:</strong> This case shares morphological features with both 
+                  responder and non-responder cases. Key differentiating features may include tumor 
+                  cellularity, stromal patterns, and inflammatory infiltrate distribution.
+                </p>
+              </div>
+            )}
+          </div>
+        ) : (
+          <>
+            {/* List View - All Cases */}
+            <div className="space-y-2">
+              {visibleCases.map((similarCase, index) => (
+                <SimilarCaseItem
+                  key={`${similarCase.caseId || similarCase.slideId}-${similarCase.patchId || index}`}
+                  case_={similarCase}
+                  rank={index + 1}
+                  isExpanded={expandedCase === (similarCase.caseId || similarCase.slideId)}
+                  onToggleExpand={() => {
+                    const caseKey = similarCase.caseId || similarCase.slideId;
+                    setExpandedCase(expandedCase === caseKey ? null : caseKey);
+                  }}
+                  onViewCase={() =>
+                    onCaseClick?.(similarCase.caseId || similarCase.slideId || "")
+                  }
+                />
+              ))}
+            </div>
+
+            {/* Show More/Less */}
+            {cases.length > 5 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowAll(!showAll)}
+                className="w-full text-gray-600 hover:text-gray-900"
+              >
+                {showAll ? (
+                  <>
+                    <ChevronUp className="h-4 w-4 mr-1" />
+                    Show Less
+                  </>
+                ) : (
+                  <>
+                    <ChevronDown className="h-4 w-4 mr-1" />
+                    Show {cases.length - 5} More Cases
+                  </>
+                )}
+              </Button>
+            )}
+          </>
         )}
 
         {/* Info */}

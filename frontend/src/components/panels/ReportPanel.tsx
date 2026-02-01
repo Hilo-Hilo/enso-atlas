@@ -28,8 +28,34 @@ import {
   ArrowRight,
   FileCheck,
   RefreshCw,
+  FlaskConical,
+  Stethoscope,
+  Circle,
 } from "lucide-react";
 import type { StructuredReport } from "@/types";
+
+// Tissue type inference for evidence patches in report
+type TissueType = "tumor" | "stroma" | "necrosis" | "inflammatory" | "normal" | "unknown";
+
+function inferTissueType(description: string): TissueType {
+  const lower = description.toLowerCase();
+  if (lower.includes("necrotic") || lower.includes("necrosis")) return "necrosis";
+  if (lower.includes("lymphocytic") || lower.includes("inflammatory") || lower.includes("infiltrate")) return "inflammatory";
+  if (lower.includes("stromal") || lower.includes("stroma") || lower.includes("desmoplasia")) return "stroma";
+  if (lower.includes("carcinoma") || lower.includes("tumor") || lower.includes("papillary") || 
+      lower.includes("mitotic") || lower.includes("atypia")) return "tumor";
+  if (lower.includes("normal") || lower.includes("benign")) return "normal";
+  return "unknown";
+}
+
+const TISSUE_TYPE_LABELS: Record<TissueType, { label: string; color: string }> = {
+  tumor: { label: "Tumor", color: "text-red-600" },
+  stroma: { label: "Stroma", color: "text-blue-600" },
+  necrosis: { label: "Necrosis", color: "text-gray-600" },
+  inflammatory: { label: "Inflammatory", color: "text-purple-600" },
+  normal: { label: "Normal", color: "text-green-600" },
+  unknown: { label: "Unclassified", color: "text-gray-400" },
+};
 
 interface ReportPanelProps {
   report: StructuredReport | null;
