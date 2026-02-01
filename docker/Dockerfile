@@ -22,6 +22,7 @@ ENV PATH=/usr/local/cuda/bin:$PATH
 RUN python -c "import torch; print(f'PyTorch: {torch.__version__} (CUDA: {torch.version.cuda})')"
 
 # Install system dependencies
+# Note: Using opencv-python-headless to avoid GL dependencies
 RUN apt-get update && apt-get install -y \
     openslide-tools \
     libopenslide0 \
@@ -30,8 +31,6 @@ RUN apt-get update && apt-get install -y \
     libpng-dev \
     libtiff-dev \
     libwebp-dev \
-    libgl1-mesa-glx \
-    libglib2.0-0 \
     git \
     curl \
     wget \
