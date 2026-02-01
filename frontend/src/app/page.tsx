@@ -137,7 +137,13 @@ export default function HomePage() {
   return (
     <div className="flex flex-col h-screen bg-surface-secondary">
       {/* Header */}
-      <Header isConnected={isConnected} version="0.1.0" />
+      <Header
+        isConnected={isConnected}
+        isProcessing={isAnalyzing || isGeneratingReport}
+        version="0.1.0"
+        institutionName="Enso Labs"
+        userName="Clinician"
+      />
 
       {/* Main Content */}
       <main className="flex-1 flex overflow-hidden">
@@ -171,6 +177,7 @@ export default function HomePage() {
               slideId={selectedSlide.id}
               dziUrl={dziUrl}
               heatmap={heatmapData}
+              mpp={selectedSlide.mpp}
               onRegionClick={handlePatchClick}
               className="h-full"
             />
@@ -243,7 +250,7 @@ export default function HomePage() {
       </main>
 
       {/* Footer */}
-      <Footer />
+      <Footer version="0.1.0" />
     </div>
   );
 }

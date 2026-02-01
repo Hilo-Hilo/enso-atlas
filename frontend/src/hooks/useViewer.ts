@@ -103,9 +103,9 @@ export function useViewer(options: UseViewerOptions): UseViewerReturn {
     viewer.addTiledImage({
       tileSource: heatmapUrl,
       opacity: viewerState.showHeatmap ? viewerState.heatmapOpacity : 0,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      success: (event: any) => {
-        heatmapOverlayRef.current = event.item as OpenSeadragon.TiledImage;
+      success: (event: unknown) => {
+        const e = event as { item?: OpenSeadragon.TiledImage };
+        if (e.item) heatmapOverlayRef.current = e.item;
       },
     });
   }, [heatmapUrl, isReady, viewerState.heatmapOpacity, viewerState.showHeatmap]);
