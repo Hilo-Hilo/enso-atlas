@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState, useCallback, useEffect } from "react";
-import dynamic from "next/dynamic";
+import React, { useState, useCallback, useEffect, useRef, useMemo } from "react";
+import nextDynamic from "next/dynamic";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import {
@@ -15,16 +15,22 @@ import {
   QuickStatsPanel,
   recordAnalysis,
 } from "@/components/panels";
-import { PatchZoomModal } from "@/components/modals";
+import { PatchZoomModal, KeyboardShortcutsModal } from "@/components/modals";
 import { useAnalysis } from "@/hooks/useAnalysis";
+import { useKeyboardShortcuts, type KeyboardShortcut } from "@/hooks/useKeyboardShortcuts";
 import { getDziUrl, healthCheck, exportReportPdf, semanticSearch } from "@/lib/api";
 import type { SlideInfo, PatchCoordinates, SemanticSearchResult, EvidencePatch } from "@/types";
 
+// Avoid prerendering (client-only viewer + document usage)
+export const dynamic = "force-dynamic";
+
 // Dynamically import WSIViewer to prevent SSR issues with OpenSeadragon
-const WSIViewer = dynamic(
+const WSIViewer = nextDynamic(
   () => import("@/components/viewer/WSIViewer").then((mod) => mod.WSIViewer),
   { ssr: false, loading: () => <div className="h-full flex items-center justify-center bg-gray-100 rounded-lg">Loading viewer...</div> }
 );
+
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 export default function HomePage() {
   // State
@@ -36,10 +42,33 @@ export default function HomePage() {
   const [zoomModalOpen, setZoomModalOpen] = useState(false);
   const [zoomedPatch, setZoomedPatch] = useState<EvidencePatch | null>(null);
 
+  // Keyboard shortcuts modal state
+  const [shortcutsModalOpen, setShortcutsModalOpen] = useState(false);
+
   // Semantic search state
   const [semanticResults, setSemanticResults] = useState<SemanticSearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
+
+  // Slide list state for keyboard navigation
+  const [slideList, setSlideList] = useState<SlideInfo[]>([]);
+  const [slideIndex, setSlideIndex] = useState<number>(-1);
+
+  // Refs for panel focusing
+  const slideSelectorRef = useRef<HTMLElement>(null);
+  const viewerRef = useRef<HTMLElement>(null);
+  const predictionPanelRef = useRef<HTMLDivElement>(null);
+  const evidencePanelRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // Viewer control refs
+  const viewerControlsRef = useRef<{
+    zoomIn: () => void;
+    zoomOut: () => void;
+    resetZoom: () => void;
+    toggleHeatmap: () => void;
+    toggleFullscreen: () => void;
+  } | null>(null);
 
   // Analysis hook
   const {
@@ -52,7 +81,96 @@ export default function HomePage() {
     generateSlideReport,
     clearResults,
     clearError,
+    retryAnalysis,
+    retryReport,
+    analysisStep,
   } = useAnalysis();
+
+  // Keyboard shortcut handlers
+  const handleNavigateSlides = useCallback((direction: "up" | "down") => {
+    if (slideList.length === 0) return;
+    
+    let newIndex = slideIndex;
+    if (direction === "up") {
+      newIndex = slideIndex <= 0 ? slideList.length - 1 : slideIndex - 1;
+    } else {
+      newIndex = slideIndex >= slideList.length - 1 ? 0 : slideIndex + 1;
+    }
+    
+    setSlideIndex(newIndex);
+    const slide = slideList[newIndex];
+    if (slide) {
+      setSelectedSlide(slide);
+      clearResults();
+      setSelectedPatchId(undefined);
+      setSemanticResults([]);
+      setSearchError(null);
+    }
+  }, [slideList, slideIndex, clearResults]);
+
+  const handleClearSelection = useCallback(() => {
+    if (zoomModalOpen) {
+      setZoomModalOpen(false);
+    } else if (shortcutsModalOpen) {
+      setShortcutsModalOpen(false);
+    } else {
+      setSelectedSlide(null);
+      setSlideIndex(-1);
+      clearResults();
+      setSelectedPatchId(undefined);
+      setSemanticResults([]);
+    }
+  }, [zoomModalOpen, shortcutsModalOpen, clearResults]);
+
+  const handleFocusPanel = useCallback((panel: number) => {
+    switch (panel) {
+      case 1:
+        slideSelectorRef.current?.focus();
+        break;
+      case 2:
+        viewerRef.current?.focus();
+        break;
+      case 3:
+        predictionPanelRef.current?.focus();
+        predictionPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+        break;
+      case 4:
+        evidencePanelRef.current?.focus();
+        evidencePanelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+        break;
+    }
+  }, []);
+
+  const handleFocusSearch = useCallback(() => {
+    searchInputRef.current?.focus();
+    searchInputRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, []);
+
+  const handleViewerZoomIn = useCallback(() => {
+    viewerControlsRef.current?.zoomIn();
+  }, []);
+
+  const handleViewerZoomOut = useCallback(() => {
+    viewerControlsRef.current?.zoomOut();
+  }, []);
+
+  const handleViewerResetZoom = useCallback(() => {
+    viewerControlsRef.current?.resetZoom();
+  }, []);
+
+  const handleToggleHeatmap = useCallback(() => {
+    viewerControlsRef.current?.toggleHeatmap();
+  }, []);
+
+  const handleToggleFullscreen = useCallback(() => {
+    viewerControlsRef.current?.toggleFullscreen();
+  }, []);
+
+  const handlePrintReport = useCallback(() => {
+    if (report) {
+      window.print();
+    }
+  }, [report]);
 
   // Check backend connection
   useEffect(() => {
@@ -160,6 +278,7 @@ export default function HomePage() {
 
   // Handle similar case click
   const handleCaseClick = useCallback((caseId: string) => {
+    if (typeof window === "undefined") return;
     // Open similar case in new tab (placeholder - would navigate to case detail view)
     window.open(`/case/${caseId}`, "_blank");
   }, []);
@@ -175,9 +294,168 @@ export default function HomePage() {
     });
   }, [selectedSlide, analysisResult, generateSlideReport]);
 
+  // Define keyboard shortcuts
+  const keyboardShortcuts = useMemo<KeyboardShortcut[]>(() => [
+    // Navigation shortcuts
+    {
+      key: "ArrowUp",
+      description: "Previous slide",
+      category: "Navigation",
+      handler: () => handleNavigateSlides("up"),
+    },
+    {
+      key: "ArrowDown",
+      description: "Next slide",
+      category: "Navigation",
+      handler: () => handleNavigateSlides("down"),
+    },
+    {
+      key: "Enter",
+      description: "Analyze selected slide",
+      category: "Navigation",
+      handler: () => {
+        if (selectedSlide && !isAnalyzing) {
+          handleAnalyze();
+        }
+      },
+    },
+    {
+      key: "Escape",
+      description: "Clear selection / Close modal",
+      category: "Navigation",
+      handler: handleClearSelection,
+    },
+    // Viewer controls
+    {
+      key: "=",
+      description: "Zoom in",
+      category: "Viewer",
+      handler: handleViewerZoomIn,
+    },
+    {
+      key: "+",
+      description: "Zoom in",
+      category: "Viewer",
+      handler: handleViewerZoomIn,
+    },
+    {
+      key: "-",
+      description: "Zoom out",
+      category: "Viewer",
+      handler: handleViewerZoomOut,
+    },
+    {
+      key: "0",
+      description: "Reset zoom",
+      category: "Viewer",
+      handler: handleViewerResetZoom,
+    },
+    {
+      key: "h",
+      description: "Toggle heatmap overlay",
+      category: "Viewer",
+      handler: handleToggleHeatmap,
+    },
+    {
+      key: "f",
+      description: "Fullscreen viewer",
+      category: "Viewer",
+      handler: handleToggleFullscreen,
+    },
+    // Panel shortcuts
+    {
+      key: "1",
+      description: "Focus slide selector",
+      category: "Panels",
+      handler: () => handleFocusPanel(1),
+    },
+    {
+      key: "2",
+      description: "Focus viewer",
+      category: "Panels",
+      handler: () => handleFocusPanel(2),
+    },
+    {
+      key: "3",
+      description: "Focus prediction panel",
+      category: "Panels",
+      handler: () => handleFocusPanel(3),
+    },
+    {
+      key: "4",
+      description: "Focus evidence panel",
+      category: "Panels",
+      handler: () => handleFocusPanel(4),
+    },
+    {
+      key: "s",
+      description: "Focus semantic search",
+      category: "Panels",
+      handler: handleFocusSearch,
+    },
+    // Action shortcuts
+    {
+      key: "a",
+      description: "Analyze selected slide",
+      category: "Actions",
+      handler: () => {
+        if (selectedSlide && !isAnalyzing) {
+          handleAnalyze();
+        }
+      },
+    },
+    {
+      key: "r",
+      description: "Generate report",
+      category: "Actions",
+      handler: () => {
+        if (selectedSlide && analysisResult && !report && !isGeneratingReport) {
+          handleGenerateReport();
+        }
+      },
+    },
+    {
+      key: "p",
+      description: "Print report",
+      category: "Actions",
+      handler: handlePrintReport,
+    },
+    {
+      key: "?",
+      description: "Show keyboard shortcuts",
+      category: "Actions",
+      handler: () => setShortcutsModalOpen(true),
+    },
+  ], [
+    handleNavigateSlides,
+    handleClearSelection,
+    handleViewerZoomIn,
+    handleViewerZoomOut,
+    handleViewerResetZoom,
+    handleToggleHeatmap,
+    handleToggleFullscreen,
+    handleFocusPanel,
+    handleFocusSearch,
+    handlePrintReport,
+    handleAnalyze,
+    handleGenerateReport,
+    selectedSlide,
+    isAnalyzing,
+    analysisResult,
+    report,
+    isGeneratingReport,
+  ]);
+
+  // Use the keyboard shortcuts hook
+  const { shortcuts } = useKeyboardShortcuts({
+    enabled: !zoomModalOpen, // Disable when patch modal is open (it has its own shortcuts)
+    shortcuts: keyboardShortcuts,
+  });
+
   // Handle PDF export
   const handleExportPdf = useCallback(async () => {
     if (!selectedSlide) return;
+    if (typeof document === "undefined") return;
     try {
       const blob = await exportReportPdf(selectedSlide.id);
       const url = URL.createObjectURL(blob);
@@ -194,6 +472,7 @@ export default function HomePage() {
   // Handle JSON export
   const handleExportJson = useCallback(async () => {
     if (!selectedSlide || !report) return;
+    if (typeof document === "undefined") return;
     const blob = new Blob([JSON.stringify(report, null, 2)], {
       type: "application/json",
     });
@@ -210,6 +489,7 @@ export default function HomePage() {
   const heatmapData = analysisResult?.heatmap;
 
   return (
+    <ErrorBoundary>
     <div className="flex flex-col h-screen bg-surface-secondary">
       {/* Header */}
       <Header
@@ -218,29 +498,63 @@ export default function HomePage() {
         version="0.1.0"
         institutionName="Enso Labs"
         userName="Clinician"
+        onOpenShortcuts={() => setShortcutsModalOpen(true)}
       />
 
       {/* Main Content */}
       <main className="flex-1 flex overflow-hidden">
         {/* Left Sidebar - Slide Selection */}
-        <aside className="w-80 border-r border-surface-border bg-white p-4 overflow-y-auto shrink-0 space-y-4">
+        <aside
+          ref={slideSelectorRef as React.RefObject<HTMLElement>}
+          tabIndex={-1}
+          className="w-80 border-r border-surface-border bg-white p-4 overflow-y-auto shrink-0 space-y-4 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-clinical-500"
+        >
           <SlideSelector
             selectedSlideId={selectedSlide?.id ?? null}
             onSlideSelect={handleSlideSelect}
             onAnalyze={handleAnalyze}
             isAnalyzing={isAnalyzing}
+            analysisStep={analysisStep}
           />
 
           {/* Error Display */}
           {error && (
             <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
-              <p className="text-sm text-red-700">{error}</p>
-              <button
-                onClick={clearError}
-                className="mt-2 text-xs text-red-600 underline"
-              >
-                Dismiss
-              </button>
+              <div className="flex items-start gap-2">
+                <svg
+                  className="h-4 w-4 text-red-500 mt-0.5 shrink-0"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                  />
+                </svg>
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-red-800">
+                    Operation Failed
+                  </p>
+                  <p className="text-xs text-red-700 mt-0.5">{error}</p>
+                  <div className="flex gap-2 mt-2">
+                    <button
+                      onClick={retryAnalysis}
+                      className="text-xs text-red-700 font-medium hover:text-red-900 underline"
+                    >
+                      Retry
+                    </button>
+                    <button
+                      onClick={clearError}
+                      className="text-xs text-red-600 hover:text-red-800"
+                    >
+                      Dismiss
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
 
@@ -252,7 +566,11 @@ export default function HomePage() {
         </aside>
 
         {/* Center - WSI Viewer */}
-        <section className="flex-1 p-4 overflow-hidden">
+        <section
+          ref={viewerRef as React.RefObject<HTMLElement>}
+          tabIndex={-1}
+          className="flex-1 p-4 overflow-hidden focus:outline-none focus:ring-2 focus:ring-inset focus:ring-clinical-500"
+        >
           {selectedSlide && dziUrl ? (
             <WSIViewer
               slideId={selectedSlide.id}
@@ -296,20 +614,29 @@ export default function HomePage() {
         {/* Right Sidebar - Results */}
         <aside className="w-96 border-l border-surface-border bg-white p-4 overflow-y-auto shrink-0 space-y-4">
           {/* Prediction Results */}
-          <PredictionPanel
-            prediction={analysisResult?.prediction ?? null}
-            isLoading={isAnalyzing}
-            processingTime={analysisResult?.processingTimeMs}
-          />
+          <div ref={predictionPanelRef} tabIndex={-1} className="focus:outline-none focus:ring-2 focus:ring-clinical-500 focus:ring-offset-2 rounded-lg">
+            <PredictionPanel
+              prediction={analysisResult?.prediction ?? null}
+              isLoading={isAnalyzing}
+              processingTime={analysisResult?.processingTimeMs}
+              analysisStep={analysisStep}
+              error={!isAnalyzing && !analysisResult ? error : null}
+              onRetry={retryAnalysis}
+            />
+          </div>
 
           {/* Evidence Patches */}
-          <EvidencePanel
-            patches={analysisResult?.evidencePatches ?? []}
-            isLoading={isAnalyzing}
-            onPatchClick={handlePatchClick}
-            onPatchZoom={handlePatchZoom}
-            selectedPatchId={selectedPatchId}
-          />
+          <div ref={evidencePanelRef} tabIndex={-1} className="focus:outline-none focus:ring-2 focus:ring-clinical-500 focus:ring-offset-2 rounded-lg">
+            <EvidencePanel
+              patches={analysisResult?.evidencePatches ?? []}
+              isLoading={isAnalyzing}
+              onPatchClick={handlePatchClick}
+              onPatchZoom={handlePatchZoom}
+              selectedPatchId={selectedPatchId}
+              error={!isAnalyzing && error && !analysisResult ? error : null}
+              onRetry={retryAnalysis}
+            />
+          </div>
 
           {/* Semantic Search */}
           <SemanticSearchPanel
@@ -328,6 +655,8 @@ export default function HomePage() {
             cases={analysisResult?.similarCases ?? []}
             isLoading={isAnalyzing}
             onCaseClick={handleCaseClick}
+            error={!isAnalyzing && error && !analysisResult ? error : null}
+            onRetry={retryAnalysis}
           />
 
           {/* Clinical Report */}
@@ -339,6 +668,8 @@ export default function HomePage() {
             }
             onExportPdf={report ? handleExportPdf : undefined}
             onExportJson={report ? handleExportJson : undefined}
+            error={!isGeneratingReport && !report && error ? error : null}
+            onRetry={retryReport}
           />
         </aside>
       </main>
@@ -355,6 +686,14 @@ export default function HomePage() {
         onNavigate={handlePatchModalNavigate}
         slideId={selectedSlide?.id}
       />
+
+      {/* Keyboard Shortcuts Modal */}
+      <KeyboardShortcutsModal
+        isOpen={shortcutsModalOpen}
+        onClose={() => setShortcutsModalOpen(false)}
+        shortcuts={shortcuts}
+      />
     </div>
+    </ErrorBoundary>
   );
 }

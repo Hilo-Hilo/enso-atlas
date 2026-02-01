@@ -265,6 +265,13 @@
     @apply absolute h-full bg-clinical-400 rounded-full;
   }
 
+  /* Keyboard shortcut key styling */
+  .kbd {
+    @apply inline-flex items-center justify-center min-w-[1.5rem] px-1.5 py-0.5;
+    @apply text-xs font-mono font-medium text-gray-700;
+    @apply bg-gray-100 border border-gray-300 rounded shadow-sm;
+  }
+
   /* Search input styling */
   .search-input {
     @apply w-full pl-9 pr-4 py-2 bg-white border border-gray-200 rounded-lg text-sm;
@@ -335,6 +342,21 @@
     to {
       opacity: 1;
       transform: translateY(0);
+    }
+  }
+
+  .animate-scale-in {
+    animation: scaleIn 0.2s ease-out forwards;
+  }
+
+  @keyframes scaleIn {
+    from {
+      opacity: 0;
+      transform: scale(0.95);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
     }
   }
 

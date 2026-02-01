@@ -11,6 +11,7 @@ import {
   User,
   Building2,
   ChevronDown,
+  Keyboard,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -20,6 +21,7 @@ interface HeaderProps {
   version?: string;
   institutionName?: string;
   userName?: string;
+  onOpenShortcuts?: () => void;
 }
 
 export function Header({
@@ -28,6 +30,7 @@ export function Header({
   version = "0.1.0",
   institutionName = "Research Laboratory",
   userName,
+  onOpenShortcuts,
 }: HeaderProps) {
   return (
     <header className="h-16 bg-navy-900 border-b border-navy-700 px-6 flex items-center justify-between shrink-0">
@@ -111,6 +114,15 @@ export function Header({
             title="System Status"
           >
             <Activity className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="p-2 text-gray-400 hover:text-white hover:bg-navy-800"
+            title="Keyboard Shortcuts (?)"
+            onClick={onOpenShortcuts}
+          >
+            <Keyboard className="h-4 w-4" />
           </Button>
           <Button
             variant="ghost"
