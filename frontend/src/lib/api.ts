@@ -151,13 +151,15 @@ export async function analyzeSlide(
     },
     evidencePatches: backend.top_evidence.map(e => ({
       id: `patch_${e.patch_index}`,
+      patchId: `patch_${e.patch_index}`,
       coordinates: {
         x: e.coordinates?.[0] ?? 0,
         y: e.coordinates?.[1] ?? 0,
         width: 224,
         height: 224,
       },
-      attentionScore: e.attention_weight,
+      attentionWeight: e.attention_weight,
+      thumbnailUrl: "",
       rank: e.rank,
     })),
     similarCases: backend.similar_cases.map(s => ({
