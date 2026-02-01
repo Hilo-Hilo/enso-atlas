@@ -590,6 +590,183 @@ reviewed and validated by qualified pathologists before any clinical decision-ma
             "input_size": 224,
         }
     
+    # WSI / DZI Tile Serving
+    # Cache for OpenSlide objects and DeepZoom generators
+    # slides are at data/slides (not inside demo/)
+    slides_dir = embeddings_dir.parent.parent / "slides"
+    wsi_cache: Dict[str, Any] = {}
+    logger.info(f"Slides directory: {slides_dir}")
+    
+    def get_slide_and_dz(slide_id: str):
+        """Get or create OpenSlide and DeepZoomGenerator for a slide."""
+        if slide_id in wsi_cache:
+            return wsi_cache[slide_id]
+        
+        # Try common WSI extensions
+        slide_path = None
+        for ext in [".svs", ".tiff", ".tif", ".ndpi", ".mrxs", ".vms", ".scn"]:
+            candidate = slides_dir / f"{slide_id}{ext}"
+            if candidate.exists():
+                slide_path = candidate
+                break
+        
+        if slide_path is None:
+            return None
+        
+        try:
+            import openslide
+            from openslide.deepzoom import DeepZoomGenerator
+            
+            slide = openslide.OpenSlide(str(slide_path))
+            # tile_size=254 with overlap=1 is standard for OpenSeadragon
+            dz = DeepZoomGenerator(slide, tile_size=254, overlap=1, limit_bounds=True)
+            wsi_cache[slide_id] = (slide, dz)
+            logger.info(f"Loaded WSI: {slide_path}")
+            return slide, dz
+        except Exception as e:
+            logger.error(f"Failed to load WSI {slide_path}: {e}")
+            return None
+    
+    @app.get("/api/slides/{slide_id}/dzi")
+    async def get_dzi_descriptor(slide_id: str):
+        """Get Deep Zoom Image descriptor (XML) for OpenSeadragon."""
+        result = get_slide_and_dz(slide_id)
+        if result is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"WSI file not found for slide {slide_id}"
+            )
+        
+        slide, dz = result
+        
+        # Generate DZI XML descriptor
+        dzi_xml = f'''<?xml version="1.0" encoding="UTF-8"?>
+<Image xmlns="http://schemas.microsoft.com/deepzoom/2008"
+  Format="jpeg"
+  Overlap="1"
+  TileSize="254">
+  <Size Width="{dz.level_dimensions[-1][0]}" Height="{dz.level_dimensions[-1][1]}"/>
+</Image>'''
+        
+        from fastapi.responses import Response
+        return Response(
+            content=dzi_xml,
+            media_type="application/xml",
+            headers={"Content-Disposition": f"inline; filename={slide_id}.dzi"}
+        )
+    
+    @app.get("/api/slides/{slide_id}/dzi_files/{level}/{tile_spec}")
+    async def get_dzi_tile(slide_id: str, level: int, tile_spec: str):
+        """Serve a single DZI tile image."""
+        result = get_slide_and_dz(slide_id)
+        if result is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"WSI file not found for slide {slide_id}"
+            )
+        
+        slide, dz = result
+        
+        # Parse tile coordinates from spec like "0_0.jpeg"
+        try:
+            tile_name = tile_spec.rsplit(".", 1)[0]  # Remove extension
+            col, row = map(int, tile_name.split("_"))
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid tile specification")
+        
+        # Validate level and tile coordinates
+        if level < 0 or level >= dz.level_count:
+            raise HTTPException(status_code=404, detail="Invalid zoom level")
+        
+        level_tiles = dz.level_tiles[level]
+        if col < 0 or col >= level_tiles[0] or row < 0 or row >= level_tiles[1]:
+            raise HTTPException(status_code=404, detail="Tile coordinates out of bounds")
+        
+        try:
+            tile = dz.get_tile(level, (col, row))
+            
+            # Convert to JPEG
+            buf = io.BytesIO()
+            tile.save(buf, format="JPEG", quality=85)
+            buf.seek(0)
+            
+            return StreamingResponse(
+                buf,
+                media_type="image/jpeg",
+                headers={
+                    "Cache-Control": "public, max-age=86400",
+                    "Content-Disposition": f"inline; filename={level}_{col}_{row}.jpeg"
+                }
+            )
+        except Exception as e:
+            logger.error(f"Failed to get tile {level}/{col}_{row} for {slide_id}: {e}")
+            raise HTTPException(status_code=500, detail=f"Failed to generate tile: {e}")
+    
+    @app.get("/api/slides/{slide_id}/thumbnail")
+    async def get_slide_thumbnail(slide_id: str, size: int = 512):
+        """Get a thumbnail of the whole slide."""
+        result = get_slide_and_dz(slide_id)
+        if result is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"WSI file not found for slide {slide_id}"
+            )
+        
+        slide, dz = result
+        
+        try:
+            # Get thumbnail maintaining aspect ratio
+            thumb = slide.get_thumbnail((size, size))
+            
+            buf = io.BytesIO()
+            thumb.save(buf, format="JPEG", quality=90)
+            buf.seek(0)
+            
+            return StreamingResponse(
+                buf,
+                media_type="image/jpeg",
+                headers={"Cache-Control": "public, max-age=3600"}
+            )
+        except Exception as e:
+            logger.error(f"Failed to get thumbnail for {slide_id}: {e}")
+            raise HTTPException(status_code=500, detail=f"Failed to generate thumbnail: {e}")
+    
+    @app.get("/api/slides/{slide_id}/info")
+    async def get_slide_info(slide_id: str):
+        """Get detailed information about a WSI file."""
+        result = get_slide_and_dz(slide_id)
+        if result is None:
+            # Return info even without WSI for embedding-only slides
+            emb_path = embeddings_dir / f"{slide_id}.npy"
+            if emb_path.exists():
+                embeddings = np.load(emb_path)
+                return {
+                    "slide_id": slide_id,
+                    "has_wsi": False,
+                    "has_embeddings": True,
+                    "num_patches": len(embeddings),
+                }
+            raise HTTPException(status_code=404, detail=f"Slide {slide_id} not found")
+        
+        slide, dz = result
+        
+        return {
+            "slide_id": slide_id,
+            "has_wsi": True,
+            "dimensions": {
+                "width": slide.dimensions[0],
+                "height": slide.dimensions[1],
+            },
+            "level_count": slide.level_count,
+            "level_dimensions": [list(d) for d in slide.level_dimensions],
+            "properties": dict(slide.properties) if hasattr(slide, "properties") else {},
+            "dzi": {
+                "tile_size": 254,
+                "overlap": 1,
+                "level_count": dz.level_count,
+            },
+        }
+    
     return app
 
 
