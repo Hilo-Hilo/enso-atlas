@@ -110,6 +110,8 @@ export interface StructuredReport {
   suggestedNextSteps: string[];
   safetyStatement: string;
   summary: string;
+  // Clinical decision support section
+  decisionSupport?: DecisionSupport;
 }
 
 // Analysis request payload
@@ -192,4 +194,32 @@ export interface SlideQCMetrics {
   penMarks: boolean;
   foldDetected: boolean;
   overallQuality: "poor" | "acceptable" | "good";
+}
+
+// Clinical guideline reference
+export interface GuidelineReference {
+  source: string;
+  section: string;
+  recommendation: string;
+  url?: string;
+}
+
+// Risk stratification levels
+export type RiskLevel = "high_confidence" | "moderate_confidence" | "low_confidence" | "inconclusive";
+export type ConfidenceLevel = "high" | "moderate" | "low";
+
+// Clinical decision support output
+export interface DecisionSupport {
+  risk_level: RiskLevel;
+  confidence_level: ConfidenceLevel;
+  confidence_score: number;
+  primary_recommendation: string;
+  supporting_rationale: string[];
+  alternative_considerations: string[];
+  guideline_references: GuidelineReference[];
+  uncertainty_statement: string;
+  quality_warnings: string[];
+  suggested_workup: string[];
+  interpretation_note: string;
+  caveat: string;
 }

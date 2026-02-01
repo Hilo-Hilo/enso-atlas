@@ -31,8 +31,14 @@ import {
   FlaskConical,
   Stethoscope,
   Circle,
+  Activity,
+  BookOpen,
+  Target,
+  TrendingUp,
+  ExternalLink,
+  Info,
 } from "lucide-react";
-import type { StructuredReport } from "@/types";
+import type { StructuredReport, DecisionSupport, RiskLevel, ConfidenceLevel } from "@/types";
 
 // Tissue type inference for evidence patches in report
 type TissueType = "tumor" | "stroma" | "necrosis" | "inflammatory" | "normal" | "unknown";
@@ -57,6 +63,45 @@ const TISSUE_TYPE_LABELS: Record<TissueType, { label: string; color: string }> =
   unknown: { label: "Unclassified", color: "text-gray-400" },
 };
 
+// Risk level styling configuration
+const RISK_LEVEL_CONFIG: Record<RiskLevel, { label: string; color: string; bgColor: string; borderColor: string; icon: string }> = {
+  high_confidence: { 
+    label: "High Confidence", 
+    color: "text-emerald-700", 
+    bgColor: "bg-emerald-50", 
+    borderColor: "border-emerald-300",
+    icon: "check-circle"
+  },
+  moderate_confidence: { 
+    label: "Moderate Confidence", 
+    color: "text-amber-700", 
+    bgColor: "bg-amber-50", 
+    borderColor: "border-amber-300",
+    icon: "alert-circle"
+  },
+  low_confidence: { 
+    label: "Low Confidence", 
+    color: "text-orange-700", 
+    bgColor: "bg-orange-50", 
+    borderColor: "border-orange-300",
+    icon: "alert-triangle"
+  },
+  inconclusive: { 
+    label: "Inconclusive", 
+    color: "text-red-700", 
+    bgColor: "bg-red-50", 
+    borderColor: "border-red-300",
+    icon: "x-circle"
+  },
+};
+
+// Confidence level badge styling
+const CONFIDENCE_BADGE_CONFIG: Record<ConfidenceLevel, { variant: "success" | "warning" | "danger"; label: string }> = {
+  high: { variant: "success", label: "High" },
+  moderate: { variant: "warning", label: "Moderate" },
+  low: { variant: "danger", label: "Low" },
+};
+
 interface ReportPanelProps {
   report: StructuredReport | null;
   isLoading?: boolean;
@@ -77,7 +122,7 @@ export function ReportPanel({
   onRetry,
 }: ReportPanelProps) {
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
-    new Set(["summary", "evidence"])
+    new Set(["decisionSupport", "summary", "evidence"])
   );
   const [copied, setCopied] = useState(false);
 
@@ -253,6 +298,15 @@ export function ReportPanel({
             Generated: {new Date(report.generatedAt).toLocaleString()}
           </p>
         </div>
+
+        {/* CLINICAL DECISION SUPPORT - Most prominent section */}
+        {report.decisionSupport && (
+          <DecisionSupportSection 
+            decisionSupport={report.decisionSupport}
+            isExpanded={expandedSections.has("decisionSupport")}
+            onToggle={() => toggleSection("decisionSupport")}
+          />
+        )}
 
         {/* ACTIONABLE NEXT STEPS - Moved to top for visibility */}
         <ReportSection
@@ -578,6 +632,233 @@ function ReportSection({
           )}
         >
           {children}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Clinical Decision Support Section Component
+interface DecisionSupportSectionProps {
+  decisionSupport: DecisionSupport;
+  isExpanded: boolean;
+  onToggle: () => void;
+}
+
+function DecisionSupportSection({
+  decisionSupport,
+  isExpanded,
+  onToggle,
+}: DecisionSupportSectionProps) {
+  const riskConfig = RISK_LEVEL_CONFIG[decisionSupport.risk_level];
+  const confidenceBadge = CONFIDENCE_BADGE_CONFIG[decisionSupport.confidence_level];
+  const isLowConfidence = decisionSupport.confidence_level === "low" || decisionSupport.risk_level === "inconclusive";
+  
+  return (
+    <div className={cn(
+      "border-2 rounded-lg overflow-hidden",
+      riskConfig.borderColor,
+      "ring-2 ring-offset-1",
+      decisionSupport.risk_level === "high_confidence" ? "ring-emerald-200" :
+      decisionSupport.risk_level === "moderate_confidence" ? "ring-amber-200" :
+      decisionSupport.risk_level === "low_confidence" ? "ring-orange-200" : "ring-red-200"
+    )}>
+      {/* Header with Risk Level Badge */}
+      <button
+        onClick={onToggle}
+        className={cn(
+          "w-full flex items-center justify-between p-4 transition-colors",
+          riskConfig.bgColor,
+          "hover:opacity-90"
+        )}
+      >
+        <div className="flex items-center gap-3">
+          <div className={cn(
+            "w-10 h-10 rounded-full flex items-center justify-center",
+            decisionSupport.risk_level === "high_confidence" ? "bg-emerald-200" :
+            decisionSupport.risk_level === "moderate_confidence" ? "bg-amber-200" :
+            decisionSupport.risk_level === "low_confidence" ? "bg-orange-200" : "bg-red-200"
+          )}>
+            <Target className={cn("h-5 w-5", riskConfig.color)} />
+          </div>
+          <div className="text-left">
+            <div className="flex items-center gap-2">
+              <span className={cn("text-sm font-bold uppercase tracking-wide", riskConfig.color)}>
+                Clinical Decision Support
+              </span>
+              <Badge variant={confidenceBadge.variant} size="sm">
+                {riskConfig.label}
+              </Badge>
+            </div>
+            <p className="text-xs text-gray-600 mt-0.5">
+              Confidence: {(decisionSupport.confidence_score * 100).toFixed(0)}%
+            </p>
+          </div>
+        </div>
+        {isExpanded ? (
+          <ChevronUp className="h-5 w-5 text-gray-500" />
+        ) : (
+          <ChevronDown className="h-5 w-5 text-gray-500" />
+        )}
+      </button>
+
+      {/* Always show primary recommendation summary */}
+      <div className={cn("px-4 py-3 border-t", riskConfig.borderColor, riskConfig.bgColor)}>
+        <div className="flex items-start gap-3">
+          <Activity className={cn("h-5 w-5 mt-0.5 shrink-0", riskConfig.color)} />
+          <div>
+            <p className={cn("text-sm font-medium leading-relaxed", riskConfig.color)}>
+              {decisionSupport.primary_recommendation}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Expanded Content */}
+      {isExpanded && (
+        <div className="p-4 bg-white border-t border-gray-100 space-y-4 animate-fade-in">
+          
+          {/* Uncertainty Warning - Prominent when confidence is low */}
+          {isLowConfidence && (
+            <div className="flex items-start gap-3 p-3 bg-orange-50 border border-orange-200 rounded-lg">
+              <AlertTriangle className="h-5 w-5 text-orange-600 mt-0.5 shrink-0" />
+              <div>
+                <p className="text-sm font-semibold text-orange-800">
+                  Interpretation Caution Required
+                </p>
+                <p className="text-xs text-orange-700 mt-1 leading-relaxed">
+                  {decisionSupport.uncertainty_statement}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Quality Warnings */}
+          {decisionSupport.quality_warnings && decisionSupport.quality_warnings.length > 0 && (
+            <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+              <div className="flex items-center gap-2 mb-2">
+                <Info className="h-4 w-4 text-yellow-700" />
+                <span className="text-xs font-semibold text-yellow-800 uppercase">
+                  Quality Considerations
+                </span>
+              </div>
+              <ul className="space-y-1">
+                {decisionSupport.quality_warnings.map((warning, idx) => (
+                  <li key={idx} className="flex items-center gap-2 text-xs text-yellow-700">
+                    <Circle className="h-1.5 w-1.5 fill-current" />
+                    {warning}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {/* Supporting Rationale */}
+          {decisionSupport.supporting_rationale && decisionSupport.supporting_rationale.length > 0 && (
+            <div>
+              <h4 className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2 flex items-center gap-1.5">
+                <TrendingUp className="h-3.5 w-3.5" />
+                Supporting Evidence
+              </h4>
+              <ul className="space-y-1.5">
+                {decisionSupport.supporting_rationale.map((reason, idx) => (
+                  <li key={idx} className="flex items-start gap-2 text-sm text-gray-700">
+                    <Check className="h-4 w-4 text-emerald-500 mt-0.5 shrink-0" />
+                    <span>{reason}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {/* Interpretation Note */}
+          <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
+            <p className="text-xs text-gray-600 leading-relaxed">
+              <strong>Interpretation:</strong> {decisionSupport.interpretation_note}
+            </p>
+          </div>
+
+          {/* Alternative Considerations */}
+          {decisionSupport.alternative_considerations && decisionSupport.alternative_considerations.length > 0 && (
+            <div>
+              <h4 className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2 flex items-center gap-1.5">
+                <Lightbulb className="h-3.5 w-3.5" />
+                Alternative Considerations
+              </h4>
+              <ul className="space-y-1.5">
+                {decisionSupport.alternative_considerations.map((alt, idx) => (
+                  <li key={idx} className="flex items-start gap-2 text-sm text-gray-700">
+                    <ArrowRight className="h-4 w-4 text-gray-400 mt-0.5 shrink-0" />
+                    <span>{alt}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {/* Suggested Workup */}
+          {decisionSupport.suggested_workup && decisionSupport.suggested_workup.length > 0 && (
+            <div>
+              <h4 className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2 flex items-center gap-1.5">
+                <Stethoscope className="h-3.5 w-3.5" />
+                Suggested Additional Workup
+              </h4>
+              <ol className="space-y-1.5">
+                {decisionSupport.suggested_workup.map((step, idx) => (
+                  <li key={idx} className="flex items-start gap-2 text-sm text-gray-700">
+                    <span className="flex items-center justify-center w-5 h-5 rounded-full bg-clinical-100 text-clinical-700 text-xs font-bold shrink-0">
+                      {idx + 1}
+                    </span>
+                    <span>{step}</span>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          )}
+
+          {/* NCCN Guideline References */}
+          {decisionSupport.guideline_references && decisionSupport.guideline_references.length > 0 && (
+            <div className="border-t border-gray-200 pt-4">
+              <h4 className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2 flex items-center gap-1.5">
+                <BookOpen className="h-3.5 w-3.5" />
+                Clinical Guideline References
+              </h4>
+              <div className="space-y-2">
+                {decisionSupport.guideline_references.map((ref, idx) => (
+                  <div key={idx} className="p-2.5 bg-blue-50 rounded border border-blue-100">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <p className="text-xs font-medium text-blue-800">
+                          {ref.source} - {ref.section}
+                        </p>
+                        <p className="text-xs text-blue-700 mt-1 leading-relaxed">
+                          {ref.recommendation}
+                        </p>
+                      </div>
+                      {ref.url && (
+                        <a
+                          href={ref.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="shrink-0 p-1 text-blue-600 hover:text-blue-800 hover:bg-blue-100 rounded"
+                          title="Open guideline"
+                        >
+                          <ExternalLink className="h-3.5 w-3.5" />
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Caveat Footer */}
+          <div className="pt-3 border-t border-gray-200">
+            <p className="text-xs text-gray-500 italic leading-relaxed">
+              {decisionSupport.caveat}
+            </p>
+          </div>
         </div>
       )}
     </div>

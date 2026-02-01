@@ -411,6 +411,50 @@ Generate the JSON report:"""
             "safety_statement": "This is a research tool. Report generation encountered errors. All findings require manual validation by qualified pathologists."
         }
 
+    def generate_report(
+        self,
+        evidence_patches: List[Dict],
+        score: float,
+        label: str,
+        similar_cases: List[Dict],
+        case_id: str = "unknown",
+        patient_context: Optional[Dict] = None,
+    ) -> Dict:
+        """
+        Generate a complete report with structured data and summary.
+
+        This is a convenience method that calls generate() and generate_summary()
+        together and returns both in a single response.
+
+        Args:
+            evidence_patches: List of evidence patch dicts
+            score: Model prediction score
+            label: Predicted label
+            similar_cases: List of similar case dicts
+            case_id: Case identifier
+            patient_context: Patient demographic/clinical context
+
+        Returns:
+            Dict with 'structured' and 'summary' keys
+        """
+        # Generate structured report
+        structured = self.generate(
+            evidence_patches=evidence_patches,
+            score=score,
+            label=label,
+            similar_cases=similar_cases,
+            case_id=case_id,
+            patient_context=patient_context,
+        )
+
+        # Generate human-readable summary
+        summary = self.generate_summary(structured)
+
+        return {
+            "structured": structured,
+            "summary": summary,
+        }
+
     def generate_summary(self, report: Dict) -> str:
         """
         Generate a human-readable summary from structured report.
