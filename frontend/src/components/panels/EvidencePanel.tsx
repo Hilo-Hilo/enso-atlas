@@ -316,8 +316,78 @@ export function EvidencePanel({
         </div>
       </CardHeader>
       <CardContent className="space-y-3 pt-0">
+        {/* Tissue Type Filter */}
+        <div className="flex flex-wrap gap-1.5 pb-2 border-b border-gray-100">
+          <button
+            onClick={() => handleFilterChange(null)}
+            className={cn(
+              "inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium transition-all",
+              tissueFilter === null
+                ? "bg-clinical-100 text-clinical-700 ring-1 ring-clinical-300"
+                : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+            )}
+          >
+            <Filter className="h-3 w-3" />
+            All ({patches.length})
+          </button>
+          {(Object.keys(TISSUE_TYPES) as ExtendedTissueType[])
+            .filter((type) => tissueTypeCounts[type] > 0)
+            .map((type) => {
+              const info = TISSUE_TYPES[type];
+              return (
+                <button
+                  key={type}
+                  onClick={() => handleFilterChange(type)}
+                  className={cn(
+                    "inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium transition-all border",
+                    tissueFilter === type
+                      ? cn(info.bgColor, info.color, info.borderColor, "ring-1")
+                      : cn("bg-white border-gray-200 text-gray-600", info.hoverBg)
+                  )}
+                >
+                  <Circle className={cn("h-2 w-2", tissueFilter === type ? "fill-current" : "")} />
+                  {info.shortLabel} ({tissueTypeCounts[type]})
+                </button>
+              );
+            })}
+          {tissueFilter && (
+            <button
+              onClick={() => handleFilterChange(null)}
+              className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium text-gray-500 hover:text-gray-700 hover:bg-gray-100"
+              title="Clear filter"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          )}
+        </div>
+
+        {/* Filter active indicator */}
+        {tissueFilter && (
+          <div className={cn(
+            "flex items-center gap-2 px-2 py-1.5 rounded-md text-xs",
+            TISSUE_TYPES[tissueFilter].bgColor,
+            TISSUE_TYPES[tissueFilter].color
+          )}>
+            <Filter className="h-3 w-3" />
+            <span>Showing {filteredPatches.length} {TISSUE_TYPES[tissueFilter].label.toLowerCase()} patches</span>
+          </div>
+        )}
+
+        {/* Empty state when filter yields no results */}
+        {filteredPatches.length === 0 && tissueFilter && (
+          <div className="text-center py-6 text-gray-500">
+            <p className="text-sm">No patches match this filter</p>
+            <button
+              onClick={() => handleFilterChange(null)}
+              className="text-xs text-clinical-600 hover:text-clinical-700 mt-2"
+            >
+              Clear filter
+            </button>
+          </div>
+        )}
+
         {/* Patch Grid/List */}
-        {viewMode === "grid" ? (
+        {filteredPatches.length > 0 && viewMode === "grid" ? (
           <div className="grid grid-cols-3 gap-2">
             {visiblePatches.map((patch) => (
               <PatchThumbnail
@@ -427,7 +497,7 @@ function PatchThumbnail({
       : "bg-blue-500";
 
   // Infer tissue type from morphology description
-  const tissueType = inferTissueType(patch.morphologyDescription);
+  const tissueType = getTissueType(patch);
   const tissueInfo = TISSUE_TYPES[tissueType];
 
   return (
@@ -526,7 +596,7 @@ function PatchListItem({
   const attentionPercent = Math.round(patch.attentionWeight * 100);
 
   // Infer tissue type from morphology description
-  const tissueType = inferTissueType(patch.morphologyDescription);
+  const tissueType = getTissueType(patch);
   const tissueInfo = TISSUE_TYPES[tissueType];
 
   return (

@@ -65,6 +65,16 @@ async function fetchApi<T>(
 
 // API Client functions
 
+// Backend patient context (snake_case from Python)
+interface BackendPatientContext {
+  age?: number;
+  sex?: string;
+  stage?: string;
+  grade?: string;
+  prior_lines?: number;
+  histology?: string;
+}
+
 // Backend slide info (different from frontend type)
 interface BackendSlideInfo {
   slide_id: string;
@@ -72,6 +82,7 @@ interface BackendSlideInfo {
   has_embeddings: boolean;
   label?: string;
   num_patches?: number;
+  patient?: BackendPatientContext;
 }
 
 /**
@@ -92,6 +103,15 @@ export async function getSlides(): Promise<SlidesListResponse> {
       label: s.label,
       hasEmbeddings: s.has_embeddings,
       numPatches: s.num_patches,
+      // Patient context
+      patient: s.patient ? {
+        age: s.patient.age,
+        sex: s.patient.sex,
+        stage: s.patient.stage,
+        grade: s.patient.grade,
+        prior_lines: s.patient.prior_lines,
+        histology: s.patient.histology,
+      } : undefined,
     })),
     total: slides.length,
   };
