@@ -254,6 +254,18 @@ def create_app(
             "docs": "/api/docs",
         }
 
+    @app.get("/docs", include_in_schema=False)
+    async def docs_redirect():
+        """Redirect /docs to /api/docs for convenience."""
+        from starlette.responses import RedirectResponse
+        return RedirectResponse(url="/api/docs")
+
+    @app.get("/redoc", include_in_schema=False)
+    async def redoc_redirect():
+        """Redirect /redoc to /api/redoc for convenience."""
+        from starlette.responses import RedirectResponse
+        return RedirectResponse(url="/api/redoc")
+
     @app.get("/api/slides", response_model=List[SlideInfo])
     async def list_slides():
         """List all available slides."""

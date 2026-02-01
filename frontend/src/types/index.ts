@@ -151,3 +151,17 @@ export interface PanelVisibility {
   similarCases: boolean;
   report: boolean;
 }
+
+// Semantic search result from MedSigLIP
+export interface SemanticSearchResult {
+  patch_index: number;
+  similarity: number;
+  coordinates?: [number, number];
+}
+
+// Semantic search response
+export interface SemanticSearchResponse {
+  slide_id: string;
+  query: string;
+  results: SemanticSearchResult[];
+}

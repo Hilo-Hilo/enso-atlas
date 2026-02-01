@@ -10,10 +10,15 @@ import {
   EvidencePanel,
   SimilarCasesPanel,
   ReportPanel,
+  SemanticSearchPanel,
+  CaseNotesPanel,
+  QuickStatsPanel,
+  recordAnalysis,
 } from "@/components/panels";
+import { PatchZoomModal } from "@/components/modals";
 import { useAnalysis } from "@/hooks/useAnalysis";
-import { getDziUrl, healthCheck, exportReportPdf } from "@/lib/api";
-import type { SlideInfo, PatchCoordinates } from "@/types";
+import { getDziUrl, healthCheck, exportReportPdf, semanticSearch } from "@/lib/api";
+import type { SlideInfo, PatchCoordinates, SemanticSearchResult, EvidencePatch } from "@/types";
 
 // Dynamically import WSIViewer to prevent SSR issues with OpenSeadragon
 const WSIViewer = dynamic(
@@ -26,6 +31,15 @@ export default function HomePage() {
   const [selectedSlide, setSelectedSlide] = useState<SlideInfo | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [selectedPatchId, setSelectedPatchId] = useState<string | undefined>();
+
+  // Patch zoom modal state
+  const [zoomModalOpen, setZoomModalOpen] = useState(false);
+  const [zoomedPatch, setZoomedPatch] = useState<EvidencePatch | null>(null);
+
+  // Semantic search state
+  const [semanticResults, setSemanticResults] = useState<SemanticSearchResult[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
 
   // Analysis hook
   const {
@@ -62,19 +76,57 @@ export default function HomePage() {
       setSelectedSlide(slide);
       clearResults();
       setSelectedPatchId(undefined);
+      setSemanticResults([]);
+      setSearchError(null);
     },
     [clearResults]
+  );
+
+  // Handle semantic search
+  const handleSemanticSearch = useCallback(
+    async (query: string, topK: number) => {
+      if (!selectedSlide) return;
+
+      setIsSearching(true);
+      setSearchError(null);
+
+      try {
+        const response = await semanticSearch(selectedSlide.id, query, topK);
+        setSemanticResults(response.results);
+      } catch (err) {
+        console.error("Semantic search failed:", err);
+        setSearchError(
+          err instanceof Error ? err.message : "Search failed. Please try again."
+        );
+        setSemanticResults([]);
+      } finally {
+        setIsSearching(false);
+      }
+    },
+    [selectedSlide]
   );
 
   // Handle analyze button
   const handleAnalyze = useCallback(async () => {
     if (!selectedSlide) return;
 
-    await analyze({
+    const startTime = Date.now();
+    const result = await analyze({
       slideId: selectedSlide.id,
       patchBudget: 8000,
       magnification: 20,
     });
+
+    // Record stats for the quick stats panel
+    if (result) {
+      const processingTime = result.processingTimeMs || (Date.now() - startTime);
+      recordAnalysis(
+        selectedSlide.id,
+        result.prediction.label,
+        result.prediction.confidence,
+        processingTime
+      );
+    }
   }, [selectedSlide, analyze]);
 
   // Handle patch click - navigate viewer
@@ -82,6 +134,29 @@ export default function HomePage() {
     // The WSIViewer will handle navigation internally via state/props
     setSelectedPatchId(`${coords.x}_${coords.y}`);
   }, []);
+
+  // Handle patch zoom - open modal with enlarged view
+  const handlePatchZoom = useCallback((patch: EvidencePatch) => {
+    setZoomedPatch(patch);
+    setZoomModalOpen(true);
+  }, []);
+
+  // Handle patch modal navigation
+  const handlePatchModalNavigate = useCallback(
+    (direction: "prev" | "next") => {
+      if (!zoomedPatch || !analysisResult) return;
+
+      const patches = analysisResult.evidencePatches;
+      const currentIndex = patches.findIndex((p) => p.id === zoomedPatch.id);
+
+      if (direction === "prev" && currentIndex > 0) {
+        setZoomedPatch(patches[currentIndex - 1]);
+      } else if (direction === "next" && currentIndex < patches.length - 1) {
+        setZoomedPatch(patches[currentIndex + 1]);
+      }
+    },
+    [zoomedPatch, analysisResult]
+  );
 
   // Handle similar case click
   const handleCaseClick = useCallback((caseId: string) => {
@@ -225,6 +300,19 @@ export default function HomePage() {
           <EvidencePanel
             patches={analysisResult?.evidencePatches ?? []}
             isLoading={isAnalyzing}
+            onPatchClick={handlePatchClick}
+            onPatchZoom={handlePatchZoom}
+            selectedPatchId={selectedPatchId}
+          />
+
+          {/* Semantic Search */}
+          <SemanticSearchPanel
+            slideId={selectedSlide?.id ?? null}
+            isAnalyzed={!!analysisResult}
+            onSearch={handleSemanticSearch}
+            results={semanticResults}
+            isSearching={isSearching}
+            error={searchError}
             onPatchClick={handlePatchClick}
             selectedPatchId={selectedPatchId}
           />

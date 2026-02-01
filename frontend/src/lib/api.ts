@@ -9,6 +9,7 @@ import type {
   SlidesListResponse,
   StructuredReport,
   ApiError,
+  SemanticSearchResponse,
 } from "@/types";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -254,4 +255,22 @@ export async function exportReportJson(
  */
 export async function healthCheck(): Promise<{ status: string; version: string }> {
   return fetchApi<{ status: string; version: string }>("/api/health");
+}
+
+/**
+ * Semantic search for patches using MedSigLIP text embeddings
+ */
+export async function semanticSearch(
+  slideId: string,
+  query: string,
+  topK: number = 5
+): Promise<SemanticSearchResponse> {
+  return fetchApi<SemanticSearchResponse>("/api/semantic-search", {
+    method: "POST",
+    body: JSON.stringify({
+      slide_id: slideId,
+      query,
+      top_k: topK,
+    }),
+  });
 }
