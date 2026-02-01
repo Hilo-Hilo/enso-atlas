@@ -268,7 +268,7 @@ class SemanticSearchResponse(BaseModel):
 
 def create_app(
     embeddings_dir: Path = Path("data/embeddings"),
-    model_path: Path = Path("models/demo_clam.pt"),
+    model_path: Path = Path("models/clam_ovarian.pt"),
     enable_cors: bool = True,
 ) -> FastAPI:
     """Create and configure the FastAPI application."""
