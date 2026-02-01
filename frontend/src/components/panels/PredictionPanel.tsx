@@ -3,6 +3,9 @@
 import React from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
+import { Button } from "@/components/ui/Button";
+import { ProgressStepper, InlineProgress } from "@/components/ui/ProgressStepper";
+import { SkeletonPrediction } from "@/components/ui/Skeleton";
 import { cn, formatProbability } from "@/lib/utils";
 import {
   Activity,
@@ -13,42 +16,95 @@ import {
   Info,
   Clock,
   Target,
+  RefreshCw,
 } from "lucide-react";
 import type { PredictionResult } from "@/types";
+import { ANALYSIS_STEPS } from "@/hooks/useAnalysis";
 
 interface PredictionPanelProps {
   prediction: PredictionResult | null;
   isLoading?: boolean;
   processingTime?: number;
+  analysisStep?: number;
+  error?: string | null;
+  onRetry?: () => void;
 }
 
 export function PredictionPanel({
   prediction,
   isLoading,
   processingTime,
+  analysisStep = -1,
+  error,
+  onRetry,
 }: PredictionPanelProps) {
+  // Show error state with retry
+  if (error && !isLoading) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Activity className="h-4 w-4 text-red-500" />
+            Prediction Results
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-center py-6">
+            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-red-100 flex items-center justify-center">
+              <AlertCircle className="h-8 w-8 text-red-500" />
+            </div>
+            <p className="text-sm font-medium text-red-700 mb-2">
+              Analysis Failed
+            </p>
+            <p className="text-xs text-red-600 mb-4 max-w-[220px] mx-auto">
+              {error}
+            </p>
+            {onRetry && (
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={onRetry}
+                leftIcon={<RefreshCw className="h-3.5 w-3.5" />}
+              >
+                Retry Analysis
+              </Button>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
   if (isLoading) {
     return (
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Activity className="h-4 w-4 text-clinical-600" />
+            <Activity className="h-4 w-4 text-clinical-600 animate-pulse" />
             Prediction Results
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="flex flex-col items-center py-8">
-            <div className="relative w-20 h-20 mb-4">
-              <div className="absolute inset-0 rounded-full border-4 border-gray-100" />
-              <div className="absolute inset-0 rounded-full border-4 border-clinical-500 border-t-transparent animate-spin" />
-              <div className="absolute inset-2 rounded-full bg-gray-50 flex items-center justify-center">
-                <Activity className="h-6 w-6 text-clinical-600" />
-              </div>
+          <div className="py-4 space-y-6">
+            {/* Progress stepper */}
+            <ProgressStepper
+              steps={ANALYSIS_STEPS.map((s) => ({
+                id: s.id,
+                label: s.label,
+                description: s.description,
+              }))}
+              currentStep={analysisStep}
+            />
+
+            {/* Skeleton preview while waiting */}
+            <div className="pt-4 border-t border-gray-100">
+              <SkeletonPrediction />
             </div>
-            <p className="text-sm font-medium text-gray-700">Analyzing slide...</p>
-            <p className="text-xs text-gray-500 mt-1">
-              Running MIL model inference
-            </p>
+
+            {/* Estimated time */}
+            <div className="text-center">
+              <p className="text-xs text-gray-500">Estimated time: ~2-4 seconds</p>
+            </div>
           </div>
         </CardContent>
       </Card>

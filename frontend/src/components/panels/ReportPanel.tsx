@@ -27,6 +27,7 @@ import {
   AlertCircle,
   ArrowRight,
   FileCheck,
+  RefreshCw,
 } from "lucide-react";
 import type { StructuredReport } from "@/types";
 
@@ -36,6 +37,8 @@ interface ReportPanelProps {
   onGenerateReport?: () => void;
   onExportPdf?: () => void;
   onExportJson?: () => void;
+  error?: string | null;
+  onRetry?: () => void;
 }
 
 export function ReportPanel({
@@ -44,6 +47,8 @@ export function ReportPanel({
   onGenerateReport,
   onExportPdf,
   onExportJson,
+  error,
+  onRetry,
 }: ReportPanelProps) {
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
     new Set(["summary", "evidence"])
@@ -80,7 +85,7 @@ export function ReportPanel({
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <ClipboardList className="h-4 w-4 text-clinical-600" />
+            <ClipboardList className="h-4 w-4 text-clinical-600 animate-pulse" />
             Clinical Report
           </CardTitle>
         </CardHeader>
@@ -94,11 +99,51 @@ export function ReportPanel({
               </div>
             </div>
             <p className="text-sm font-medium text-gray-700">
-              Generating report...
+              Generating clinical report...
             </p>
             <p className="text-xs text-gray-500 mt-1">
               Synthesizing findings with MedGemma
             </p>
+            <p className="text-xs text-gray-400 mt-3">
+              Estimated time: ~2-3 seconds
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Error state for report generation
+  if (error && !isLoading) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <ClipboardList className="h-4 w-4 text-red-500" />
+            Clinical Report
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-center py-6">
+            <div className="w-14 h-14 mx-auto mb-3 rounded-full bg-red-100 flex items-center justify-center">
+              <AlertCircle className="h-7 w-7 text-red-500" />
+            </div>
+            <p className="text-sm font-medium text-red-700 mb-1">
+              Report Generation Failed
+            </p>
+            <p className="text-xs text-red-600 mb-4 max-w-[200px] mx-auto">
+              {error}
+            </p>
+            {onRetry && (
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={onRetry}
+                leftIcon={<RefreshCw className="h-3.5 w-3.5" />}
+              >
+                Retry
+              </Button>
+            )}
           </div>
         </CardContent>
       </Card>

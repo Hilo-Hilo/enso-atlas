@@ -244,7 +244,7 @@ export function WSIViewer({
               <div className="absolute inset-0 rounded-full border-4 border-clinical-500 border-t-transparent animate-spin" />
             </div>
             <p className="text-sm text-gray-300 font-medium">
-              Loading slide...
+              Loading slide at {Math.round(zoom * 100)}% zoom...
             </p>
             <p className="text-xs text-gray-500 mt-1">
               Preparing tile pyramid

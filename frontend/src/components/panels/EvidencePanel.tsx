@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
+import { SkeletonEvidenceGrid } from "@/components/ui/Skeleton";
 import { cn, formatProbability } from "@/lib/utils";
 import {
   Grid3X3,
@@ -16,6 +17,8 @@ import {
   ZoomIn,
   Layers,
   Info,
+  AlertCircle,
+  RefreshCw,
 } from "lucide-react";
 import type { EvidencePatch, PatchCoordinates } from "@/types";
 
@@ -25,6 +28,8 @@ interface EvidencePanelProps {
   onPatchClick?: (coords: PatchCoordinates) => void;
   onPatchZoom?: (patch: EvidencePatch) => void;
   selectedPatchId?: string;
+  error?: string | null;
+  onRetry?: () => void;
 }
 
 export function EvidencePanel({
@@ -33,6 +38,8 @@ export function EvidencePanel({
   onPatchClick,
   onPatchZoom,
   selectedPatchId,
+  error,
+  onRetry,
 }: EvidencePanelProps) {
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [currentPage, setCurrentPage] = useState(0);
@@ -51,26 +58,54 @@ export function EvidencePanel({
   const getRank = (patchId: string) =>
     sortedPatches.findIndex((p) => p.id === patchId) + 1;
 
+  // Error state
+  if (error && !isLoading) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Layers className="h-4 w-4 text-red-500" />
+            Evidence Patches
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-center py-6">
+            <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-red-100 flex items-center justify-center">
+              <AlertCircle className="h-6 w-6 text-red-500" />
+            </div>
+            <p className="text-sm font-medium text-red-700 mb-1">
+              Failed to load patches
+            </p>
+            <p className="text-xs text-red-600 mb-3">{error}</p>
+            {onRetry && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onRetry}
+                leftIcon={<RefreshCw className="h-3 w-3" />}
+              >
+                Retry
+              </Button>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
   if (isLoading) {
     return (
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Layers className="h-4 w-4 text-clinical-600" />
+            <Layers className="h-4 w-4 text-clinical-600 animate-pulse" />
             Evidence Patches
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-3 gap-2">
-            {[...Array(6)].map((_, i) => (
-              <div key={i} className="relative aspect-square">
-                <div className="absolute inset-0 bg-gray-100 rounded-lg animate-pulse" />
-                <div className="absolute inset-0 bg-gradient-to-t from-gray-200 to-transparent rounded-lg" />
-              </div>
-            ))}
-          </div>
-          <p className="text-xs text-gray-500 text-center mt-3">
-            Extracting attention regions...
+          <SkeletonEvidenceGrid />
+          <p className="text-xs text-gray-500 text-center mt-3 animate-pulse">
+            Extracting top attention regions...
           </p>
         </CardContent>
       </Card>

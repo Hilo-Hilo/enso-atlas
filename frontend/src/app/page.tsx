@@ -21,16 +21,12 @@ import { useKeyboardShortcuts, type KeyboardShortcut } from "@/hooks/useKeyboard
 import { getDziUrl, healthCheck, exportReportPdf, semanticSearch } from "@/lib/api";
 import type { SlideInfo, PatchCoordinates, SemanticSearchResult, EvidencePatch } from "@/types";
 
-// Avoid prerendering (client-only viewer + document usage)
-export const dynamic = "force-dynamic";
-
 // Dynamically import WSIViewer to prevent SSR issues with OpenSeadragon
 const WSIViewer = nextDynamic(
   () => import("@/components/viewer/WSIViewer").then((mod) => mod.WSIViewer),
   { ssr: false, loading: () => <div className="h-full flex items-center justify-center bg-gray-100 rounded-lg">Loading viewer...</div> }
 );
 
-import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 export default function HomePage() {
   // State
@@ -489,7 +485,6 @@ export default function HomePage() {
   const heatmapData = analysisResult?.heatmap;
 
   return (
-    <ErrorBoundary>
     <div className="flex flex-col h-screen bg-surface-secondary">
       {/* Header */}
       <Header
@@ -694,6 +689,5 @@ export default function HomePage() {
         shortcuts={shortcuts}
       />
     </div>
-    </ErrorBoundary>
   );
 }

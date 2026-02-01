@@ -5,6 +5,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Spinner } from "@/components/ui/Spinner";
+import { InlineProgress } from "@/components/ui/ProgressStepper";
 import { cn } from "@/lib/utils";
 import {
   FolderOpen,
@@ -23,6 +24,7 @@ import {
   Layers,
 } from "lucide-react";
 import { getSlides } from "@/lib/api";
+import { ANALYSIS_STEPS } from "@/hooks/useAnalysis";
 import type { SlideInfo } from "@/types";
 
 interface SlideSelectorProps {
@@ -30,6 +32,7 @@ interface SlideSelectorProps {
   onSlideSelect: (slide: SlideInfo) => void;
   onAnalyze: () => void;
   isAnalyzing?: boolean;
+  analysisStep?: number;
 }
 
 type SortField = "filename" | "date" | "dimensions";
@@ -40,6 +43,7 @@ export function SlideSelector({
   onSlideSelect,
   onAnalyze,
   isAnalyzing,
+  analysisStep = -1,
 }: SlideSelectorProps) {
   const [slides, setSlides] = useState<SlideInfo[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -308,23 +312,34 @@ export function SlideSelector({
           </div>
         )}
 
-        {/* Analyze Button */}
-        <Button
-          variant="primary"
-          size="lg"
-          onClick={onAnalyze}
-          disabled={!selectedSlideId || isAnalyzing}
-          isLoading={isAnalyzing}
-          className="w-full"
-        >
-          {isAnalyzing ? "Analyzing..." : "Run Analysis"}
-        </Button>
+        {/* Analyze Button with Progress */}
+        {isAnalyzing && analysisStep >= 0 ? (
+          <div className="p-4 bg-clinical-50 border border-clinical-200 rounded-lg">
+            <InlineProgress
+              steps={ANALYSIS_STEPS.map((s) => s.label)}
+              currentStep={analysisStep}
+            />
+          </div>
+        ) : (
+          <Button
+            variant="primary"
+            size="lg"
+            onClick={onAnalyze}
+            disabled={!selectedSlideId || isAnalyzing}
+            isLoading={isAnalyzing}
+            className="w-full"
+          >
+            {isAnalyzing ? "Analyzing..." : "Run Analysis"}
+          </Button>
+        )}
 
         {/* Upload Hint */}
-        <div className="flex items-center justify-center gap-2 text-xs text-gray-400 pt-1">
-          <Upload className="h-3.5 w-3.5" />
-          <span>Use backend API to upload WSI files</span>
-        </div>
+        {!isAnalyzing && (
+          <div className="flex items-center justify-center gap-2 text-xs text-gray-400 pt-1">
+            <Upload className="h-3.5 w-3.5" />
+            <span>Use backend API to upload WSI files</span>
+          </div>
+        )}
       </CardContent>
     </Card>
   );

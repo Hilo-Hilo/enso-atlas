@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
+import { SkeletonSimilarCases } from "@/components/ui/Skeleton";
 import { cn, formatDistance } from "@/lib/utils";
 import {
   Search,
@@ -15,6 +16,8 @@ import {
   MapPin,
   ArrowRight,
   BarChart3,
+  AlertCircle,
+  RefreshCw,
 } from "lucide-react";
 import type { SimilarCase } from "@/types";
 
@@ -22,12 +25,16 @@ interface SimilarCasesPanelProps {
   cases: SimilarCase[];
   isLoading?: boolean;
   onCaseClick?: (caseId: string) => void;
+  error?: string | null;
+  onRetry?: () => void;
 }
 
 export function SimilarCasesPanel({
   cases,
   isLoading,
   onCaseClick,
+  error,
+  onRetry,
 }: SimilarCasesPanelProps) {
   const [expandedCase, setExpandedCase] = useState<string | null>(null);
   const [showAll, setShowAll] = useState(false);
@@ -55,32 +62,54 @@ export function SimilarCasesPanel({
     { responders: 0, nonResponders: 0, unknown: 0 }
   );
 
+  // Error state
+  if (error && !isLoading) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <GitCompare className="h-4 w-4 text-red-500" />
+            Similar Cases
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-center py-6">
+            <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-red-100 flex items-center justify-center">
+              <AlertCircle className="h-6 w-6 text-red-500" />
+            </div>
+            <p className="text-sm font-medium text-red-700 mb-1">
+              Search failed
+            </p>
+            <p className="text-xs text-red-600 mb-3">{error}</p>
+            {onRetry && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onRetry}
+                leftIcon={<RefreshCw className="h-3 w-3" />}
+              >
+                Retry
+              </Button>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
   if (isLoading) {
     return (
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <GitCompare className="h-4 w-4 text-clinical-600" />
+            <GitCompare className="h-4 w-4 text-clinical-600 animate-pulse" />
             Similar Cases
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="space-y-3">
-            {[...Array(3)].map((_, i) => (
-              <div
-                key={i}
-                className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg animate-pulse"
-              >
-                <div className="w-12 h-12 bg-gray-200 rounded-lg" />
-                <div className="flex-1 space-y-2">
-                  <div className="h-4 bg-gray-200 rounded w-3/4" />
-                  <div className="h-3 bg-gray-200 rounded w-1/2" />
-                </div>
-              </div>
-            ))}
-          </div>
-          <p className="text-xs text-gray-500 text-center mt-3">
-            Searching reference cohort...
+          <SkeletonSimilarCases />
+          <p className="text-xs text-gray-500 text-center mt-3 animate-pulse">
+            Searching reference cohort with FAISS...
           </p>
         </CardContent>
       </Card>
