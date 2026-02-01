@@ -14,15 +14,17 @@ import {
   CaseNotesPanel,
   QuickStatsPanel,
   OncologistSummaryView,
+  PathologistView,
   recordAnalysis,
   getCaseNotes,
 } from "@/components/panels";
+import type { UserViewMode } from "@/components/layout/Header";
 import { PatchZoomModal, KeyboardShortcutsModal } from "@/components/modals";
 import { useAnalysis } from "@/hooks/useAnalysis";
 import { useKeyboardShortcuts, type KeyboardShortcut } from "@/hooks/useKeyboardShortcuts";
-import { getDziUrl, healthCheck, semanticSearch, getSlideQC } from "@/lib/api";
+import { getDziUrl, healthCheck, semanticSearch, getSlideQC, getAnnotations, saveAnnotation, deleteAnnotation } from "@/lib/api";
 import { generatePdfReport, downloadPdf } from "@/lib/pdfExport";
-import type { SlideInfo, PatchCoordinates, SemanticSearchResult, EvidencePatch, SlideQCMetrics } from "@/types";
+import type { SlideInfo, PatchCoordinates, SemanticSearchResult, EvidencePatch, SlideQCMetrics, Annotation } from "@/types";
 
 // Dynamically import WSIViewer to prevent SSR issues with OpenSeadragon
 const WSIViewer = nextDynamic(
@@ -37,8 +39,14 @@ export default function HomePage() {
   const [isConnected, setIsConnected] = useState(false);
   const [selectedPatchId, setSelectedPatchId] = useState<string | undefined>();
 
+  // User view mode: oncologist vs pathologist (affects entire UI layout)
+  const [userViewMode, setUserViewMode] = useState<UserViewMode>("oncologist");
+
   // View mode: "wsi" for full WSI viewer, "summary" for oncologist summary
   const [viewMode, setViewMode] = useState<"wsi" | "summary">("wsi");
+
+  // Annotations state (for pathologist mode)
+  const [annotations, setAnnotations] = useState<Annotation[]>([]);
 
   // Patch zoom modal state
   const [zoomModalOpen, setZoomModalOpen] = useState(false);
@@ -90,6 +98,71 @@ export default function HomePage() {
     retryReport,
     analysisStep,
   } = useAnalysis();
+
+  // Annotation handlers
+  const handleAddAnnotation = useCallback(
+    async (annotation: Omit<Annotation, "id" | "createdAt">) => {
+      if (!selectedSlide) return;
+
+      try {
+        const newAnnotation = await saveAnnotation(selectedSlide.id, {
+          slideId: selectedSlide.id,
+          type: annotation.type,
+          coordinates: annotation.coordinates,
+          text: annotation.text,
+          color: annotation.color,
+          category: annotation.category,
+        });
+        setAnnotations((prev) => [...prev, newAnnotation]);
+      } catch (err) {
+        console.error("Failed to save annotation:", err);
+        // Fall back to local-only annotation for demo
+        const localAnnotation: Annotation = {
+          ...annotation,
+          id: `local_${Date.now()}`,
+          createdAt: new Date().toISOString(),
+        };
+        setAnnotations((prev) => [...prev, localAnnotation]);
+      }
+    },
+    [selectedSlide]
+  );
+
+  const handleDeleteAnnotation = useCallback(
+    async (annotationId: string) => {
+      if (!selectedSlide) return;
+
+      try {
+        await deleteAnnotation(selectedSlide.id, annotationId);
+      } catch (err) {
+        console.error("Failed to delete annotation:", err);
+        // Continue with local deletion anyway
+      }
+      setAnnotations((prev) => prev.filter((a) => a.id !== annotationId));
+    },
+    [selectedSlide]
+  );
+
+  // Load annotations when slide is selected
+  useEffect(() => {
+    if (!selectedSlide) {
+      setAnnotations([]);
+      return;
+    }
+
+    const loadAnnotations = async () => {
+      try {
+        const response = await getAnnotations(selectedSlide.id);
+        setAnnotations(response.annotations);
+      } catch (err) {
+        console.error("Failed to load annotations:", err);
+        // Annotations are optional, don't block on failure
+        setAnnotations([]);
+      }
+    };
+
+    loadAnnotations();
+  }, [selectedSlide]);
 
   // Keyboard shortcut handlers
   const handleNavigateSlides = useCallback((direction: "up" | "down") => {
@@ -514,6 +587,8 @@ export default function HomePage() {
       {/* Header */}
       <Header
         isConnected={isConnected}
+        viewMode={userViewMode}
+        onViewModeChange={setUserViewMode}
         isProcessing={isAnalyzing || isGeneratingReport}
         version="0.1.0"
         institutionName="Enso Labs"
@@ -591,8 +666,8 @@ export default function HomePage() {
           tabIndex={-1}
           className="flex-1 flex flex-col overflow-hidden focus:outline-none focus:ring-2 focus:ring-inset focus:ring-clinical-500"
         >
-          {/* View Mode Toggle */}
-          {selectedSlide && analysisResult && (
+          {/* View Mode Toggle - Only show in oncologist mode */}
+          {userViewMode === "oncologist" && selectedSlide && analysisResult && (
             <div className="flex items-center justify-center gap-2 p-2 bg-white border-b border-gray-200">
               <span className="text-xs text-gray-500 mr-2">View Mode:</span>
               <div className="flex items-center bg-gray-100 rounded-lg p-1">
@@ -620,9 +695,21 @@ export default function HomePage() {
             </div>
           )}
 
+          {/* Pathologist mode header */}
+          {userViewMode === "pathologist" && selectedSlide && (
+            <div className="flex items-center justify-between px-4 py-2 bg-violet-50 border-b border-violet-200">
+              <span className="text-sm font-medium text-violet-700">
+                WSI Viewer - Full Navigation Mode
+              </span>
+              <span className="text-xs text-violet-500">
+                Pan, zoom, and annotate the whole slide image
+              </span>
+            </div>
+          )}
+
           {/* Content Area */}
           <div className="flex-1 p-4 overflow-hidden">
-            {viewMode === "summary" && analysisResult ? (
+            {userViewMode === "oncologist" && viewMode === "summary" && analysisResult ? (
               <OncologistSummaryView
                 analysisResult={analysisResult}
                 report={report}
@@ -670,67 +757,84 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* Right Sidebar - Results */}
-        <aside className="w-96 border-l border-surface-border bg-white p-4 overflow-y-auto shrink-0 space-y-4">
-          {/* Prediction Results */}
-          <div ref={predictionPanelRef} tabIndex={-1} className="focus:outline-none focus:ring-2 focus:ring-clinical-500 focus:ring-offset-2 rounded-lg">
-            <PredictionPanel
-              prediction={analysisResult?.prediction ?? null}
-              isLoading={isAnalyzing}
-              processingTime={analysisResult?.processingTimeMs}
-              analysisStep={analysisStep}
-              error={!isAnalyzing && !analysisResult ? error : null}
-              onRetry={retryAnalysis}
-              qcMetrics={slideQCMetrics}
-            />
-          </div>
-
-          {/* Evidence Patches */}
-          <div ref={evidencePanelRef} tabIndex={-1} className="focus:outline-none focus:ring-2 focus:ring-clinical-500 focus:ring-offset-2 rounded-lg">
-            <EvidencePanel
-              patches={analysisResult?.evidencePatches ?? []}
-              isLoading={isAnalyzing}
-              onPatchClick={handlePatchClick}
-              onPatchZoom={handlePatchZoom}
+        {/* Right Sidebar - Results (Oncologist) or Pathologist View */}
+        <aside className={`${userViewMode === "pathologist" ? "w-[420px]" : "w-96"} border-l border-surface-border bg-white p-4 overflow-y-auto shrink-0 space-y-4`}>
+          {userViewMode === "pathologist" && selectedSlide && analysisResult ? (
+            /* Pathologist Mode */
+            <PathologistView
+              analysisResult={analysisResult}
+              annotations={annotations}
+              onAddAnnotation={handleAddAnnotation}
+              onDeleteAnnotation={handleDeleteAnnotation}
+              onPatchClick={(patchId) => setSelectedPatchId(patchId)}
+              onSwitchToOncologistView={() => setUserViewMode("oncologist")}
               selectedPatchId={selectedPatchId}
-              error={!isAnalyzing && error && !analysisResult ? error : null}
-              onRetry={retryAnalysis}
+              slideId={selectedSlide.id}
             />
-          </div>
+          ) : (
+            /* Oncologist Mode */
+            <>
+              {/* Prediction Results */}
+              <div ref={predictionPanelRef} tabIndex={-1} className="focus:outline-none focus:ring-2 focus:ring-clinical-500 focus:ring-offset-2 rounded-lg">
+                <PredictionPanel
+                  prediction={analysisResult?.prediction ?? null}
+                  isLoading={isAnalyzing}
+                  processingTime={analysisResult?.processingTimeMs}
+                  analysisStep={analysisStep}
+                  error={!isAnalyzing && !analysisResult ? error : null}
+                  onRetry={retryAnalysis}
+                  qcMetrics={slideQCMetrics}
+                />
+              </div>
 
-          {/* Semantic Search */}
-          <SemanticSearchPanel
-            slideId={selectedSlide?.id ?? null}
-            isAnalyzed={!!analysisResult}
-            onSearch={handleSemanticSearch}
-            results={semanticResults}
-            isSearching={isSearching}
-            error={searchError}
-            onPatchClick={handlePatchClick}
-            selectedPatchId={selectedPatchId}
-          />
+              {/* Evidence Patches */}
+              <div ref={evidencePanelRef} tabIndex={-1} className="focus:outline-none focus:ring-2 focus:ring-clinical-500 focus:ring-offset-2 rounded-lg">
+                <EvidencePanel
+                  patches={analysisResult?.evidencePatches ?? []}
+                  isLoading={isAnalyzing}
+                  onPatchClick={handlePatchClick}
+                  onPatchZoom={handlePatchZoom}
+                  selectedPatchId={selectedPatchId}
+                  error={!isAnalyzing && error && !analysisResult ? error : null}
+                  onRetry={retryAnalysis}
+                />
+              </div>
 
-          {/* Similar Cases */}
-          <SimilarCasesPanel
-            cases={analysisResult?.similarCases ?? []}
-            isLoading={isAnalyzing}
-            onCaseClick={handleCaseClick}
-            error={!isAnalyzing && error && !analysisResult ? error : null}
-            onRetry={retryAnalysis}
-          />
+              {/* Semantic Search */}
+              <SemanticSearchPanel
+                slideId={selectedSlide?.id ?? null}
+                isAnalyzed={!!analysisResult}
+                onSearch={handleSemanticSearch}
+                results={semanticResults}
+                isSearching={isSearching}
+                error={searchError}
+                onPatchClick={handlePatchClick}
+                selectedPatchId={selectedPatchId}
+              />
 
-          {/* Clinical Report */}
-          <ReportPanel
-            report={report}
-            isLoading={isGeneratingReport}
-            onGenerateReport={
-              analysisResult && !report ? handleGenerateReport : undefined
-            }
-            onExportPdf={report ? handleExportPdf : undefined}
-            onExportJson={report ? handleExportJson : undefined}
-            error={!isGeneratingReport && !report && error ? error : null}
-            onRetry={retryReport}
-          />
+              {/* Similar Cases */}
+              <SimilarCasesPanel
+                cases={analysisResult?.similarCases ?? []}
+                isLoading={isAnalyzing}
+                onCaseClick={handleCaseClick}
+                error={!isAnalyzing && error && !analysisResult ? error : null}
+                onRetry={retryAnalysis}
+              />
+
+              {/* Clinical Report */}
+              <ReportPanel
+                report={report}
+                isLoading={isGeneratingReport}
+                onGenerateReport={
+                  analysisResult && !report ? handleGenerateReport : undefined
+                }
+                onExportPdf={report ? handleExportPdf : undefined}
+                onExportJson={report ? handleExportJson : undefined}
+                error={!isGeneratingReport && !report && error ? error : null}
+                onRetry={retryReport}
+              />
+            </>
+          )}
         </aside>
       </main>
 

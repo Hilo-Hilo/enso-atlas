@@ -1720,6 +1720,190 @@ reviewed and validated by qualified pathologists before any clinical decision-ma
             },
         }
 
+    # ====== Annotations API (for Pathologist Review Mode) ======
+
+    # In-memory storage for annotations (would be persisted to DB in production)
+    slide_annotations: Dict[str, List[Dict[str, Any]]] = {}
+    annotation_counter = {"value": 0}
+
+    class AnnotationCoordinates(BaseModel):
+        """Coordinates for an annotation."""
+        x: int
+        y: int
+        width: int
+        height: int
+        points: Optional[List[Dict[str, int]]] = None
+
+    class AnnotationCreate(BaseModel):
+        """Request to create a new annotation."""
+        type: str = Field(..., description="Annotation type: circle, rectangle, freehand, marker, note, measurement")
+        coordinates: AnnotationCoordinates
+        text: Optional[str] = None
+        color: Optional[str] = "#3b82f6"
+        category: Optional[str] = None
+
+    class AnnotationResponse(BaseModel):
+        """Single annotation response."""
+        id: str
+        slide_id: str
+        type: str
+        coordinates: AnnotationCoordinates
+        text: Optional[str] = None
+        color: Optional[str] = None
+        category: Optional[str] = None
+        created_at: str
+        created_by: Optional[str] = None
+
+    class AnnotationsListResponse(BaseModel):
+        """Response containing all annotations for a slide."""
+        slide_id: str
+        annotations: List[AnnotationResponse]
+        total: int
+
+    @app.get("/api/slides/{slide_id}/annotations", response_model=AnnotationsListResponse)
+    async def get_annotations(slide_id: str):
+        """
+        Get all annotations for a slide.
+
+        Returns annotations created in pathologist review mode, including
+        region markings, notes, measurements, and mitotic figure counts.
+        """
+        annotations = slide_annotations.get(slide_id, [])
+
+        return AnnotationsListResponse(
+            slide_id=slide_id,
+            annotations=[
+                AnnotationResponse(
+                    id=a["id"],
+                    slide_id=a["slide_id"],
+                    type=a["type"],
+                    coordinates=AnnotationCoordinates(**a["coordinates"]),
+                    text=a.get("text"),
+                    color=a.get("color"),
+                    category=a.get("category"),
+                    created_at=a["created_at"],
+                    created_by=a.get("created_by"),
+                )
+                for a in annotations
+            ],
+            total=len(annotations),
+        )
+
+    @app.post("/api/slides/{slide_id}/annotations", response_model=AnnotationResponse)
+    async def save_annotation(slide_id: str, annotation: AnnotationCreate):
+        """
+        Save a new annotation for a slide.
+
+        Annotation types:
+        - circle: Circular region marking
+        - rectangle: Rectangular region marking
+        - freehand: Freehand drawn region
+        - marker: Point marker (e.g., for mitotic figures)
+        - note: Text note attached to a location
+        - measurement: Distance measurement between two points
+
+        Categories can be used to group annotations (e.g., "mitotic", "tumor", "artifact").
+        """
+        annotation_counter["value"] += 1
+        annotation_id = f"ann_{slide_id}_{annotation_counter['value']}"
+
+        annotation_data = {
+            "id": annotation_id,
+            "slide_id": slide_id,
+            "type": annotation.type,
+            "coordinates": annotation.coordinates.model_dump(),
+            "text": annotation.text,
+            "color": annotation.color,
+            "category": annotation.category,
+            "created_at": get_timestamp(),
+            "created_by": "pathologist",
+        }
+
+        if slide_id not in slide_annotations:
+            slide_annotations[slide_id] = []
+        slide_annotations[slide_id].append(annotation_data)
+
+        log_audit_event("annotation_created", slide_id, "pathologist", {
+            "annotation_id": annotation_id,
+            "type": annotation.type,
+            "category": annotation.category,
+        })
+
+        logger.info(f"Created annotation {annotation_id} for slide {slide_id}")
+
+        return AnnotationResponse(
+            id=annotation_id,
+            slide_id=slide_id,
+            type=annotation.type,
+            coordinates=annotation.coordinates,
+            text=annotation.text,
+            color=annotation.color,
+            category=annotation.category,
+            created_at=annotation_data["created_at"],
+            created_by="pathologist",
+        )
+
+    @app.delete("/api/slides/{slide_id}/annotations/{annotation_id}")
+    async def delete_annotation(slide_id: str, annotation_id: str):
+        """
+        Delete an annotation.
+
+        Removes the annotation from the slide. This action is logged in the audit trail.
+        """
+        if slide_id not in slide_annotations:
+            raise HTTPException(status_code=404, detail=f"No annotations found for slide {slide_id}")
+
+        annotations = slide_annotations[slide_id]
+        original_count = len(annotations)
+        slide_annotations[slide_id] = [a for a in annotations if a["id"] != annotation_id]
+
+        if len(slide_annotations[slide_id]) == original_count:
+            raise HTTPException(status_code=404, detail=f"Annotation {annotation_id} not found")
+
+        log_audit_event("annotation_deleted", slide_id, "pathologist", {
+            "annotation_id": annotation_id,
+        })
+
+        logger.info(f"Deleted annotation {annotation_id} from slide {slide_id}")
+
+        return {"success": True, "message": f"Annotation {annotation_id} deleted"}
+
+    @app.get("/api/slides/{slide_id}/annotations/summary")
+    async def get_annotations_summary(slide_id: str):
+        """
+        Get a summary of annotations for a slide.
+
+        Returns counts by type and category, useful for pathologist workflow summary.
+        """
+        annotations = slide_annotations.get(slide_id, [])
+
+        type_counts: Dict[str, int] = {}
+        category_counts: Dict[str, int] = {}
+
+        for ann in annotations:
+            ann_type = ann["type"]
+            type_counts[ann_type] = type_counts.get(ann_type, 0) + 1
+
+            category = ann.get("category")
+            if category:
+                category_counts[category] = category_counts.get(category, 0) + 1
+
+        # Calculate mitotic count per 10 HPF if mitotic markers exist
+        mitotic_count = category_counts.get("mitotic", 0)
+        mitotic_summary_count = len([a for a in annotations if a.get("category") == "mitotic-summary"])
+
+        return {
+            "slide_id": slide_id,
+            "total_annotations": len(annotations),
+            "by_type": type_counts,
+            "by_category": category_counts,
+            "mitotic_assessment": {
+                "total_mitotic_figures": mitotic_count,
+                "fields_counted": mitotic_summary_count,
+                "per_10_hpf": round(mitotic_count / max(mitotic_summary_count, 1) * 10, 1) if mitotic_summary_count > 0 else None,
+            } if mitotic_count > 0 or mitotic_summary_count > 0 else None,
+        }
+
     return app
 
 

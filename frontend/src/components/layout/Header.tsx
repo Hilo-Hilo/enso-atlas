@@ -12,8 +12,11 @@ import {
   Building2,
   ChevronDown,
   Keyboard,
+  Stethoscope,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+
+export type UserViewMode = "oncologist" | "pathologist";
 
 interface HeaderProps {
   isConnected?: boolean;
@@ -22,6 +25,8 @@ interface HeaderProps {
   institutionName?: string;
   userName?: string;
   onOpenShortcuts?: () => void;
+  viewMode?: UserViewMode;
+  onViewModeChange?: (mode: UserViewMode) => void;
 }
 
 export function Header({
@@ -31,6 +36,8 @@ export function Header({
   institutionName = "Research Laboratory",
   userName,
   onOpenShortcuts,
+  viewMode = "oncologist",
+  onViewModeChange,
 }: HeaderProps) {
   return (
     <header className="h-16 bg-navy-900 border-b border-navy-700 px-6 flex items-center justify-between shrink-0">
@@ -64,6 +71,39 @@ export function Header({
           <Building2 className="h-4 w-4 text-gray-400" />
           <span className="text-sm text-gray-300">{institutionName}</span>
         </div>
+
+        {/* Divider */}
+        <div className="h-8 w-px bg-navy-700 mx-2" />
+
+        {/* View Mode Toggle */}
+        {onViewModeChange && (
+          <div className="flex items-center bg-navy-800 rounded-lg p-1">
+            <button
+              onClick={() => onViewModeChange("oncologist")}
+              className={cn(
+                "flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all",
+                viewMode === "oncologist"
+                  ? "bg-clinical-600 text-white shadow-sm"
+                  : "text-gray-400 hover:text-gray-200"
+              )}
+            >
+              <Stethoscope className="h-4 w-4" />
+              <span className="hidden lg:inline">Oncologist</span>
+            </button>
+            <button
+              onClick={() => onViewModeChange("pathologist")}
+              className={cn(
+                "flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all",
+                viewMode === "pathologist"
+                  ? "bg-violet-600 text-white shadow-sm"
+                  : "text-gray-400 hover:text-gray-200"
+              )}
+            >
+              <Microscope className="h-4 w-4" />
+              <span className="hidden lg:inline">Pathologist</span>
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Center: Status Indicators */}
