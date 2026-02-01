@@ -126,7 +126,12 @@ def create_app(
     if enable_cors:
         app.add_middleware(
             CORSMiddleware,
-            allow_origins=["http://localhost:3000", "http://localhost:7860"],
+            allow_origins=[
+                "http://localhost:3000",
+                "http://localhost:7860",
+                "http://100.111.126.23:3000",
+                "http://100.111.126.23:8003",
+            ],
             allow_credentials=True,
             allow_methods=["*"],
             allow_headers=["*"],
@@ -136,16 +141,18 @@ def create_app(
     classifier = None
     evidence_gen = None
     embedder = None
+    reporter = None
     available_slides = []
     
     @app.on_event("startup")
     async def load_models():
-        nonlocal classifier, evidence_gen, embedder, available_slides
+        nonlocal classifier, evidence_gen, embedder, reporter, available_slides
         
         from ..config import MILConfig, EvidenceConfig, EmbeddingConfig
         from ..mil.clam import CLAMClassifier
         from ..evidence.generator import EvidenceGenerator
         from ..embedding.embedder import PathFoundationEmbedder
+        from ..reporting.medgemma import MedGemmaReporter, ReportingConfig
         
         # Load MIL classifier
         config = MILConfig(input_dim=384, hidden_dim=128)
@@ -161,6 +168,11 @@ def create_app(
         # Setup embedder (lazy-loaded on first use)
         embedding_config = EmbeddingConfig()
         embedder = PathFoundationEmbedder(embedding_config)
+        
+        # Setup MedGemma reporter (lazy-loaded on first use)
+        reporting_config = ReportingConfig()
+        reporter = MedGemmaReporter(reporting_config)
+        logger.info("MedGemma reporter initialized (model loads on first call)")
         
         # Find available slides and build FAISS index
         all_embeddings = []
@@ -315,12 +327,13 @@ def create_app(
     
     @app.post("/api/report", response_model=ReportResponse)
     async def generate_report(request: ReportRequest):
-        """Generate a structured report for a slide."""
+        """Generate a structured report for a slide using MedGemma."""
         if classifier is None:
             raise HTTPException(status_code=503, detail="Model not loaded")
         
         slide_id = request.slide_id
         emb_path = embeddings_dir / f"{slide_id}.npy"
+        coord_path = embeddings_dir / f"{slide_id}_coords.npy"
         
         if not emb_path.exists():
             raise HTTPException(status_code=404, detail=f"Slide {slide_id} not found")
@@ -329,7 +342,57 @@ def create_app(
         score, attention = classifier.predict(embeddings)
         label = "responder" if score > 0.5 else "non-responder"
         
-        # Build structured report
+        # Get top evidence patches with coordinates
+        top_k = min(8, len(attention))
+        top_indices = np.argsort(attention)[-top_k:][::-1]
+        
+        # Load coordinates if available
+        coords = None
+        if coord_path.exists():
+            coords = np.load(coord_path)
+        
+        evidence_patches = []
+        for rank, idx in enumerate(top_indices, 1):
+            patch_info = {
+                "rank": rank,
+                "patch_index": int(idx),
+                "attention_weight": float(attention[idx]),
+                "coordinates": [int(coords[idx][0]), int(coords[idx][1])] if coords is not None else [0, 0],
+            }
+            evidence_patches.append(patch_info)
+        
+        # Get similar cases
+        similar_cases = []
+        if evidence_gen is not None:
+            try:
+                similar_results = evidence_gen.find_similar(
+                    embeddings, attention, k=5, top_patches=3
+                )
+                for s in similar_results:
+                    similar_cases.append(s)
+            except Exception as e:
+                logger.warning(f"Similar case search failed for report: {e}")
+        
+        # Try MedGemma report generation
+        if reporter is not None:
+            try:
+                report = reporter.generate_report(
+                    evidence_patches=evidence_patches,
+                    score=score,
+                    label=label,
+                    similar_cases=similar_cases,
+                    case_id=slide_id,
+                )
+                
+                return ReportResponse(
+                    slide_id=slide_id,
+                    report_json=report["structured"],
+                    summary_text=report["summary"],
+                )
+            except Exception as e:
+                logger.warning(f"MedGemma report generation failed, using template: {e}")
+        
+        # Fallback to template report
         report_json = {
             "case_id": slide_id,
             "task": "Bevacizumab treatment response prediction",
@@ -340,10 +403,11 @@ def create_app(
             },
             "evidence": [
                 {
-                    "patch_id": f"patch_{idx}",
-                    "attention_weight": float(attention[idx]),
+                    "patch_id": f"patch_{p['patch_index']}",
+                    "attention_weight": p["attention_weight"],
+                    "coordinates": p["coordinates"],
                 }
-                for idx in np.argsort(attention)[-5:][::-1]
+                for p in evidence_patches[:5]
             ],
             "limitations": [
                 "Research tool only",
@@ -353,7 +417,6 @@ def create_app(
             "safety_statement": "This is a research tool. All findings require validation by qualified pathologists.",
         }
         
-        # Generate summary text
         summary_text = f"""Case: {slide_id}
 Prediction: {label.upper()}
 Score: {score:.3f}
