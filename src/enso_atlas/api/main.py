@@ -598,7 +598,7 @@ reviewed and validated by qualified pathologists before any clinical decision-ma
     # WSI / DZI Tile Serving
     # Cache for OpenSlide objects and DeepZoom generators
     # slides are at data/slides (not inside demo/)
-    slides_dir = embeddings_dir.parent.parent / "slides"
+    slides_dir = embeddings_dir.parent / "slides"
     wsi_cache: Dict[str, Any] = {}
     logger.info(f"Slides directory: {slides_dir}")
     
