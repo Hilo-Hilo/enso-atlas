@@ -50,6 +50,7 @@ class EvidenceConfig:
     heatmap_alpha: float = 0.4
     similarity_k: int = 20
     faiss_index_type: str = "IVF1024,Flat"
+    colormap: str = "jet"  # Colormap for heatmap visualization
 
 
 @dataclass

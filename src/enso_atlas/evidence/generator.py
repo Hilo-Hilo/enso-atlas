@@ -206,13 +206,14 @@ class EvidenceGenerator:
         # Create FAISS index
         dim = all_embeddings.shape[1]
         
-        if len(all_embeddings) < 1024:
-            # Use flat index for small datasets
+        # Use flat index for small/medium datasets (safer, simpler)
+        # IVF only makes sense for very large datasets (>50k)
+        if len(all_embeddings) < 50000:
             self._faiss_index = faiss.IndexFlatL2(dim)
         else:
-            # Use IVF index for larger datasets
+            # Use IVF index for very large datasets
             quantizer = faiss.IndexFlatL2(dim)
-            n_clusters = min(1024, len(all_embeddings) // 10)
+            n_clusters = min(4096, len(all_embeddings) // 40)
             self._faiss_index = faiss.IndexIVFFlat(quantizer, dim, n_clusters)
             self._faiss_index.train(all_embeddings)
         
