@@ -348,6 +348,236 @@ class EnsoAtlasTestSuite:
         return TestResult("Embedder Status", True, 
             f"Embedder status: {resp.get('status', 'unknown')}")
     
+    # ==================== Similar Cases Endpoint Tests ====================
+    
+    def test_similar_cases_endpoint_direct(self):
+        """Test GET /api/similar endpoint directly."""
+        if not self.slides:
+            return TestResult("Similar Cases Endpoint", False, "No slides available")
+        
+        slide_id = self.slides[0]
+        status, resp = self._request("GET", f"/api/similar?slide_id={slide_id}")
+        
+        if status != 200:
+            return TestResult("Similar Cases Endpoint", False, f"Status {status}", resp)
+        
+        # Response is a dict with slide_id, similar_cases, num_queries
+        if not isinstance(resp, dict):
+            return TestResult("Similar Cases Endpoint", False, 
+                "Response not a dict", type(resp).__name__)
+        
+        if "similar_cases" not in resp:
+            return TestResult("Similar Cases Endpoint", False, 
+                "Missing similar_cases field", resp.keys())
+        
+        similar = resp.get("similar_cases", [])
+        if len(similar) == 0:
+            return TestResult("Similar Cases Endpoint", False, "No similar cases returned")
+        
+        # Each case should have required fields
+        required_fields = ["slide_id", "distance", "similarity_score"]
+        for case in similar:
+            for field in required_fields:
+                if field not in case:
+                    return TestResult("Similar Cases Endpoint", False, 
+                        f"Missing {field} in case", case)
+        
+        return TestResult("Similar Cases Endpoint", True, 
+            f"Returned {len(similar)} similar cases for {slide_id}")
+    
+    def test_similar_cases_all_slides(self):
+        """Test similar cases endpoint for all slides."""
+        if not self.slides:
+            return TestResult("Similar Cases All Slides", False, "No slides available")
+        
+        failures = []
+        for slide_id in self.slides:
+            status, resp = self._request("GET", f"/api/similar?slide_id={slide_id}")
+            if status != 200:
+                failures.append(f"{slide_id}: status {status}")
+            elif not isinstance(resp, dict):
+                failures.append(f"{slide_id}: not a dict")
+            elif "similar_cases" not in resp:
+                failures.append(f"{slide_id}: no similar_cases field")
+            elif len(resp.get("similar_cases", [])) == 0:
+                failures.append(f"{slide_id}: no similar cases")
+        
+        if failures:
+            return TestResult("Similar Cases All Slides", False, 
+                f"{len(failures)}/{len(self.slides)} failed", failures)
+        
+        return TestResult("Similar Cases All Slides", True, 
+            f"All {len(self.slides)} slides have similar cases")
+    
+    def test_similar_cases_invalid_slide(self):
+        """Test similar cases endpoint with invalid slide ID."""
+        status, resp = self._request("GET", "/api/similar?slide_id=nonexistent_xyz")
+        
+        if status == 200:
+            return TestResult("Similar Cases Invalid", False, 
+                "Should return error for invalid slide", resp)
+        
+        # Accept 404 or 400 for invalid slide
+        if status in [400, 404, 422]:
+            return TestResult("Similar Cases Invalid", True, 
+                f"Correctly returns {status} for invalid slide")
+        
+        return TestResult("Similar Cases Invalid", False, 
+            f"Unexpected status {status}", resp)
+    
+    # ==================== Error Handling Tests ====================
+    
+    def test_analyze_missing_slide_id(self):
+        """Test analyze endpoint with missing slide_id parameter."""
+        status, resp = self._request("POST", "/api/analyze", {})
+        
+        if status == 200:
+            return TestResult("Analyze Missing ID", False, 
+                "Should reject request without slide_id")
+        
+        if status == 422:  # FastAPI validation error
+            return TestResult("Analyze Missing ID", True, 
+                "Correctly returns 422 for missing slide_id")
+        
+        return TestResult("Analyze Missing ID", True, 
+            f"Returns {status} for missing slide_id")
+    
+    def test_analyze_empty_slide_id(self):
+        """Test analyze endpoint with empty slide_id."""
+        status, resp = self._request("POST", "/api/analyze", {"slide_id": ""})
+        
+        if status == 200:
+            return TestResult("Analyze Empty ID", False, 
+                "Should reject empty slide_id")
+        
+        return TestResult("Analyze Empty ID", True, 
+            f"Correctly returns {status} for empty slide_id")
+    
+    def test_heatmap_invalid_slide(self):
+        """Test heatmap endpoint with invalid slide ID returns error."""
+        url = f"{self.base_url}/api/heatmap/nonexistent_slide_xyz"
+        
+        try:
+            req = urllib.request.Request(url)
+            with urllib.request.urlopen(req, timeout=TIMEOUT) as resp:
+                return TestResult("Heatmap Invalid Slide", False, 
+                    "Should return error for invalid slide")
+        except urllib.error.HTTPError as e:
+            if e.code in [404, 400]:
+                return TestResult("Heatmap Invalid Slide", True, 
+                    f"Correctly returns {e.code} for invalid slide")
+            return TestResult("Heatmap Invalid Slide", False, 
+                f"Unexpected status {e.code}")
+        except Exception as e:
+            return TestResult("Heatmap Invalid Slide", False, str(e))
+    
+    # ==================== Concurrent Request Tests ====================
+    
+    def test_concurrent_analysis(self):
+        """Test analyzing 3 slides simultaneously."""
+        import concurrent.futures
+        
+        if len(self.slides) < 3:
+            return TestResult("Concurrent Analysis", False, 
+                f"Need 3+ slides, have {len(self.slides)}")
+        
+        test_slides = self.slides[:3]
+        
+        def analyze_slide(slide_id):
+            start = time.time()
+            status, resp = self._request("POST", "/api/analyze", {"slide_id": slide_id})
+            elapsed = time.time() - start
+            return slide_id, status, resp, elapsed
+        
+        start_all = time.time()
+        with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
+            futures = [executor.submit(analyze_slide, sid) for sid in test_slides]
+            results = [f.result() for f in concurrent.futures.as_completed(futures)]
+        total_elapsed = time.time() - start_all
+        
+        failures = []
+        for slide_id, status, resp, elapsed in results:
+            if status != 200:
+                failures.append(f"{slide_id}: status {status}")
+            elif "prediction" not in resp:
+                failures.append(f"{slide_id}: no prediction")
+        
+        if failures:
+            return TestResult("Concurrent Analysis", False, 
+                f"{len(failures)}/3 failed", failures)
+        
+        return TestResult("Concurrent Analysis", True, 
+            f"3 slides analyzed concurrently in {total_elapsed:.2f}s total")
+    
+    def test_concurrent_heatmaps(self):
+        """Test generating 3 heatmaps simultaneously."""
+        import concurrent.futures
+        
+        if len(self.slides) < 3:
+            return TestResult("Concurrent Heatmaps", False, 
+                f"Need 3+ slides, have {len(self.slides)}")
+        
+        test_slides = self.slides[:3]
+        
+        def get_heatmap(slide_id):
+            url = f"{self.base_url}/api/heatmap/{slide_id}"
+            try:
+                req = urllib.request.Request(url)
+                with urllib.request.urlopen(req, timeout=TIMEOUT) as resp:
+                    data = resp.read()
+                    return slide_id, 200, len(data)
+            except Exception as e:
+                return slide_id, 0, str(e)
+        
+        start_all = time.time()
+        with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
+            futures = [executor.submit(get_heatmap, sid) for sid in test_slides]
+            results = [f.result() for f in concurrent.futures.as_completed(futures)]
+        total_elapsed = time.time() - start_all
+        
+        failures = []
+        for slide_id, status, size_or_error in results:
+            if status != 200:
+                failures.append(f"{slide_id}: {size_or_error}")
+            elif isinstance(size_or_error, int) and size_or_error < 100:
+                failures.append(f"{slide_id}: too small ({size_or_error} bytes)")
+        
+        if failures:
+            return TestResult("Concurrent Heatmaps", False, 
+                f"{len(failures)}/3 failed", failures)
+        
+        return TestResult("Concurrent Heatmaps", True, 
+            f"3 heatmaps generated concurrently in {total_elapsed:.2f}s total")
+    
+    # ==================== PNG Validation Tests ====================
+    
+    def test_heatmap_valid_png_all_slides(self):
+        """Test that all heatmaps are valid PNG images."""
+        if not self.slides:
+            return TestResult("Heatmap PNG Validation", False, "No slides available")
+        
+        failures = []
+        for slide_id in self.slides:
+            url = f"{self.base_url}/api/heatmap/{slide_id}"
+            try:
+                req = urllib.request.Request(url)
+                with urllib.request.urlopen(req, timeout=TIMEOUT) as resp:
+                    data = resp.read()
+                    # PNG magic bytes: 89 50 4E 47 0D 0A 1A 0A
+                    if not data.startswith(b"\x89PNG\r\n\x1a\n"):
+                        failures.append(f"{slide_id}: not valid PNG (magic: {data[:8].hex()})")
+                    elif len(data) < 1000:
+                        failures.append(f"{slide_id}: PNG too small ({len(data)} bytes)")
+            except Exception as e:
+                failures.append(f"{slide_id}: {e}")
+        
+        if failures:
+            return TestResult("Heatmap PNG Validation", False, 
+                f"{len(failures)}/{len(self.slides)} invalid", failures)
+        
+        return TestResult("Heatmap PNG Validation", True, 
+            f"All {len(self.slides)} heatmaps are valid PNG files")
+    
     # ==================== Performance Tests ====================
     
     def test_analyze_performance(self):
@@ -406,10 +636,31 @@ class EnsoAtlasTestSuite:
         self.add_result(self.test_similar_cases())
         print()
         
+        # Similar Cases Endpoint (direct)
+        print("--- Similar Cases Endpoint ---")
+        self.add_result(self.test_similar_cases_endpoint_direct())
+        self.add_result(self.test_similar_cases_all_slides())
+        self.add_result(self.test_similar_cases_invalid_slide())
+        print()
+        
+        # Error Handling
+        print("--- Error Handling ---")
+        self.add_result(self.test_analyze_missing_slide_id())
+        self.add_result(self.test_analyze_empty_slide_id())
+        self.add_result(self.test_heatmap_invalid_slide())
+        print()
+        
         # Heatmap
         print("--- Heatmap ---")
         self.add_result(self.test_heatmap_generation())
         self.add_result(self.test_heatmap_all_slides())
+        self.add_result(self.test_heatmap_valid_png_all_slides())
+        print()
+        
+        # Concurrent Requests
+        print("--- Concurrent Requests ---")
+        self.add_result(self.test_concurrent_analysis())
+        self.add_result(self.test_concurrent_heatmaps())
         print()
         
         # Report
