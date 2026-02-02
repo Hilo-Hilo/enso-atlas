@@ -162,17 +162,28 @@ export function resetStats(): void {
 }
 
 export function QuickStatsPanel({ onRefresh }: QuickStatsPanelProps) {
-  const [stats, setStats] = useState<AnalysisStats>(statsStore);
+  // Initialize with default stats to avoid hydration mismatch
+  // (localStorage is not available on server)
+  const [stats, setStats] = useState<AnalysisStats>(getDefaultStats);
   const [isLoading, setIsLoading] = useState(false);
+  const [isHydrated, setIsHydrated] = useState(false);
 
-  // Refresh stats periodically
+  // Load stats from localStorage after hydration
   useEffect(() => {
+    setStats(getStats());
+    setIsHydrated(true);
+  }, []);
+
+  // Refresh stats periodically (only after hydration)
+  useEffect(() => {
+    if (!isHydrated) return;
+    
     const interval = setInterval(() => {
       setStats(getStats());
     }, 2000);
 
     return () => clearInterval(interval);
-  }, []);
+  }, [isHydrated]);
 
   const handleRefresh = () => {
     setIsLoading(true);

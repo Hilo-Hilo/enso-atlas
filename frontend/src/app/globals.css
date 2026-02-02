@@ -5,7 +5,7 @@
 /* Professional Clinical Application Styles */
 @layer base {
   :root {
-    /* Core clinical variables */
+    /* Core clinical variables - Light Mode */
     --color-primary: 14 165 233;
     --color-background: 255 255 255;
     --color-foreground: 15 23 42;
@@ -17,17 +17,47 @@
     /* Spacing rhythm */
     --spacing-panel: 1rem;
     --spacing-section: 0.75rem;
+
+    /* Surface colors for theming */
+    --surface-primary: 255 255 255;
+    --surface-secondary: 248 250 252;
+    --surface-tertiary: 241 245 249;
+    --surface-border: 226 232 240;
+
+    /* Animation timing */
+    --transition-fast: 150ms;
+    --transition-base: 200ms;
+    --transition-slow: 300ms;
+    --transition-slower: 500ms;
+
+    /* Easing functions */
+    --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+    --ease-out-back: cubic-bezier(0.34, 1.56, 0.64, 1);
+    --ease-in-out-smooth: cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  /* Dark mode support */
+  .dark {
+    --color-background: 15 23 42;
+    --color-foreground: 248 250 252;
+    --surface-primary: 30 41 59;
+    --surface-secondary: 15 23 42;
+    --surface-tertiary: 51 65 85;
+    --surface-border: 71 85 105;
   }
 
   html {
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
+    scroll-behavior: smooth;
   }
 
   body {
     @apply bg-surface-secondary text-gray-900;
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    transition: background-color var(--transition-slow) var(--ease-in-out-smooth),
+                color var(--transition-slow) var(--ease-in-out-smooth);
   }
 
   /* High-contrast accessible focus states */
@@ -162,16 +192,21 @@
     @apply border-clinical-600 ring-2 ring-clinical-200;
   }
 
-  /* Heatmap legend gradient - clinical standard */
+  /* Heatmap legend gradient - viridis colormap (perceptually uniform) */
   .heatmap-legend {
     background: linear-gradient(
       to right,
-      rgba(59, 130, 246, 0.9),
-      rgba(34, 197, 94, 0.9),
-      rgba(234, 179, 8, 0.9),
-      rgba(239, 68, 68, 0.9)
+      #440154 0%,
+      #482878 12.5%,
+      #3e4a89 25%,
+      #31688e 37.5%,
+      #26838e 50%,
+      #1f9e89 62.5%,
+      #35b779 75%,
+      #6ece58 87.5%,
+      #fde725 100%
     );
-    @apply h-3 rounded-full;
+    @apply rounded-full;
   }
 
   /* Prediction result styling */
@@ -318,7 +353,7 @@
 
   /* Animation utilities */
   .animate-fade-in {
-    animation: fadeIn 0.2s ease-out forwards;
+    animation: fadeIn 0.2s var(--ease-out-expo) forwards;
   }
 
   @keyframes fadeIn {
@@ -330,8 +365,23 @@
     }
   }
 
+  .animate-fade-in-up {
+    animation: fadeInUp 0.4s var(--ease-out-expo) forwards;
+  }
+
+  @keyframes fadeInUp {
+    from {
+      opacity: 0;
+      transform: translateY(16px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
   .animate-slide-up {
-    animation: slideUp 0.3s ease-out forwards;
+    animation: slideUp 0.3s var(--ease-out-expo) forwards;
   }
 
   @keyframes slideUp {
@@ -345,20 +395,106 @@
     }
   }
 
+  .animate-slide-in-right {
+    animation: slideInRight 0.4s var(--ease-out-expo) forwards;
+  }
+
+  @keyframes slideInRight {
+    from {
+      opacity: 0;
+      transform: translateX(24px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+
   .animate-scale-in {
-    animation: scaleIn 0.2s ease-out forwards;
+    animation: scaleIn 0.25s var(--ease-out-back) forwards;
   }
 
   @keyframes scaleIn {
     from {
       opacity: 0;
-      transform: scale(0.95);
+      transform: scale(0.9);
     }
     to {
       opacity: 1;
       transform: scale(1);
     }
   }
+
+  .animate-pop {
+    animation: pop 0.3s var(--ease-out-back) forwards;
+  }
+
+  @keyframes pop {
+    0% {
+      opacity: 0;
+      transform: scale(0.8);
+    }
+    70% {
+      transform: scale(1.05);
+    }
+    100% {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+
+  .animate-shimmer {
+    animation: shimmer 2s linear infinite;
+    background: linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0) 0%,
+      rgba(255, 255, 255, 0.3) 50%,
+      rgba(255, 255, 255, 0) 100%
+    );
+    background-size: 200% 100%;
+  }
+
+  @keyframes shimmer {
+    0% {
+      background-position: 200% 0;
+    }
+    100% {
+      background-position: -200% 0;
+    }
+  }
+
+  .animate-pulse-soft {
+    animation: pulseSoft 2s ease-in-out infinite;
+  }
+
+  @keyframes pulseSoft {
+    0%, 100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.6;
+    }
+  }
+
+  .animate-float {
+    animation: float 3s ease-in-out infinite;
+  }
+
+  @keyframes float {
+    0%, 100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-6px);
+    }
+  }
+
+  /* Staggered animation delays for lists */
+  .stagger-1 { animation-delay: 50ms; }
+  .stagger-2 { animation-delay: 100ms; }
+  .stagger-3 { animation-delay: 150ms; }
+  .stagger-4 { animation-delay: 200ms; }
+  .stagger-5 { animation-delay: 250ms; }
 
   /* Gradient overlay for thumbnails */
   .gradient-overlay {
@@ -441,6 +577,68 @@
   }
 }
 
+/* Demo Mode Styles */
+.react-joyride__beacon {
+  animation: beacon-pulse 1.5s ease-in-out infinite !important;
+}
+
+@keyframes beacon-pulse {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(14, 165, 233, 0.6);
+  }
+  50% {
+    transform: scale(1.1);
+    box-shadow: 0 0 0 12px rgba(14, 165, 233, 0);
+  }
+}
+
+/* Demo highlight glow effect */
+[data-demo]:focus-within,
+.demo-highlight {
+  position: relative;
+}
+
+.demo-highlight::after {
+  content: "";
+  position: absolute;
+  inset: -4px;
+  border-radius: 12px;
+  background: linear-gradient(45deg, rgba(14, 165, 233, 0.1), rgba(139, 92, 246, 0.1));
+  pointer-events: none;
+  animation: highlight-glow 2s ease-in-out infinite;
+}
+
+@keyframes highlight-glow {
+  0%, 100% {
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* Welcome modal backdrop blur */
+.welcome-backdrop {
+  backdrop-filter: blur(8px);
+}
+
+/* Tour tooltip entrance animation */
+.tour-tooltip-enter {
+  animation: tooltip-entrance 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+@keyframes tooltip-entrance {
+  from {
+    opacity: 0;
+    transform: scale(0.9) translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
 /* Responsive adjustments */
 @media (max-width: 1280px) {
   .sidebar-panel {
@@ -451,5 +649,245 @@
 @media (max-width: 1024px) {
   .sidebar-panel {
     @apply w-64;
+  }
+}
+
+/* Mobile responsiveness */
+@media (max-width: 768px) {
+  /* Stack layout on mobile */
+  .mobile-stack {
+    @apply flex-col;
+  }
+
+  /* Full-width panels on mobile */
+  .mobile-full {
+    @apply w-full;
+  }
+
+  /* Adjust header for mobile */
+  header {
+    @apply px-4;
+  }
+
+  header h1 {
+    @apply text-base;
+  }
+
+  /* Hide non-essential elements on mobile */
+  .hide-mobile {
+    @apply hidden;
+  }
+
+  /* Compact padding on mobile */
+  .mobile-compact {
+    @apply p-2;
+  }
+
+  /* Scrollable sidebars on mobile */
+  aside {
+    max-height: 40vh;
+    @apply overflow-y-auto;
+  }
+
+  /* Footer adjustments */
+  footer {
+    @apply flex-wrap gap-2 py-3 h-auto;
+  }
+
+  footer > div {
+    @apply w-full justify-center text-center;
+  }
+}
+
+@media (max-width: 640px) {
+  /* Extra small mobile adjustments */
+  .xs-hidden {
+    @apply hidden;
+  }
+
+  .xs-text-sm {
+    @apply text-sm;
+  }
+
+  /* Stack view mode toggle */
+  .view-mode-toggle {
+    @apply flex-col gap-1;
+  }
+}
+
+/* Tablet adjustments */
+@media (min-width: 769px) and (max-width: 1024px) {
+  aside {
+    @apply w-64;
+  }
+
+  .tablet-compact {
+    @apply text-sm;
+  }
+}
+
+/* Enhanced interactive states */
+@layer utilities {
+  /* Smooth button press effect */
+  .btn-press {
+    @apply transition-all duration-150;
+  }
+
+  .btn-press:active {
+    @apply scale-[0.97];
+  }
+
+  /* Card hover lift effect */
+  .hover-lift {
+    @apply transition-all duration-200;
+  }
+
+  .hover-lift:hover {
+    @apply -translate-y-0.5 shadow-clinical-md;
+  }
+
+  /* Interactive card with border highlight */
+  .interactive-card {
+    @apply transition-all duration-200 border-2 border-transparent;
+  }
+
+  .interactive-card:hover {
+    @apply border-clinical-300 shadow-clinical-md;
+  }
+
+  .interactive-card:focus-within {
+    @apply border-clinical-500 ring-2 ring-clinical-200;
+  }
+
+  /* Subtle glow on focus */
+  .focus-glow:focus {
+    box-shadow: 0 0 0 3px rgb(14 165 233 / 0.2);
+  }
+
+  /* Glass morphism effect */
+  .glass {
+    @apply bg-white/80 backdrop-blur-md;
+  }
+
+  .glass-dark {
+    @apply bg-navy-900/90 backdrop-blur-md;
+  }
+
+  /* Gradient text */
+  .gradient-text {
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-clinical-600 to-clinical-400;
+  }
+
+  /* Status pulse animation for live indicators */
+  .status-pulse {
+    @apply relative;
+  }
+
+  .status-pulse::after {
+    content: "";
+    @apply absolute inset-0 rounded-full;
+    animation: statusPulse 2s ease-in-out infinite;
+  }
+
+  @keyframes statusPulse {
+    0%, 100% {
+      box-shadow: 0 0 0 0 currentColor;
+      opacity: 0.4;
+    }
+    50% {
+      box-shadow: 0 0 0 6px currentColor;
+      opacity: 0;
+    }
+  }
+
+  /* Loading skeleton shimmer */
+  .skeleton {
+    @apply bg-gray-200 animate-pulse rounded;
+  }
+
+  .skeleton-text {
+    @apply h-4 bg-gray-200 animate-pulse rounded w-3/4;
+  }
+
+  /* Number transition for counters */
+  .number-transition {
+    font-variant-numeric: tabular-nums;
+    transition: all 0.3s ease-out;
+  }
+
+  /* Smooth border color transitions */
+  .border-transition {
+    transition: border-color 0.2s ease-in-out;
+  }
+
+  /* Badge bounce for notifications */
+  .badge-bounce {
+    animation: badgeBounce 0.6s ease-out;
+  }
+
+  @keyframes badgeBounce {
+    0% {
+      transform: scale(0);
+    }
+    50% {
+      transform: scale(1.2);
+    }
+    100% {
+      transform: scale(1);
+    }
+  }
+}
+
+/* Professional loading states */
+.loading-dots::after {
+  content: "";
+  animation: loadingDots 1.5s steps(4, end) infinite;
+}
+
+@keyframes loadingDots {
+  0%, 20% { content: ""; }
+  40% { content: "."; }
+  60% { content: ".."; }
+  80%, 100% { content: "..."; }
+}
+
+/* Clinical badge with subtle animation */
+.clinical-badge {
+  @apply inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium;
+  @apply transition-all duration-200;
+}
+
+.clinical-badge:hover {
+  @apply shadow-sm;
+}
+
+/* Progress bar with smooth animation */
+.progress-smooth {
+  transition: width 0.7s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Tooltip styling */
+.tooltip {
+  @apply absolute z-50 px-3 py-1.5 text-xs font-medium text-white bg-gray-900 rounded-lg shadow-lg;
+  @apply pointer-events-none opacity-0 transition-opacity duration-150;
+}
+
+.tooltip-trigger:hover .tooltip {
+  @apply opacity-100;
+}
+
+/* Focus ring for accessibility */
+.focus-ring {
+  @apply focus:outline-none focus:ring-2 focus:ring-clinical-500 focus:ring-offset-2;
+}
+
+/* Reduced motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }

@@ -27,23 +27,23 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     ref
   ) => {
     const baseStyles =
-      "inline-flex items-center justify-center font-medium rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed";
+      "inline-flex items-center justify-center font-medium rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98] transform";
 
     const variants = {
       primary:
-        "bg-clinical-600 text-white hover:bg-clinical-700 focus:ring-clinical-500",
+        "bg-gradient-to-r from-clinical-600 to-clinical-500 text-white hover:from-clinical-700 hover:to-clinical-600 focus:ring-clinical-500 shadow-md hover:shadow-lg hover:shadow-clinical-600/25",
       secondary:
-        "bg-white text-clinical-700 border border-clinical-300 hover:bg-clinical-50 focus:ring-clinical-500",
+        "bg-white text-clinical-700 border border-clinical-200 hover:border-clinical-400 hover:bg-clinical-50 focus:ring-clinical-500 shadow-sm hover:shadow",
       ghost:
         "bg-transparent text-clinical-600 hover:bg-clinical-50 focus:ring-clinical-500",
       danger:
-        "bg-status-negative text-white hover:bg-red-700 focus:ring-red-500",
+        "bg-gradient-to-r from-red-600 to-red-500 text-white hover:from-red-700 hover:to-red-600 focus:ring-red-500 shadow-md hover:shadow-lg hover:shadow-red-600/25",
     };
 
     const sizes = {
-      sm: "px-3 py-1.5 text-sm",
-      md: "px-4 py-2 text-sm",
-      lg: "px-6 py-3 text-base",
+      sm: "px-3 py-1.5 text-sm gap-1.5",
+      md: "px-4 py-2.5 text-sm gap-2",
+      lg: "px-6 py-3 text-base gap-2",
     };
 
     return (

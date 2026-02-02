@@ -12,6 +12,24 @@ interface PdfExportOptions {
   institutionName?: string;
 }
 
+// Helper to safely format numbers
+function safeNumber(value: unknown, decimals: number = 4): string {
+  if (typeof value === "number" && !isNaN(value)) {
+    return value.toFixed(decimals);
+  }
+  return "N/A";
+}
+
+// Helper to safely format coordinates
+function safeCoords(coords: unknown): string {
+  if (Array.isArray(coords) && coords.length >= 2) {
+    const x = typeof coords[0] === "number" ? coords[0].toLocaleString() : "?";
+    const y = typeof coords[1] === "number" ? coords[1].toLocaleString() : "?";
+    return `(${x}, ${y})`;
+  }
+  return "(N/A)";
+}
+
 /**
  * Generate a professional PDF report from analysis results
  */
@@ -122,8 +140,11 @@ export async function generatePdfReport(options: PdfExportOptions): Promise<Blob
 
   doc.setFontSize(10);
   doc.setFont("helvetica", "normal");
-  doc.text(`Confidence: ${Math.round(prediction.confidence * 100)}%`, margin + 60, yPos);
-  doc.text(`Score: ${prediction.score.toFixed(4)}`, margin + 110, yPos);
+  const confidencePercent = typeof prediction.confidence === "number" 
+    ? Math.round(prediction.confidence * 100) 
+    : "N/A";
+  doc.text(`Confidence: ${confidencePercent}%`, margin + 60, yPos);
+  doc.text(`Score: ${safeNumber(prediction.score, 4)}`, margin + 110, yPos);
   yPos += 8;
 
   if (prediction.calibrationNote) {
@@ -153,7 +174,7 @@ export async function generatePdfReport(options: PdfExportOptions): Promise<Blob
       doc.setFont("helvetica", "normal");
       doc.setFontSize(8);
       doc.setTextColor(100, 100, 100);
-      doc.text(`Coordinates: (${item.coordsLevel0[0].toLocaleString()}, ${item.coordsLevel0[1].toLocaleString()})`, margin + 30, yPos);
+      doc.text(`Coordinates: ${safeCoords(item.coordsLevel0)}`, margin + 30, yPos);
       doc.setTextColor(0, 0, 0);
       yPos += 5;
 
@@ -185,9 +206,10 @@ export async function generatePdfReport(options: PdfExportOptions): Promise<Blob
     doc.setFont("helvetica", "normal");
     report.similarExamples.forEach((example) => {
       checkPageBreak(6);
-      doc.text(example.exampleId.slice(0, 24), margin + 3, yPos);
+      const exampleId = example.exampleId || "unknown";
+      doc.text(exampleId.slice(0, 24), margin + 3, yPos);
       doc.text(example.label || "N/A", margin + 70, yPos);
-      doc.text(example.distance.toFixed(4), margin + 120, yPos);
+      doc.text(safeNumber(example.distance, 4), margin + 120, yPos);
       yPos += 5;
     });
     yPos += 4;
@@ -224,6 +246,89 @@ export async function generatePdfReport(options: PdfExportOptions): Promise<Blob
       addWrappedText(stepText, 10, 3);
     });
     yPos += 2;
+  }
+
+  // ========== CLINICAL DECISION SUPPORT ==========
+  if (report.decisionSupport) {
+    const ds = report.decisionSupport;
+    
+    // Choose color based on risk level
+    const riskColors: Record<string, [number, number, number]> = {
+      high_confidence: [34, 139, 34],      // Green
+      moderate_confidence: [204, 153, 0],   // Amber
+      low_confidence: [255, 140, 0],        // Orange
+      inconclusive: [178, 34, 34],          // Red
+    };
+    const headerColor = riskColors[ds.risk_level] || [0, 102, 153];
+    
+    drawSectionHeader(`Clinical Decision Support - ${ds.risk_level.replace(/_/g, " ").toUpperCase()}`, headerColor);
+    
+    // Primary recommendation
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "bold");
+    doc.text("Primary Recommendation:", margin, yPos);
+    yPos += 5;
+    doc.setFont("helvetica", "normal");
+    addWrappedText(ds.primary_recommendation, 10, 3);
+    yPos += 3;
+    
+    // Confidence info
+    doc.setFontSize(9);
+    doc.text(`Confidence Level: ${ds.confidence_level.toUpperCase()} (${Math.round(ds.confidence_score * 100)}%)`, margin, yPos);
+    yPos += 6;
+    
+    // Supporting rationale
+    if (ds.supporting_rationale && ds.supporting_rationale.length > 0) {
+      doc.setFont("helvetica", "bold");
+      doc.text("Supporting Evidence:", margin, yPos);
+      yPos += 4;
+      doc.setFont("helvetica", "normal");
+      ds.supporting_rationale.forEach((reason) => {
+        checkPageBreak(6);
+        addWrappedText(`• ${reason}`, 9, 3);
+      });
+      yPos += 2;
+    }
+    
+    // Suggested workup
+    if (ds.suggested_workup && ds.suggested_workup.length > 0) {
+      doc.setFont("helvetica", "bold");
+      doc.text("Suggested Additional Workup:", margin, yPos);
+      yPos += 4;
+      doc.setFont("helvetica", "normal");
+      ds.suggested_workup.forEach((step, idx) => {
+        checkPageBreak(6);
+        addWrappedText(`${idx + 1}. ${step}`, 9, 3);
+      });
+      yPos += 2;
+    }
+    
+    // Quality warnings
+    if (ds.quality_warnings && ds.quality_warnings.length > 0) {
+      doc.setFontSize(9);
+      doc.setTextColor(153, 102, 0);
+      doc.setFont("helvetica", "bold");
+      doc.text("Quality Considerations:", margin, yPos);
+      yPos += 4;
+      doc.setFont("helvetica", "normal");
+      ds.quality_warnings.forEach((warning) => {
+        checkPageBreak(6);
+        addWrappedText(`⚠ ${warning}`, 9, 3);
+      });
+      doc.setTextColor(0, 0, 0);
+      yPos += 2;
+    }
+    
+    // Interpretation note
+    if (ds.interpretation_note) {
+      doc.setFontSize(8);
+      doc.setTextColor(80, 80, 80);
+      addWrappedText(`Interpretation: ${ds.interpretation_note}`, 8, 0);
+      doc.setTextColor(0, 0, 0);
+      yPos += 2;
+    }
+    
+    yPos += 4;
   }
 
   // ========== LIMITATIONS ==========

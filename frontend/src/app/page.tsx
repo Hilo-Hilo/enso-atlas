@@ -4,6 +4,7 @@ import React, { useState, useCallback, useEffect, useRef, useMemo } from "react"
 import nextDynamic from "next/dynamic";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
+import { DemoMode, WelcomeModal } from "@/components/demo";
 import {
   SlideSelector,
   PredictionPanel,
@@ -39,6 +40,7 @@ export default function HomePage() {
   const [selectedSlide, setSelectedSlide] = useState<SlideInfo | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [selectedPatchId, setSelectedPatchId] = useState<string | undefined>();
+  const [targetCoordinates, setTargetCoordinates] = useState<PatchCoordinates | null>(null);
 
   // User view mode: oncologist vs pathologist (affects entire UI layout)
   const [userViewMode, setUserViewMode] = useState<UserViewMode>("oncologist");
@@ -55,6 +57,33 @@ export default function HomePage() {
 
   // Keyboard shortcuts modal state
   const [shortcutsModalOpen, setShortcutsModalOpen] = useState(false);
+
+  // Demo mode state
+  const [demoMode, setDemoMode] = useState(false);
+  const [showWelcomeModal, setShowWelcomeModal] = useState(false);
+
+  // Check if this is a first visit (show welcome modal)
+  useEffect(() => {
+    const hasSeenWelcome = localStorage.getItem("medgemma-welcome-seen");
+    if (!hasSeenWelcome) {
+      // Small delay to ensure page is rendered
+      const timer = setTimeout(() => setShowWelcomeModal(true), 500);
+      return () => clearTimeout(timer);
+    }
+  }, []);
+
+  const handleCloseWelcome = useCallback(() => {
+    setShowWelcomeModal(false);
+    localStorage.setItem("medgemma-welcome-seen", "true");
+  }, []);
+
+  const handleStartDemo = useCallback(() => {
+    setDemoMode(true);
+  }, []);
+
+  const handleDemoModeToggle = useCallback(() => {
+    setDemoMode((prev) => !prev);
+  }, []);
 
   // Semantic search state
   const [semanticResults, setSemanticResults] = useState<SemanticSearchResult[]>([]);
@@ -351,8 +380,10 @@ export default function HomePage() {
 
   // Handle patch click - navigate viewer
   const handlePatchClick = useCallback((coords: PatchCoordinates) => {
-    // The WSIViewer will handle navigation internally via state/props
+    // Set selected patch ID for highlighting
     setSelectedPatchId(`${coords.x}_${coords.y}`);
+    // Set target coordinates to trigger WSI viewer navigation
+    setTargetCoordinates(coords);
   }, []);
 
   // Handle patch zoom - open modal with enlarged view
@@ -378,12 +409,31 @@ export default function HomePage() {
     [zoomedPatch, analysisResult]
   );
 
-  // Handle similar case click
+  // Handle similar case click - switch to viewing that slide
   const handleCaseClick = useCallback((caseId: string) => {
-    if (typeof window === "undefined") return;
-    // Open similar case in new tab (placeholder - would navigate to case detail view)
-    window.open(`/case/${caseId}`, "_blank");
-  }, []);
+    // Find the slide in the slide list
+    const slide = slideList.find((s) => s.id === caseId);
+    if (slide) {
+      // Update slide index for keyboard navigation
+      const newIndex = slideList.findIndex((s) => s.id === caseId);
+      setSlideIndex(newIndex);
+      
+      // Select the slide and clear previous results
+      setSelectedSlide(slide);
+      clearResults();
+      setSelectedPatchId(undefined);
+      setSemanticResults([]);
+      setSearchError(null);
+      setSlideQCMetrics(null);
+      
+      // Optionally auto-analyze the new slide
+      // Uncomment if you want to auto-analyze when clicking a similar case:
+      // analyze({ slideId: slide.id, patchBudget: 8000, magnification: 20 });
+    } else {
+      // Slide not found - show a message or try to load it directly
+      console.warn(`Similar case ${caseId} not found in slide list`);
+    }
+  }, [slideList, clearResults]);
 
   // Handle report generation
   const handleGenerateReport = useCallback(async () => {
@@ -608,6 +658,8 @@ export default function HomePage() {
         institutionName="Enso Labs"
         userName="Clinician"
         onOpenShortcuts={() => setShortcutsModalOpen(true)}
+        demoMode={demoMode}
+        onDemoModeToggle={handleDemoModeToggle}
       />
 
       {/* Main Content */}
@@ -636,6 +688,7 @@ export default function HomePage() {
           ref={slideSelectorRef as React.RefObject<HTMLElement>}
           tabIndex={-1}
           className="w-80 border-r border-surface-border bg-white p-4 overflow-y-auto shrink-0 space-y-4 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-clinical-500"
+          data-demo="slide-selector"
         >
           <SlideSelector
             selectedSlideId={selectedSlide?.id ?? null}
@@ -741,7 +794,7 @@ export default function HomePage() {
           )}
 
           {/* Content Area */}
-          <div className="flex-1 p-4 overflow-hidden">
+          <div className="flex-1 p-4 overflow-hidden" data-demo="wsi-viewer">
             {userViewMode === "oncologist" && viewMode === "summary" && analysisResult ? (
               <OncologistSummaryView
                 analysisResult={analysisResult}
@@ -756,6 +809,7 @@ export default function HomePage() {
                 heatmap={heatmapData}
                 mpp={selectedSlide.mpp}
                 onRegionClick={handlePatchClick}
+                targetCoordinates={targetCoordinates}
                 className="h-full"
               />
             ) : (
@@ -808,7 +862,7 @@ export default function HomePage() {
             /* Oncologist Mode */
             <>
               {/* Prediction Results */}
-              <div ref={predictionPanelRef} tabIndex={-1} className="focus:outline-none focus:ring-2 focus:ring-clinical-500 focus:ring-offset-2 rounded-lg">
+              <div ref={predictionPanelRef} tabIndex={-1} className="focus:outline-none focus:ring-2 focus:ring-clinical-500 focus:ring-offset-2 rounded-lg" data-demo="prediction-panel">
                 <PredictionPanel
                   prediction={analysisResult?.prediction ?? null}
                   isLoading={isAnalyzing}
@@ -821,7 +875,7 @@ export default function HomePage() {
               </div>
 
               {/* Evidence Patches */}
-              <div ref={evidencePanelRef} tabIndex={-1} className="focus:outline-none focus:ring-2 focus:ring-clinical-500 focus:ring-offset-2 rounded-lg">
+              <div ref={evidencePanelRef} tabIndex={-1} className="focus:outline-none focus:ring-2 focus:ring-clinical-500 focus:ring-offset-2 rounded-lg" data-demo="evidence-panel">
                 <EvidencePanel
                   patches={analysisResult?.evidencePatches ?? []}
                   isLoading={isAnalyzing}
@@ -846,26 +900,30 @@ export default function HomePage() {
               />
 
               {/* Similar Cases */}
-              <SimilarCasesPanel
-                cases={analysisResult?.similarCases ?? []}
-                isLoading={isAnalyzing}
-                onCaseClick={handleCaseClick}
-                error={!isAnalyzing && error && !analysisResult ? error : null}
-                onRetry={retryAnalysis}
-              />
+              <div data-demo="similar-cases">
+                <SimilarCasesPanel
+                  cases={analysisResult?.similarCases ?? []}
+                  isLoading={isAnalyzing}
+                  onCaseClick={handleCaseClick}
+                  error={!isAnalyzing && error && !analysisResult ? error : null}
+                  onRetry={retryAnalysis}
+                />
+              </div>
 
               {/* Clinical Report */}
-              <ReportPanel
-                report={report}
-                isLoading={isGeneratingReport}
-                onGenerateReport={
-                  analysisResult && !report ? handleGenerateReport : undefined
-                }
-                onExportPdf={report ? handleExportPdf : undefined}
-                onExportJson={report ? handleExportJson : undefined}
-                error={!isGeneratingReport && !report && error ? error : null}
-                onRetry={retryReport}
-              />
+              <div data-demo="report-panel">
+                <ReportPanel
+                  report={report}
+                  isLoading={isGeneratingReport}
+                  onGenerateReport={
+                    analysisResult && !report ? handleGenerateReport : undefined
+                  }
+                  onExportPdf={report ? handleExportPdf : undefined}
+                  onExportJson={report ? handleExportJson : undefined}
+                  error={!isGeneratingReport && !report && error ? error : null}
+                  onRetry={retryReport}
+                />
+              </div>
             </>
           )}
         </aside>
@@ -891,6 +949,19 @@ export default function HomePage() {
         isOpen={shortcutsModalOpen}
         onClose={() => setShortcutsModalOpen(false)}
         shortcuts={shortcuts}
+      />
+
+      {/* Demo Mode */}
+      <DemoMode
+        isActive={demoMode}
+        onClose={() => setDemoMode(false)}
+      />
+
+      {/* Welcome Modal */}
+      <WelcomeModal
+        isOpen={showWelcomeModal}
+        onClose={handleCloseWelcome}
+        onStartDemo={handleStartDemo}
       />
     </div>
   );

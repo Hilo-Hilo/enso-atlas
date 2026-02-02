@@ -4,36 +4,63 @@ import React from "react";
 import { cn } from "@/lib/utils";
 
 interface BadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
-  variant?: "default" | "success" | "warning" | "danger" | "info";
-  size?: "sm" | "md";
+  variant?: "default" | "success" | "warning" | "danger" | "info" | "clinical";
+  size?: "sm" | "md" | "lg";
+  dot?: boolean;
+  pulse?: boolean;
 }
 
 export const Badge = React.forwardRef<HTMLSpanElement, BadgeProps>(
-  ({ className, variant = "default", size = "md", children, ...props }, ref) => {
+  ({ className, variant = "default", size = "md", dot = false, pulse = false, children, ...props }, ref) => {
     const variants = {
-      default: "bg-gray-100 text-gray-800 border-gray-200",
-      success: "bg-green-50 text-green-800 border-green-200",
-      warning: "bg-amber-50 text-amber-800 border-amber-200",
-      danger: "bg-red-50 text-red-800 border-red-200",
-      info: "bg-blue-50 text-blue-800 border-blue-200",
+      default: "bg-gray-100 text-gray-700 border-gray-200",
+      success: "bg-gradient-to-r from-green-50 to-emerald-50 text-green-800 border-green-200",
+      warning: "bg-gradient-to-r from-amber-50 to-yellow-50 text-amber-800 border-amber-200",
+      danger: "bg-gradient-to-r from-red-50 to-rose-50 text-red-800 border-red-200",
+      info: "bg-gradient-to-r from-blue-50 to-sky-50 text-blue-800 border-blue-200",
+      clinical: "bg-gradient-to-r from-clinical-50 to-cyan-50 text-clinical-800 border-clinical-200",
+    };
+
+    const dotColors = {
+      default: "bg-gray-400",
+      success: "bg-green-500",
+      warning: "bg-amber-500",
+      danger: "bg-red-500",
+      info: "bg-blue-500",
+      clinical: "bg-clinical-500",
     };
 
     const sizes = {
-      sm: "px-2 py-0.5 text-xs",
-      md: "px-2.5 py-1 text-sm",
+      sm: "px-2 py-0.5 text-xs gap-1.5",
+      md: "px-2.5 py-1 text-sm gap-1.5",
+      lg: "px-3 py-1.5 text-sm gap-2",
     };
 
     return (
       <span
         ref={ref}
         className={cn(
-          "inline-flex items-center font-medium rounded border",
+          "inline-flex items-center font-medium rounded-full border transition-all duration-200 shadow-sm",
           variants[variant],
           sizes[size],
           className
         )}
         {...props}
       >
+        {dot && (
+          <span className="relative flex h-2 w-2">
+            {pulse && (
+              <span className={cn(
+                "animate-ping absolute inline-flex h-full w-full rounded-full opacity-75",
+                dotColors[variant]
+              )} />
+            )}
+            <span className={cn(
+              "relative inline-flex rounded-full h-2 w-2",
+              dotColors[variant]
+            )} />
+          </span>
+        )}
         {children}
       </span>
     );

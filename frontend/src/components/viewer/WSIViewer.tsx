@@ -5,24 +5,17 @@ import OpenSeadragon from "openseadragon";
 import { cn } from "@/lib/utils";
 import { Toggle } from "@/components/ui/Toggle";
 import { Slider } from "@/components/ui/Slider";
-import { Button } from "@/components/ui/Button";
-import { Badge } from "@/components/ui/Badge";
 import {
-  ZoomIn,
-  ZoomOut,
-  RotateCcw,
   Layers,
   Maximize2,
   Move,
   Crosshair,
-  Ruler,
   Grid3X3,
-  Eye,
-  EyeOff,
   Home,
   Minus,
   Plus,
   Settings2,
+  ImageIcon,
 } from "lucide-react";
 import type { PatchCoordinates, HeatmapData } from "@/types";
 
@@ -32,6 +25,7 @@ interface WSIViewerProps {
   heatmap?: HeatmapData;
   mpp?: number; // microns per pixel
   onRegionClick?: (coords: PatchCoordinates) => void;
+  targetCoordinates?: PatchCoordinates | null; // Navigate to this location when set
   className?: string;
 }
 
@@ -41,32 +35,44 @@ export function WSIViewer({
   heatmap,
   mpp = 0.5,
   onRegionClick,
+  targetCoordinates,
   className,
 }: WSIViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<OpenSeadragon.Viewer | null>(null);
-  const heatmapOverlayRef = useRef<HTMLImageElement | null>(null);
+  const heatmapOverlayRef = useRef<HTMLDivElement | null>(null);
+  
+  // Store callbacks in refs so they don't trigger viewer recreation
+  const onRegionClickRef = useRef(onRegionClick);
+  useEffect(() => {
+    onRegionClickRef.current = onRegionClick;
+  }, [onRegionClick]);
 
   const [isReady, setIsReady] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [showHeatmap, setShowHeatmap] = useState(false);
-  const [heatmapOpacity, setHeatmapOpacity] = useState(0.5);
+  const [showHeatmap, setShowHeatmap] = useState(true); // Default to showing heatmap
+  const [heatmapOpacity, setHeatmapOpacity] = useState(0.6);
   const [zoom, setZoom] = useState(1);
   const [showToolbar, setShowToolbar] = useState(true);
   const [showHeatmapPanel, setShowHeatmapPanel] = useState(false);
   const [activeTool, setActiveTool] = useState<"pan" | "crosshair">("pan");
+  const [heatmapLoaded, setHeatmapLoaded] = useState(false);
+  const [heatmapError, setHeatmapError] = useState(false);
+  
+  // Store activeTool in ref for click handler
+  const activeToolRef = useRef(activeTool);
+  useEffect(() => {
+    activeToolRef.current = activeTool;
+  }, [activeTool]);
 
   // Calculate scale bar based on current zoom
   const getScaleBarInfo = useCallback(() => {
-    // Calculate effective magnification
     const baseMag = 40; // Assuming 40x base magnification
     const effectiveMag = zoom * baseMag;
 
-    // Calculate scale bar width in microns for a 100px bar
     const scaleBarPx = 100;
     const scaleBarMicrons = scaleBarPx * mpp / zoom;
 
-    // Round to nice values
     let displayValue: number;
     let displayUnit: string;
 
@@ -75,13 +81,13 @@ export function WSIViewer({
       displayUnit = "mm";
     } else if (scaleBarMicrons >= 100) {
       displayValue = Math.round(scaleBarMicrons / 100) * 100;
-      displayUnit = "um";
+      displayUnit = "µm";
     } else if (scaleBarMicrons >= 10) {
       displayValue = Math.round(scaleBarMicrons / 10) * 10;
-      displayUnit = "um";
+      displayUnit = "µm";
     } else {
       displayValue = Math.round(scaleBarMicrons);
-      displayUnit = "um";
+      displayUnit = "µm";
     }
 
     return { displayValue, displayUnit, effectiveMag };
@@ -148,14 +154,15 @@ export function WSIViewer({
       }
     });
 
+    // Use ref for click handler to avoid recreating viewer when tool/callback changes
     viewer.addHandler("canvas-click", (event: OpenSeadragon.CanvasClickEvent) => {
-      if (onRegionClick && event.quick && activeTool === "crosshair") {
+      if (onRegionClickRef.current && event.quick && activeToolRef.current === "crosshair") {
         const tiledImage = viewer.world.getItemAt(0);
         if (tiledImage) {
           const viewportPoint = viewer.viewport.pointFromPixel(event.position);
           const imagePoint =
             tiledImage.viewportToImageCoordinates(viewportPoint);
-          onRegionClick({
+          onRegionClickRef.current({
             x: Math.floor(imagePoint.x),
             y: Math.floor(imagePoint.y),
             level: 0,
@@ -173,36 +180,105 @@ export function WSIViewer({
       viewerRef.current = null;
       setIsReady(false);
     };
-  }, [dziUrl, slideId, onRegionClick, activeTool]);
+  }, [dziUrl, slideId]); // Removed onRegionClick and activeTool - they use refs now
 
-  // Handle heatmap overlay
+  // Navigate to target coordinates when they change
+  useEffect(() => {
+    const viewer = viewerRef.current;
+    if (!viewer || !isReady || !targetCoordinates) return;
+
+    const tiledImage = viewer.world.getItemAt(0);
+    if (!tiledImage) return;
+
+    // Convert image coordinates to viewport coordinates
+    const imagePoint = new OpenSeadragon.Point(
+      targetCoordinates.x + (targetCoordinates.width || 224) / 2,  // Center of patch
+      targetCoordinates.y + (targetCoordinates.height || 224) / 2
+    );
+    const viewportPoint = tiledImage.imageToViewportCoordinates(imagePoint);
+
+    // Calculate appropriate zoom level to show the patch in context
+    // Aim for the patch to be about 1/4 of the viewport width
+    const patchWidth = targetCoordinates.width || 224;
+    const imageWidth = tiledImage.getContentSize().x;
+    const patchViewportWidth = patchWidth / imageWidth;
+    const targetZoom = 0.25 / patchViewportWidth;  // Patch takes up 25% of viewport
+    const clampedZoom = Math.min(Math.max(targetZoom, 1), 20);  // Clamp between 1x and 20x
+
+    // Pan and zoom to the target location
+    viewer.viewport.panTo(viewportPoint, false);
+    viewer.viewport.zoomTo(clampedZoom, viewportPoint, false);
+  }, [targetCoordinates, isReady]);
+
+  // Handle heatmap overlay with OpenSeadragon
   useEffect(() => {
     const viewer = viewerRef.current;
     if (!viewer || !isReady || !heatmap) return;
 
+    // Remove existing overlay if present
     if (heatmapOverlayRef.current) {
-      viewer.removeOverlay(heatmapOverlayRef.current);
+      try {
+        viewer.removeOverlay(heatmapOverlayRef.current);
+      } catch {
+        // Overlay might already be removed
+      }
     }
 
+    // Create overlay container
+    const overlayDiv = document.createElement("div");
+    overlayDiv.style.width = "100%";
+    overlayDiv.style.height = "100%";
+    overlayDiv.style.pointerEvents = "none";
+    overlayDiv.className = "heatmap-overlay-container";
+
+    // Create image inside container
     const img = document.createElement("img");
     img.src = heatmap.imageUrl;
+    img.style.width = "100%";
+    img.style.height = "100%";
+    img.style.objectFit = "fill";
     img.style.opacity = showHeatmap ? String(heatmapOpacity) : "0";
+    img.style.transition = "opacity 0.3s ease";
     img.style.pointerEvents = "none";
-    img.className = "transition-opacity duration-300";
-    heatmapOverlayRef.current = img;
+    
+    img.onload = () => {
+      setHeatmapLoaded(true);
+      setHeatmapError(false);
+    };
+    
+    img.onerror = () => {
+      setHeatmapError(true);
+      setHeatmapLoaded(false);
+      console.error("Failed to load heatmap image:", heatmap.imageUrl);
+    };
 
+    overlayDiv.appendChild(img);
+    heatmapOverlayRef.current = overlayDiv;
+
+    // Add overlay to cover the full viewport (0,0 to 1,1 in normalized coordinates)
     viewer.addOverlay({
-      element: img,
+      element: overlayDiv,
       location: new OpenSeadragon.Rect(0, 0, 1, 1),
     });
-  }, [heatmap, isReady, showHeatmap, heatmapOpacity]);
 
-  // Update heatmap opacity
+    return () => {
+      if (heatmapOverlayRef.current && viewerRef.current) {
+        try {
+          viewerRef.current.removeOverlay(heatmapOverlayRef.current);
+        } catch {
+          // Ignore removal errors during cleanup
+        }
+      }
+    };
+  }, [heatmap?.imageUrl, isReady]); // Only recreate on imageUrl change
+
+  // Update heatmap opacity separately (doesn't recreate overlay)
   useEffect(() => {
     if (heatmapOverlayRef.current) {
-      heatmapOverlayRef.current.style.opacity = showHeatmap
-        ? String(heatmapOpacity)
-        : "0";
+      const img = heatmapOverlayRef.current.querySelector("img");
+      if (img) {
+        img.style.opacity = showHeatmap ? String(heatmapOpacity) : "0";
+      }
     }
   }, [showHeatmap, heatmapOpacity]);
 
@@ -221,126 +297,78 @@ export function WSIViewer({
 
   const scaleInfo = getScaleBarInfo();
 
-  return (
-    <div
-      className={cn(
-        "relative bg-navy-900 rounded-xl overflow-hidden shadow-clinical-lg border border-navy-700",
-        className
-      )}
-    >
-      {/* Viewer Container */}
+  // When WSI isn't available but heatmap is, show standalone heatmap view
+  if (loadError && heatmap) {
+    return (
       <div
-        ref={containerRef}
-        className="w-full h-full min-h-[400px]"
-        style={{ background: "#0f172a" }}
-      />
-
-      {/* Loading Indicator */}
-      {!isReady && !loadError && (
-        <div className="absolute inset-0 flex items-center justify-center bg-navy-900">
-          <div className="text-center">
-            <div className="relative w-16 h-16 mb-4 mx-auto">
-              <div className="absolute inset-0 rounded-full border-4 border-navy-700" />
-              <div className="absolute inset-0 rounded-full border-4 border-clinical-500 border-t-transparent animate-spin" />
+        className={cn(
+          "relative bg-navy-900 rounded-xl overflow-hidden shadow-clinical-lg border border-navy-700",
+          className
+        )}
+      >
+        {/* Standalone Heatmap Display */}
+        <div className="w-full h-full min-h-[400px] flex items-center justify-center bg-gradient-to-br from-navy-800 to-navy-900 p-8">
+          <div className="text-center w-full max-w-2xl">
+            {/* Info Header */}
+            <div className="flex items-center justify-center gap-2 mb-4">
+              <ImageIcon className="w-5 h-5 text-gray-400" />
+              <span className="text-sm text-gray-400">
+                Attention Heatmap (WSI not available)
+              </span>
             </div>
-            <p className="text-sm text-gray-300 font-medium">
-              Loading slide at {Math.round(zoom * 100)}% zoom...
-            </p>
-            <p className="text-xs text-gray-500 mt-1">
-              Preparing tile pyramid
-            </p>
-          </div>
-        </div>
-      )}
-
-      {/* Error State */}
-      {loadError && (
-        <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-navy-800 to-navy-900">
-          <div className="text-center max-w-md px-6">
-            <div className="w-20 h-20 mx-auto mb-4 rounded-2xl bg-navy-700 flex items-center justify-center">
-              <Grid3X3 className="w-10 h-10 text-gray-400" />
+            
+            {/* Heatmap Image */}
+            <div className="relative bg-navy-700 rounded-lg overflow-hidden shadow-xl">
+              <img
+                src={heatmap.imageUrl}
+                alt="Attention heatmap"
+                className="w-full h-auto max-h-[60vh] object-contain"
+                style={{ 
+                  opacity: showHeatmap ? heatmapOpacity : 0,
+                  transition: "opacity 0.3s ease"
+                }}
+                onLoad={() => {
+                  setHeatmapLoaded(true);
+                  setHeatmapError(false);
+                }}
+                onError={() => {
+                  setHeatmapError(true);
+                  setHeatmapLoaded(false);
+                }}
+              />
+              
+              {/* Loading/Error states */}
+              {!heatmapLoaded && !heatmapError && (
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-clinical-500" />
+                </div>
+              )}
+              
+              {heatmapError && (
+                <div className="absolute inset-0 flex items-center justify-center text-gray-400">
+                  <Grid3X3 className="w-12 h-12" />
+                </div>
+              )}
             </div>
-            <h3 className="text-lg font-semibold text-gray-200 mb-2">
-              {loadError}
-            </h3>
-            <p className="text-sm text-gray-400 leading-relaxed">
-              The whole slide image is not available for visualization.
-              Predictions are computed from pre-extracted patch embeddings.
+
+            {/* Color Scale Legend */}
+            <div className="mt-4 px-4">
+              <div className="heatmap-legend h-3 rounded" />
+              <div className="flex justify-between text-xs text-gray-400 mt-1">
+                <span>Low attention</span>
+                <span>High attention</span>
+              </div>
+            </div>
+
+            {/* Info text */}
+            <p className="text-xs text-gray-500 mt-4 px-4">
+              The whole slide image is not available. This heatmap shows
+              attention weights from pre-extracted patch embeddings.
             </p>
           </div>
         </div>
-      )}
 
-      {/* Professional Toolbar */}
-      {isReady && showToolbar && (
-        <div className="absolute top-4 left-4 viewer-toolbar">
-          {/* Navigation Tools */}
-          <button
-            onClick={() => setActiveTool("pan")}
-            className={cn(
-              "toolbar-button",
-              activeTool === "pan" && "toolbar-button-active"
-            )}
-            title="Pan Tool (drag to move)"
-          >
-            <Move className="h-4 w-4" />
-          </button>
-          <button
-            onClick={() => setActiveTool("crosshair")}
-            className={cn(
-              "toolbar-button",
-              activeTool === "crosshair" && "toolbar-button-active"
-            )}
-            title="Select Region (click to navigate)"
-          >
-            <Crosshair className="h-4 w-4" />
-          </button>
-
-          <div className="toolbar-divider" />
-
-          {/* Zoom Controls */}
-          <button
-            onClick={handleZoomOut}
-            className="toolbar-button"
-            title="Zoom Out"
-          >
-            <Minus className="h-4 w-4" />
-          </button>
-          <div className="px-2 min-w-[52px] text-center">
-            <span className="text-xs font-mono text-gray-700">
-              {zoom < 1 ? zoom.toFixed(2) : zoom.toFixed(1)}x
-            </span>
-          </div>
-          <button
-            onClick={handleZoomIn}
-            className="toolbar-button"
-            title="Zoom In"
-          >
-            <Plus className="h-4 w-4" />
-          </button>
-
-          <div className="toolbar-divider" />
-
-          {/* View Controls */}
-          <button
-            onClick={handleReset}
-            className="toolbar-button"
-            title="Reset View"
-          >
-            <Home className="h-4 w-4" />
-          </button>
-          <button
-            onClick={handleFullscreen}
-            className="toolbar-button"
-            title="Fullscreen"
-          >
-            <Maximize2 className="h-4 w-4" />
-          </button>
-        </div>
-      )}
-
-      {/* Heatmap Controls */}
-      {isReady && heatmap && (
+        {/* Heatmap Controls */}
         <div className="absolute top-4 right-4">
           <div className="viewer-toolbar flex-col items-stretch gap-2 p-3 min-w-[200px]">
             <div className="flex items-center justify-between">
@@ -378,9 +406,180 @@ export function WSIViewer({
                   onChange={(e) => setHeatmapOpacity(Number(e.target.value))}
                   formatValue={(v) => `${Math.round(v * 100)}%`}
                 />
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className={cn(
+        "relative bg-navy-900 rounded-xl overflow-hidden shadow-clinical-lg border border-navy-700",
+        className
+      )}
+    >
+      {/* Viewer Container */}
+      <div
+        ref={containerRef}
+        className="w-full h-full min-h-[400px]"
+        style={{ background: "#0f172a" }}
+      />
+
+      {/* Loading Indicator */}
+      {!isReady && !loadError && (
+        <div className="absolute inset-0 flex items-center justify-center bg-navy-900">
+          <div className="text-center">
+            <div className="relative w-16 h-16 mb-4 mx-auto">
+              <div className="absolute inset-0 rounded-full border-4 border-navy-700" />
+              <div className="absolute inset-0 rounded-full border-4 border-clinical-500 border-t-transparent animate-spin" />
+            </div>
+            <p className="text-sm text-gray-300 font-medium">
+              Loading slide...
+            </p>
+            <p className="text-xs text-gray-500 mt-1">
+              Preparing tile pyramid
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Error State (no heatmap available) */}
+      {loadError && !heatmap && (
+        <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-navy-800 to-navy-900">
+          <div className="text-center max-w-md px-6">
+            <div className="w-20 h-20 mx-auto mb-4 rounded-2xl bg-navy-700 flex items-center justify-center">
+              <Grid3X3 className="w-10 h-10 text-gray-400" />
+            </div>
+            <h3 className="text-lg font-semibold text-gray-200 mb-2">
+              {loadError}
+            </h3>
+            <p className="text-sm text-gray-400 leading-relaxed">
+              The whole slide image is not available for visualization.
+              Predictions are computed from pre-extracted patch embeddings.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Professional Toolbar */}
+      {isReady && showToolbar && (
+        <div className="absolute top-4 left-4 viewer-toolbar">
+          {/* Navigation Tools */}
+          <button
+            onClick={() => setActiveTool("pan")}
+            className={cn(
+              "toolbar-button",
+              activeTool === "pan" && "toolbar-button-active"
+            )}
+            title="Pan Tool (drag to move)"
+          >
+            <Move className="h-4 w-4" />
+          </button>
+          <button
+            onClick={() => setActiveTool("crosshair")}
+            className={cn(
+              "toolbar-button",
+              activeTool === "crosshair" && "toolbar-button-active"
+            )}
+            title="Select Region (click to analyze)"
+          >
+            <Crosshair className="h-4 w-4" />
+          </button>
+
+          <div className="toolbar-divider" />
+
+          {/* Zoom Controls */}
+          <button
+            onClick={handleZoomOut}
+            className="toolbar-button"
+            title="Zoom Out (-)"
+          >
+            <Minus className="h-4 w-4" />
+          </button>
+          <div className="px-2 min-w-[52px] text-center">
+            <span className="text-xs font-mono text-gray-700">
+              {zoom < 1 ? zoom.toFixed(2) : zoom.toFixed(1)}x
+            </span>
+          </div>
+          <button
+            onClick={handleZoomIn}
+            className="toolbar-button"
+            title="Zoom In (+)"
+          >
+            <Plus className="h-4 w-4" />
+          </button>
+
+          <div className="toolbar-divider" />
+
+          {/* View Controls */}
+          <button
+            onClick={handleReset}
+            className="toolbar-button"
+            title="Reset View (0)"
+          >
+            <Home className="h-4 w-4" />
+          </button>
+          <button
+            onClick={handleFullscreen}
+            className="toolbar-button"
+            title="Fullscreen (F)"
+          >
+            <Maximize2 className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+
+      {/* Heatmap Controls */}
+      {isReady && heatmap && (
+        <div className="absolute top-4 right-4">
+          <div className="viewer-toolbar flex-col items-stretch gap-2 p-3 min-w-[200px]">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Layers className="h-4 w-4 text-gray-600" />
+                <span className="text-sm font-medium text-gray-700">
+                  Attention Heatmap
+                </span>
+                {heatmapLoaded && (
+                  <span className="w-2 h-2 rounded-full bg-green-500" title="Loaded" />
+                )}
+                {heatmapError && (
+                  <span className="w-2 h-2 rounded-full bg-red-500" title="Failed to load" />
+                )}
+              </div>
+              <button
+                onClick={() => setShowHeatmapPanel(!showHeatmapPanel)}
+                className="p-1 rounded hover:bg-gray-100"
+              >
+                <Settings2 className="h-3.5 w-3.5 text-gray-400" />
+              </button>
+            </div>
+
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-gray-500">Show overlay (H)</span>
+              <Toggle
+                checked={showHeatmap}
+                onChange={setShowHeatmap}
+                size="sm"
+              />
+            </div>
+
+            {showHeatmapPanel && showHeatmap && (
+              <div className="pt-2 border-t border-gray-100 animate-fade-in">
+                <Slider
+                  label="Opacity"
+                  min={0}
+                  max={1}
+                  step={0.05}
+                  value={heatmapOpacity}
+                  onChange={(e) => setHeatmapOpacity(Number(e.target.value))}
+                  formatValue={(v) => `${Math.round(v * 100)}%`}
+                />
                 <div className="mt-3">
                   <p className="text-xs text-gray-500 mb-1.5">Color Scale</p>
-                  <div className="heatmap-legend" />
+                  <div className="heatmap-legend h-3 rounded" />
                   <div className="flex justify-between text-2xs text-gray-400 mt-1">
                     <span>Low attention</span>
                     <span>High attention</span>
@@ -412,7 +611,7 @@ export function WSIViewer({
         </div>
       )}
 
-      {/* Coordinates Display */}
+      {/* Coordinates Display - when crosshair tool is active */}
       {isReady && activeTool === "crosshair" && (
         <div className="absolute bottom-4 right-4 bg-black/70 text-white px-3 py-1.5 rounded text-xs">
           <span className="text-gray-400 mr-1">Mode:</span>
@@ -423,6 +622,11 @@ export function WSIViewer({
   );
 }
 
+// Export navigateTo method type for ref usage
 export type WSIViewerRef = {
   navigateTo: (coords: PatchCoordinates) => void;
+  zoomIn: () => void;
+  zoomOut: () => void;
+  resetZoom: () => void;
+  toggleHeatmap: () => void;
 };

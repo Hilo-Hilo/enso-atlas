@@ -444,6 +444,9 @@ function SimilarCaseItem({
   onToggleExpand,
   onViewCase,
 }: SimilarCaseItemProps) {
+  const [thumbnailError, setThumbnailError] = useState(false);
+  const [thumbnailLoading, setThumbnailLoading] = useState(true);
+  
   const distance = case_.distance ?? 0;
   const similarityScore = Math.max(0, Math.min(100, Math.round((1 - distance) * 100)));
 
@@ -468,15 +471,36 @@ function SimilarCaseItem({
       >
         {/* Thumbnail */}
         <div className="relative w-12 h-12 rounded-lg overflow-hidden shrink-0 border border-gray-200">
-          {case_.thumbnailUrl ? (
-            <img
-              src={case_.thumbnailUrl}
-              alt={`Similar case ${rank}`}
-              className="w-full h-full object-cover"
-            />
+          {case_.thumbnailUrl && !thumbnailError ? (
+            <>
+              {thumbnailLoading && (
+                <div className="absolute inset-0 bg-gray-100 flex items-center justify-center animate-pulse">
+                  <Database className="h-5 w-5 text-gray-300" />
+                </div>
+              )}
+              <img
+                src={case_.thumbnailUrl}
+                alt={`Similar case ${rank}`}
+                className={cn(
+                  "w-full h-full object-cover transition-opacity",
+                  thumbnailLoading ? "opacity-0" : "opacity-100"
+                )}
+                onLoad={() => setThumbnailLoading(false)}
+                onError={() => {
+                  setThumbnailError(true);
+                  setThumbnailLoading(false);
+                }}
+              />
+            </>
           ) : (
-            <div className="w-full h-full bg-gray-100 flex items-center justify-center">
-              <Database className="h-5 w-5 text-gray-400" />
+            <div className={cn(
+              "w-full h-full flex items-center justify-center",
+              isResponder ? "bg-green-50" : isNonResponder ? "bg-red-50" : "bg-gray-100"
+            )}>
+              <Database className={cn(
+                "h-5 w-5",
+                isResponder ? "text-green-400" : isNonResponder ? "text-red-400" : "text-gray-400"
+              )} />
             </div>
           )}
           <div className="absolute top-0.5 left-0.5 bg-navy-900/80 text-white text-2xs font-bold px-1 py-0.5 rounded">
@@ -565,7 +589,7 @@ function SimilarCaseItem({
             )}
           </div>
           <Button
-            variant="secondary"
+            variant="primary"
             size="sm"
             onClick={(e) => {
               e.stopPropagation();
@@ -573,8 +597,8 @@ function SimilarCaseItem({
             }}
             className="w-full mt-3"
           >
-            <ExternalLink className="h-3.5 w-3.5 mr-1.5" />
-            View Case Details
+            <ArrowRight className="h-3.5 w-3.5 mr-1.5" />
+            Switch to This Case
           </Button>
         </div>
       )}

@@ -26,13 +26,18 @@ export function NetworkStatus({
   showWhenConnected = false,
   onConnectionChange,
 }: NetworkStatusProps) {
-  const [connectionState, setConnectionState] = useState<ConnectionState>(
-    getConnectionState()
-  );
+  // Initialize with "connecting" to avoid hydration mismatch
+  // (actual state is determined client-side)
+  const [connectionState, setConnectionState] = useState<ConnectionState>("connecting");
   const [isRetrying, setIsRetrying] = useState(false);
   const [showBanner, setShowBanner] = useState(false);
+  const [isHydrated, setIsHydrated] = useState(false);
 
   useEffect(() => {
+    // Mark as hydrated and get initial state
+    setIsHydrated(true);
+    setConnectionState(getConnectionState());
+
     // Subscribe to connection state changes
     const unsubscribe = onConnectionStateChange((state) => {
       setConnectionState(state);
@@ -185,11 +190,12 @@ export function NetworkStatus({
  * Hook for programmatic access to connection state
  */
 export function useNetworkStatus() {
-  const [connectionState, setConnectionState] = useState<ConnectionState>(
-    getConnectionState()
-  );
+  // Initialize with "connecting" to avoid hydration mismatch
+  const [connectionState, setConnectionState] = useState<ConnectionState>("connecting");
 
   useEffect(() => {
+    // Get initial state client-side
+    setConnectionState(getConnectionState());
     const unsubscribe = onConnectionStateChange(setConnectionState);
     return unsubscribe;
   }, []);

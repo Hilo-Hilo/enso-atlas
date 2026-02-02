@@ -211,24 +211,30 @@ export function SemanticSearchPanel({
               <span>Similarity Score</span>
             </div>
             <div className="space-y-2 max-h-64 overflow-y-auto">
-              {results.map((result, index) => (
-                <SearchResultItem
-                  key={`${result.patch_index}_${index}`}
-                  result={result}
-                  rank={index + 1}
-                  slideId={slideId}
-                  isSelected={selectedPatchId === `search_${result.patch_index}`}
-                  onClick={() =>
-                    onPatchClick?.({
-                      x: result.coordinates?.[0] ?? 0,
-                      y: result.coordinates?.[1] ?? 0,
-                      width: 224,
-                      height: 224,
-                      level: 0,
-                    })
-                  }
-                />
-              ))}
+              {results.map((result, index) => {
+                // Match selection based on coordinates (what handlePatchClick sets)
+                const coordsMatch = result.coordinates 
+                  ? `${result.coordinates[0]}_${result.coordinates[1]}`
+                  : null;
+                return (
+                  <SearchResultItem
+                    key={`${result.patch_index}_${index}`}
+                    result={result}
+                    rank={index + 1}
+                    slideId={slideId}
+                    isSelected={coordsMatch !== null && selectedPatchId === coordsMatch}
+                    onClick={() =>
+                      onPatchClick?.({
+                        x: result.coordinates?.[0] ?? 0,
+                        y: result.coordinates?.[1] ?? 0,
+                        width: 224,
+                        height: 224,
+                        level: 0,
+                      })
+                    }
+                  />
+                );
+              })}
             </div>
           </div>
         )}

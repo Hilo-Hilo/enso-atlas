@@ -25,6 +25,7 @@ import {
   Eye,
   EyeOff,
   Layers,
+  RefreshCw,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { AnalysisResponse, EvidencePatch, Annotation } from "@/types";
@@ -72,6 +73,7 @@ export function PathologistView({
   const [showAnnotations, setShowAnnotations] = useState(true);
   const [noteText, setNoteText] = useState("");
   const [selectedGrade, setSelectedGrade] = useState<number | null>(null);
+  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
   
   // Collapsible sections
   const [expandedSections, setExpandedSections] = useState({
@@ -130,6 +132,57 @@ export function PathologistView({
     setMitoticFields(prev => prev + 1);
     setMitoticCount(0);
   }, [slideId, mitoticCount, mitoticFields, onAddAnnotation]);
+
+  // Handle save annotations - shows confirmation (annotations auto-save via API)
+  const handleSaveAnnotations = useCallback(() => {
+    setSaveStatus("saving");
+    // Annotations are already saved via the API when added
+    // This just provides visual feedback
+    setTimeout(() => {
+      setSaveStatus("saved");
+      setTimeout(() => setSaveStatus("idle"), 2000);
+    }, 500);
+  }, []);
+
+  // Handle export pathologist review data
+  const handleExportReport = useCallback(() => {
+    const selectedGradeInfo = TUMOR_GRADES.find(g => g.grade === selectedGrade);
+    
+    const reportData = {
+      slideId,
+      exportedAt: new Date().toISOString(),
+      tumorGrade: selectedGradeInfo ? {
+        grade: selectedGradeInfo.grade,
+        label: selectedGradeInfo.label,
+        description: selectedGradeInfo.description,
+      } : null,
+      mitoticAssessment: {
+        totalFields: mitoticFields,
+        currentFieldCount: mitoticCount,
+      },
+      annotations: annotations.map(ann => ({
+        id: ann.id,
+        type: ann.type,
+        text: ann.text,
+        category: ann.category,
+        createdAt: ann.createdAt,
+      })),
+      analysisResult: {
+        prediction: analysisResult.prediction,
+        topEvidenceCount: analysisResult.evidencePatches.length,
+      },
+    };
+
+    const blob = new Blob([JSON.stringify(reportData, null, 2)], {
+      type: "application/json",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `pathologist-review-${slideId}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [slideId, selectedGrade, mitoticFields, mitoticCount, annotations, analysisResult]);
 
   // Get morphology descriptions for patches
   const patchesWithMorphology = useMemo(() => {
@@ -494,11 +547,36 @@ export function PathologistView({
 
       {/* Export Actions */}
       <div className="flex gap-2 mt-2">
-        <Button variant="secondary" size="sm" className="flex-1">
-          <Save className="h-4 w-4 mr-1" />
-          Save Annotations
+        <Button 
+          variant="secondary" 
+          size="sm" 
+          className="flex-1"
+          onClick={handleSaveAnnotations}
+          disabled={saveStatus === "saving"}
+        >
+          {saveStatus === "saving" ? (
+            <>
+              <RefreshCw className="h-4 w-4 mr-1 animate-spin" />
+              Saving...
+            </>
+          ) : saveStatus === "saved" ? (
+            <>
+              <CheckCircle className="h-4 w-4 mr-1 text-green-600" />
+              Saved!
+            </>
+          ) : (
+            <>
+              <Save className="h-4 w-4 mr-1" />
+              Save Annotations
+            </>
+          )}
         </Button>
-        <Button variant="secondary" size="sm" className="flex-1">
+        <Button 
+          variant="secondary" 
+          size="sm" 
+          className="flex-1"
+          onClick={handleExportReport}
+        >
           <Download className="h-4 w-4 mr-1" />
           Export Report
         </Button>

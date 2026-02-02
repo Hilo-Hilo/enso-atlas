@@ -397,16 +397,18 @@ export function SlideSelector({
             />
           </div>
         ) : (
-          <Button
-            variant="primary"
-            size="lg"
-            onClick={onAnalyze}
-            disabled={!selectedSlideId || isAnalyzing}
-            isLoading={isAnalyzing}
-            className="w-full"
-          >
-            {isAnalyzing ? "Analyzing..." : "Run Analysis"}
-          </Button>
+          <div data-demo="analyze-button">
+            <Button
+              variant="primary"
+              size="lg"
+              onClick={onAnalyze}
+              disabled={!selectedSlideId || isAnalyzing}
+              isLoading={isAnalyzing}
+              className="w-full"
+            >
+              {isAnalyzing ? "Analyzing..." : "Run Analysis"}
+            </Button>
+          </div>
         )}
 
         {/* Upload Hint */}

@@ -22,10 +22,10 @@ logger = logging.getLogger(__name__)
 class EvidenceConfig:
     """Evidence generation configuration."""
     top_k_patches: int = 12
-    heatmap_alpha: float = 0.4
+    heatmap_alpha: float = 0.6  # Increased for better visibility
     similarity_k: int = 20
     faiss_index_type: str = "IVF1024,Flat"
-    colormap: str = "jet"  # Colormap for heatmap
+    colormap: str = "viridis"  # Perceptually uniform colormap
 
 
 class EvidenceGenerator:
@@ -121,19 +121,27 @@ class EvidenceGenerator:
         # Convert to uint8
         heatmap_uint8 = (heatmap * 255).astype(np.uint8)
 
-        # Apply colormap
-        if self.config.colormap == "jet":
-            colored = cv2.applyColorMap(heatmap_uint8, cv2.COLORMAP_JET)
-        elif self.config.colormap == "hot":
-            colored = cv2.applyColorMap(heatmap_uint8, cv2.COLORMAP_HOT)
-        else:
-            colored = cv2.applyColorMap(heatmap_uint8, cv2.COLORMAP_JET)
+        # Apply colormap (OpenCV COLORMAP enum values)
+        colormap_mapping = {
+            "jet": cv2.COLORMAP_JET,
+            "hot": cv2.COLORMAP_HOT,
+            "viridis": cv2.COLORMAP_VIRIDIS,
+            "plasma": cv2.COLORMAP_PLASMA,
+            "inferno": cv2.COLORMAP_INFERNO,
+            "magma": cv2.COLORMAP_MAGMA,
+            "turbo": cv2.COLORMAP_TURBO,
+        }
+        
+        cmap = colormap_mapping.get(self.config.colormap, cv2.COLORMAP_VIRIDIS)
+        colored = cv2.applyColorMap(heatmap_uint8, cmap)
 
         # Convert BGR to RGB
         colored = cv2.cvtColor(colored, cv2.COLOR_BGR2RGB)
 
-        # Add alpha channel based on intensity
-        alpha = (heatmap * 255 * self.config.heatmap_alpha).astype(np.uint8)
+        # Add alpha channel - stronger alpha where attention is higher
+        # Use nonlinear scaling for better visibility of high-attention regions
+        alpha = np.power(heatmap, 0.7) * 255 * self.config.heatmap_alpha
+        alpha = alpha.astype(np.uint8)
         heatmap_rgba = np.dstack([colored, alpha])
 
         return heatmap_rgba

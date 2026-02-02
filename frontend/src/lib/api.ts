@@ -319,6 +319,7 @@ interface BackendAnalysisResponse {
     slide_id: string;
     similarity_score: number;
     distance?: number;
+    label?: string;
   }>;
 }
 
@@ -373,17 +374,77 @@ export async function analyzeSlide(
     similarCases: backend.similar_cases.map(s => ({
       slideId: s.slide_id,
       similarity: s.similarity_score,
-      label: "unknown",
-      thumbnailUrl: `/api/heatmap/${s.slide_id}`,
+      distance: s.distance,
+      label: s.label || undefined,
+      thumbnailUrl: `${API_BASE_URL}/api/slides/${s.slide_id}/thumbnail?size=128`,
     })),
     heatmap: {
-      imageUrl: `/api/heatmap/${backend.slide_id}`,
+      imageUrl: `${API_BASE_URL}/api/heatmap/${backend.slide_id}`,
       minValue: 0,
       maxValue: 1,
       colorScale: "viridis",
     },
     processingTimeMs: 0,
   };
+}
+
+// Backend report response (different from frontend StructuredReport)
+interface BackendReportResponse {
+  slide_id: string;
+  report_json: {
+    case_id: string;
+    task: string;
+    patient_context?: {
+      age?: number;
+      sex?: string;
+      stage?: string;
+      grade?: string;
+      prior_lines?: number;
+      histology?: string;
+    };
+    model_output: {
+      label: string;
+      probability: number;
+      calibration_note?: string;
+    };
+    evidence?: Array<{
+      patch_id: string;
+      attention_weight?: number;
+      coordinates?: [number, number];
+      morphology_description?: string;
+      significance?: string;
+    }>;
+    similar_examples?: Array<{
+      slide_id?: string;
+      example_id?: string;
+      distance?: number;
+      similarity_score?: number;
+      label?: string;
+    }>;
+    limitations?: string[];
+    suggested_next_steps?: string[];
+    safety_statement?: string;
+    decision_support?: {
+      risk_level: string;
+      confidence_level: string;
+      confidence_score: number;
+      primary_recommendation: string;
+      supporting_rationale?: string[];
+      alternative_considerations?: string[];
+      guideline_references?: Array<{
+        source: string;
+        section: string;
+        recommendation: string;
+        url?: string;
+      }>;
+      uncertainty_statement?: string;
+      quality_warnings?: string[];
+      suggested_workup?: string[];
+      interpretation_note?: string;
+      caveat?: string;
+    };
+  };
+  summary_text: string;
 }
 
 /**
@@ -393,14 +454,91 @@ export async function analyzeSlide(
 export async function generateReport(
   request: ReportRequest
 ): Promise<StructuredReport> {
-  return fetchApi<StructuredReport>(
+  const backend = await fetchApi<BackendReportResponse>(
     "/api/report",
     {
       method: "POST",
-      body: JSON.stringify(request),
+      body: JSON.stringify({ slide_id: request.slideId }),
     },
     { timeoutMs: 90000 } // 90 second timeout for report generation
   );
+
+  // Transform backend response to frontend StructuredReport format
+  const reportJson = backend.report_json;
+  const modelOutput = reportJson.model_output;
+  
+  // Transform evidence array
+  const evidence = (reportJson.evidence || []).map((e, idx) => ({
+    patchId: e.patch_id || `patch_${idx}`,
+    coordsLevel0: (e.coordinates || [0, 0]) as [number, number],
+    morphologyDescription: e.morphology_description || 
+      `High-attention region at coordinates (${e.coordinates?.[0] || 0}, ${e.coordinates?.[1] || 0}) with attention weight ${(e.attention_weight || 0).toFixed(3)}`,
+    whyThisPatchMatters: e.significance ||
+      "This region shows morphological patterns associated with the predicted classification based on model attention analysis.",
+  }));
+
+  // Transform similar examples
+  const similarExamples = (reportJson.similar_examples || []).map((s) => ({
+    exampleId: s.example_id || s.slide_id || "unknown",
+    label: s.label || "unknown",
+    distance: s.distance ?? (1 - (s.similarity_score || 0)),
+  }));
+
+  // Build decision support if available
+  const decisionSupport = reportJson.decision_support ? {
+    risk_level: reportJson.decision_support.risk_level as import("@/types").RiskLevel,
+    confidence_level: reportJson.decision_support.confidence_level as import("@/types").ConfidenceLevel,
+    confidence_score: reportJson.decision_support.confidence_score,
+    primary_recommendation: reportJson.decision_support.primary_recommendation,
+    supporting_rationale: reportJson.decision_support.supporting_rationale || [],
+    alternative_considerations: reportJson.decision_support.alternative_considerations || [],
+    guideline_references: reportJson.decision_support.guideline_references || [],
+    uncertainty_statement: reportJson.decision_support.uncertainty_statement || 
+      "Prediction confidence should be interpreted in the context of slide quality and similar case evidence.",
+    quality_warnings: reportJson.decision_support.quality_warnings || [],
+    suggested_workup: reportJson.decision_support.suggested_workup || [],
+    interpretation_note: reportJson.decision_support.interpretation_note ||
+      "This is an AI-generated interpretation. Clinical correlation and expert review are essential.",
+    caveat: reportJson.decision_support.caveat ||
+      "This tool is for research purposes only and should not be used as the sole basis for clinical decisions.",
+  } : undefined;
+
+  // Default limitations if not provided
+  const defaultLimitations = [
+    "This is an uncalibrated research model - probabilities are not clinically validated",
+    "Prediction is based on morphological patterns and may not capture all relevant clinical factors",
+    "Model has been trained on a limited dataset and may not generalize to all populations",
+    "Slide quality and tissue representation may affect prediction accuracy",
+  ];
+
+  // Default next steps if not provided
+  const defaultNextSteps = [
+    "Correlate findings with clinical history and other diagnostic tests",
+    "Review high-attention regions identified by the model",
+    "Consider molecular profiling for additional treatment guidance",
+    "Discuss findings in multidisciplinary tumor board",
+  ];
+
+  return {
+    caseId: reportJson.case_id || backend.slide_id,
+    task: reportJson.task || "Bevacizumab treatment response prediction",
+    generatedAt: new Date().toISOString(),
+    modelOutput: {
+      label: modelOutput.label.toUpperCase(),
+      score: modelOutput.probability,
+      confidence: Math.abs(modelOutput.probability - 0.5) * 2,
+      calibrationNote: modelOutput.calibration_note || 
+        "Model probability requires external validation. This is not a clinically calibrated probability.",
+    },
+    evidence,
+    similarExamples,
+    limitations: reportJson.limitations?.length ? reportJson.limitations : defaultLimitations,
+    suggestedNextSteps: reportJson.suggested_next_steps?.length ? reportJson.suggested_next_steps : defaultNextSteps,
+    safetyStatement: reportJson.safety_statement || 
+      "This is a research decision-support tool, not a diagnostic device. All findings must be validated by qualified pathologists and clinicians. Do not use for standalone clinical decision-making.",
+    summary: backend.summary_text,
+    decisionSupport,
+  };
 }
 
 /**
@@ -500,6 +638,21 @@ export async function healthCheck(): Promise<{ status: string; version: string }
   );
 }
 
+// Backend semantic search response (snake_case with similarity_score)
+interface BackendSemanticSearchResult {
+  patch_index: number;
+  similarity_score: number;
+  coordinates?: [number, number];
+  attention_weight?: number;
+}
+
+interface BackendSemanticSearchResponse {
+  slide_id: string;
+  query: string;
+  results: BackendSemanticSearchResult[];
+  embedding_model: string;
+}
+
 /**
  * Semantic search for patches using MedSigLIP text embeddings
  */
@@ -508,7 +661,7 @@ export async function semanticSearch(
   query: string,
   topK: number = 5
 ): Promise<SemanticSearchResponse> {
-  return fetchApi<SemanticSearchResponse>(
+  const backend = await fetchApi<BackendSemanticSearchResponse>(
     "/api/semantic-search",
     {
       method: "POST",
@@ -520,6 +673,17 @@ export async function semanticSearch(
     },
     { timeoutMs: 30000 }
   );
+  
+  // Transform backend response to frontend format
+  return {
+    slide_id: backend.slide_id,
+    query: backend.query,
+    results: backend.results.map(r => ({
+      patch_index: r.patch_index,
+      similarity: r.similarity_score,  // Map similarity_score -> similarity
+      coordinates: r.coordinates,
+    })),
+  };
 }
 
 // Backend QC response (snake_case)

@@ -15,3 +15,5 @@ export {
   SkeletonReport,
 } from "./Skeleton";
 export { NetworkStatus, useNetworkStatus } from "./NetworkStatus";
+export { PredictionGauge, ConfidenceGauge, UncertaintyDisplay } from "./PredictionGauge";
+export { Logo, LogoLoader } from "./Logo";

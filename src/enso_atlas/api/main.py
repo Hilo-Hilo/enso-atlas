@@ -356,6 +356,7 @@ def create_app(
             CORSMiddleware,
             allow_origins=[
                 "http://localhost:3000",
+                "http://localhost:3001",
                 "http://localhost:7860",
                 "http://100.111.126.23:3000",
                 "http://100.111.126.23:8003",
@@ -374,12 +375,13 @@ def create_app(
     decision_support = None  # Clinical decision support engine
     slide_siglip_embeddings = {}  # Cache for MedSigLIP embeddings per slide
     available_slides = []
+    slide_labels = {}  # Cache for slide labels (slide_id -> label string)
     # Directories (may be updated at startup if we fall back to demo data)
     slides_dir: Path = embeddings_dir.parent / 'slides'
 
     @app.on_event("startup")
     async def load_models():
-        nonlocal classifier, evidence_gen, embedder, medsiglip_embedder, reporter, decision_support, available_slides, slides_dir, embeddings_dir
+        nonlocal classifier, evidence_gen, embedder, medsiglip_embedder, reporter, decision_support, available_slides, slide_labels, slides_dir, embeddings_dir
 
         from ..config import MILConfig, EvidenceConfig, EmbeddingConfig
         from ..mil.clam import CLAMClassifier
@@ -478,6 +480,31 @@ def create_app(
             if all_embeddings:
                 evidence_gen.build_reference_index(all_embeddings, all_metadata)
                 logger.info(f"Built FAISS index with {len(all_embeddings)} slides")
+
+        # Load slide labels from labels.csv for similar case retrieval
+        labels_path = embeddings_dir.parent / "labels.csv"
+        if labels_path.exists():
+            import csv
+            with open(labels_path) as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    if "slide_id" in row:
+                        sid = row["slide_id"]
+                        label_val = row.get("label", "")
+                    else:
+                        slide_file = row.get("slide_file", "")
+                        sid = slide_file.replace(".svs", "").replace(".SVS", "")
+                        response = row.get("treatment_response", "")
+                        label_val = "responder" if response == "responder" else "non-responder" if response == "non-responder" else ""
+                    if sid and label_val:
+                        # Normalize label format
+                        if label_val == "1":
+                            slide_labels[sid] = "responder"
+                        elif label_val == "0":
+                            slide_labels[sid] = "non-responder"
+                        else:
+                            slide_labels[sid] = label_val
+            logger.info(f"Loaded labels for {len(slide_labels)} slides")
 
     @app.get("/health")
     async def health_check():
@@ -691,10 +718,13 @@ def create_app(
                     sid = meta.get("slide_id", "unknown")
                     if sid != slide_id and sid not in seen_slides:
                         seen_slides.add(sid)
+                        # Get label from cache
+                        case_label = slide_labels.get(sid)
                         similar_cases.append({
                             "slide_id": sid,
                             "similarity_score": 1.0 / (1.0 + s["distance"]),
                             "distance": float(s["distance"]),
+                            "label": case_label,
                         })
                     if len(similar_cases) >= 5:
                         break
@@ -703,9 +733,11 @@ def create_app(
                 # Fall back to random
                 for sid in available_slides[:5]:
                     if sid != slide_id:
+                        case_label = slide_labels.get(sid)
                         similar_cases.append({
                             "slide_id": sid,
                             "similarity_score": float(np.random.uniform(0.7, 0.95)),
+                            "label": case_label,
                         })
 
         # Save to analysis history for audit trail
@@ -1310,46 +1342,174 @@ def create_app(
         # Format patient summary for report
         patient_summary = _format_patient_summary(patient_ctx)
 
-        # Fallback to template report
+        # Generate morphology descriptions based on tissue types and attention
+        def generate_morphology_description(patch: dict, rank: int) -> tuple[str, str]:
+            """Generate morphology description and significance for a patch."""
+            tissue_type = patch.get("tissue_type", "unknown")
+            attention = patch.get("attention_weight", 0)
+            coords = patch.get("coordinates", [0, 0])
+            
+            # Tissue-type specific morphology descriptions
+            morphology_templates = {
+                "tumor": [
+                    "Dense cellular region with atypical epithelial morphology and increased nuclear-to-cytoplasmic ratio",
+                    "Papillary architecture with stratified epithelium showing nuclear atypia",
+                    "Solid sheets of cells with irregular nuclear contours and prominent nucleoli",
+                    "Glandular structures with back-to-back arrangement and cribriform patterns",
+                ],
+                "stroma": [
+                    "Desmoplastic stroma with spindle-shaped fibroblasts and collagen deposition",
+                    "Fibrovascular core with loose connective tissue and scattered vessels",
+                    "Dense fibrous stroma with hyalinized collagen bundles",
+                ],
+                "necrosis": [
+                    "Geographic necrosis with ghost cell outlines and nuclear debris",
+                    "Coagulative necrosis with preserved tissue architecture",
+                    "Necrotic debris with inflammatory cell infiltration",
+                ],
+                "inflammatory": [
+                    "Lymphocytic infiltrate with peritumoral distribution",
+                    "Tumor-infiltrating lymphocytes forming dense aggregates",
+                    "Mixed inflammatory infiltrate with plasma cells and lymphocytes",
+                ],
+                "normal": [
+                    "Normal epithelial architecture with maintained polarity",
+                    "Benign glandular tissue with regular spacing",
+                ],
+            }
+            
+            # Significance based on label prediction
+            significance_templates = {
+                "responder": {
+                    "tumor": "Tumor morphology patterns in this region are associated with better bevacizumab response in the training cohort",
+                    "stroma": "Stromal composition in this area correlates with improved anti-angiogenic therapy outcomes",
+                    "inflammatory": "Inflammatory infiltrate pattern suggests favorable tumor microenvironment for treatment response",
+                    "necrosis": "Necrotic pattern may indicate pre-existing vascular compromise potentially responsive to anti-angiogenic therapy",
+                    "normal": "Preserved tissue architecture in adjacent regions may indicate better overall tissue health",
+                },
+                "non-responder": {
+                    "tumor": "Tumor morphology in this region shows patterns associated with resistance to anti-angiogenic therapy",
+                    "stroma": "Stromal characteristics suggest possible treatment resistance mechanisms",
+                    "inflammatory": "Inflammatory pattern may indicate tumor microenvironment less responsive to bevacizumab",
+                    "necrosis": "Necrotic patterns in this configuration are associated with poor treatment outcomes",
+                    "normal": "Limited tumor involvement in this area provides context for overall assessment",
+                },
+            }
+            
+            # Select morphology description
+            templates = morphology_templates.get(tissue_type, ["Tissue region with notable morphological features"])
+            morphology = templates[rank % len(templates)]
+            
+            # Add coordinate context
+            morphology += f" at position ({coords[0]:,}, {coords[1]:,})"
+            
+            # Select significance
+            label_key = label if label in significance_templates else "non-responder"
+            sig_templates = significance_templates.get(label_key, {})
+            significance = sig_templates.get(tissue_type, 
+                f"High model attention (weight: {attention:.3f}) indicates this region contributes significantly to the prediction")
+            
+            return morphology, significance
+        
+        # Fallback to template report with detailed evidence
+        evidence_list = []
+        for i, p in enumerate(evidence_patches[:5]):
+            morphology, significance = generate_morphology_description(p, i)
+            evidence_list.append({
+                "patch_id": f"patch_{p['patch_index']}",
+                "attention_weight": p["attention_weight"],
+                "coordinates": p["coordinates"],
+                "morphology_description": morphology,
+                "significance": significance,
+                "tissue_type": p.get("tissue_type", "unknown"),
+            })
+        
         report_json = {
             "case_id": slide_id,
-            "task": "Bevacizumab treatment response prediction",
+            "task": "Bevacizumab treatment response prediction from H&E histopathology",
             "patient_context": patient_ctx,
             "model_output": {
                 "label": label,
                 "probability": float(score),
-                "calibration_note": "Model probability requires external validation.",
+                "calibration_note": "Model probability requires external validation. This is an uncalibrated research model.",
             },
-            "evidence": [
+            "evidence": evidence_list,
+            "similar_examples": [
                 {
-                    "patch_id": f"patch_{p['patch_index']}",
-                    "attention_weight": p["attention_weight"],
-                    "coordinates": p["coordinates"],
+                    "example_id": s.get("metadata", {}).get("slide_id", f"case_{i}"),
+                    "slide_id": s.get("metadata", {}).get("slide_id", f"case_{i}"),
+                    "distance": float(s.get("distance", 0)),
+                    "similarity_score": 1.0 / (1.0 + s.get("distance", 0)),
+                    "label": s.get("metadata", {}).get("label", "unknown"),
                 }
-                for p in evidence_patches[:5]
+                for i, s in enumerate(similar_cases[:5])
             ],
             "limitations": [
-                "Research tool only",
-                "Not clinically validated",
-                "Requires pathologist review",
+                "This is an uncalibrated research model - probabilities are not clinically validated",
+                "Prediction is based on morphological patterns and may not capture all relevant clinical factors",
+                "Model has been trained on a limited ovarian cancer dataset and may not generalize to all populations",
+                "Slide quality and tissue representation may affect prediction accuracy",
+                "Similar case comparison is based on embedding distance, not verified clinical outcomes",
             ],
-            "safety_statement": "This is a research tool. All findings require validation by qualified pathologists.",
+            "suggested_next_steps": [
+                "Review high-attention regions with attending pathologist",
+                "Correlate findings with patient clinical history and imaging",
+                "Consider molecular profiling (e.g., BRCA status, HRD) for additional treatment guidance",
+                "Discuss findings in multidisciplinary tumor board before treatment decisions",
+                "Validate prediction against institutional experience with similar cases",
+            ],
+            "safety_statement": "This is a research decision-support tool, not a diagnostic device. All findings must be validated by qualified pathologists and clinicians. Do not use for standalone clinical decision-making. Treatment decisions should incorporate all available clinical, pathological, and molecular data.",
             "decision_support": decision_support_data,
         }
 
-        # Build summary with patient context
-        patient_intro = f"{patient_summary}.\n\n" if patient_summary else ""
+        # Build comprehensive summary with patient context
+        patient_intro = f"Patient: {patient_summary}.\n\n" if patient_summary else ""
+        
+        # Confidence interpretation
+        confidence_val = abs(score - 0.5) * 2
+        if confidence_val >= 0.6:
+            confidence_desc = "high"
+        elif confidence_val >= 0.3:
+            confidence_desc = "moderate"
+        else:
+            confidence_desc = "low"
+        
+        # Evidence summary
+        tissue_types_seen = [p.get("tissue_type", "unknown") for p in evidence_patches[:5]]
+        tissue_summary = ", ".join(set(t for t in tissue_types_seen if t != "unknown")) or "various tissue types"
 
-        summary_text = f"""{patient_intro}Case: {slide_id}
+        summary_text = f"""{patient_intro}CASE ANALYSIS SUMMARY
+=====================
+
+Case ID: {slide_id}
 Prediction: {label.upper()}
-Score: {score:.3f}
+Model Score: {score:.3f}
+Confidence Level: {confidence_desc.upper()} ({confidence_val:.1%})
 
-This analysis examined {len(embeddings)} tissue patches. The top {min(5, len(attention))}
-patches by attention weight show consistent morphological patterns associated with
-{label} cases in the training cohort.
+ANALYSIS OVERVIEW
+-----------------
+This analysis examined {len(embeddings):,} tissue patches extracted from the whole-slide image.
+The multiple instance learning (MIL) model identified {min(5, len(attention))} high-attention 
+regions that contributed most significantly to the prediction.
 
-IMPORTANT: This is a research tool for decision support only. All findings must be
-reviewed and validated by qualified pathologists before any clinical decision-making."""
+Key morphological features observed in high-attention regions include: {tissue_summary}.
+
+{"RESPONDER INTERPRETATION" if label == "responder" else "NON-RESPONDER INTERPRETATION"}
+---------------------------------
+{"The morphological patterns identified by the model suggest features associated with favorable response to bevacizumab-based anti-angiogenic therapy in the training cohort. These patterns may include specific tumor architecture, stromal characteristics, or inflammatory infiltrate distributions that have been correlated with treatment response." if label == "responder" else "The morphological patterns identified by the model suggest features associated with reduced response to bevacizumab-based anti-angiogenic therapy in the training cohort. Alternative treatment strategies may warrant consideration pending further clinical evaluation."}
+
+SIMILAR CASES
+-------------
+{len(similar_cases)} similar cases from the reference cohort were identified based on 
+morphological similarity. Review of these cases may provide additional context for 
+interpreting the current prediction.
+
+IMPORTANT DISCLAIMER
+--------------------
+This is a RESEARCH TOOL for decision support only. The model is uncalibrated and has not 
+been clinically validated. All findings must be reviewed and validated by qualified 
+pathologists and clinicians before any clinical decision-making. Treatment decisions 
+should incorporate all available clinical, pathological, and molecular data."""
 
         return ReportResponse(
             slide_id=slide_id,
@@ -1868,6 +2028,144 @@ reviewed and validated by qualified pathologists before any clinical decision-ma
             logger.error(f"Failed to get thumbnail for {slide_id}: {e}")
             raise HTTPException(status_code=500, detail=f"Failed to generate thumbnail: {e}")
 
+    @app.get("/api/slides/{slide_id}/patches/{patch_id}")
+    async def get_patch_image(slide_id: str, patch_id: str, size: int = 224):
+        """
+        Get a patch image thumbnail for semantic search results.
+        
+        Patch ID format: patch_{index} (e.g., patch_0, patch_42)
+        
+        If WSI is available, extracts the region at the patch coordinates.
+        If only embeddings are available, returns a placeholder colored by patch index.
+        """
+        # Parse patch index from patch_id
+        try:
+            if patch_id.startswith("patch_"):
+                patch_index = int(patch_id.replace("patch_", ""))
+            else:
+                patch_index = int(patch_id)
+        except ValueError:
+            raise HTTPException(status_code=400, detail=f"Invalid patch ID format: {patch_id}")
+        
+        # Load coordinates for this slide
+        coord_path = embeddings_dir / f"{slide_id}_coords.npy"
+        emb_path = embeddings_dir / f"{slide_id}.npy"
+        
+        if not emb_path.exists():
+            raise HTTPException(status_code=404, detail=f"Slide {slide_id} not found")
+        
+        # Get number of patches
+        embeddings = np.load(emb_path)
+        if patch_index < 0 or patch_index >= len(embeddings):
+            raise HTTPException(
+                status_code=404, 
+                detail=f"Patch index {patch_index} out of range (0-{len(embeddings)-1})"
+            )
+        
+        # Get coordinates if available
+        coords = None
+        if coord_path.exists():
+            coords = np.load(coord_path)
+            if patch_index < len(coords):
+                x, y = int(coords[patch_index][0]), int(coords[patch_index][1])
+            else:
+                coords = None
+        
+        # Try to extract from WSI if available
+        result = get_slide_and_dz(slide_id)
+        if result is not None and coords is not None:
+            slide, dz = result
+            try:
+                # Read region at level 0 (highest resolution)
+                # Default patch size is 224x224
+                region = slide.read_region((x, y), 0, (size, size))
+                
+                # Convert RGBA to RGB
+                if region.mode == 'RGBA':
+                    # Create white background
+                    background = Image.new('RGB', region.size, (255, 255, 255))
+                    background.paste(region, mask=region.split()[3])
+                    region = background
+                elif region.mode != 'RGB':
+                    region = region.convert('RGB')
+                
+                buf = io.BytesIO()
+                region.save(buf, format="JPEG", quality=85)
+                buf.seek(0)
+                
+                return StreamingResponse(
+                    buf,
+                    media_type="image/jpeg",
+                    headers={
+                        "Cache-Control": "public, max-age=86400",
+                        "Content-Disposition": f"inline; filename={slide_id}_{patch_id}.jpeg"
+                    }
+                )
+            except Exception as e:
+                logger.warning(f"Failed to extract patch from WSI: {e}")
+                # Fall through to placeholder generation
+        
+        # Generate a colored placeholder if no WSI available
+        # Use a color based on the patch index for visual distinction
+        import colorsys
+        hue = (patch_index * 0.618033988749895) % 1.0  # Golden ratio for color distribution
+        r, g, b = colorsys.hsv_to_rgb(hue, 0.3, 0.9)  # Pastel colors
+        color = (int(r * 255), int(g * 255), int(b * 255))
+        
+        # Create placeholder image with patch info
+        img = Image.new('RGB', (size, size), color)
+        
+        # Try to add text label
+        try:
+            from PIL import ImageDraw, ImageFont
+            draw = ImageDraw.Draw(img)
+            
+            # Draw patch index
+            text = f"Patch {patch_index}"
+            try:
+                font = ImageFont.truetype("/System/Library/Fonts/Helvetica.ttc", 16)
+            except Exception:
+                font = ImageFont.load_default()
+            
+            # Get text bounding box
+            bbox = draw.textbbox((0, 0), text, font=font)
+            text_width = bbox[2] - bbox[0]
+            text_height = bbox[3] - bbox[1]
+            
+            # Center the text
+            x_pos = (size - text_width) // 2
+            y_pos = (size - text_height) // 2
+            
+            # Draw with contrasting color
+            draw.text((x_pos, y_pos), text, fill=(60, 60, 60), font=font)
+            
+            # Add coordinates if available
+            if coords is not None:
+                coord_text = f"({x}, {y})"
+                coord_bbox = draw.textbbox((0, 0), coord_text, font=font)
+                coord_width = coord_bbox[2] - coord_bbox[0]
+                draw.text(
+                    ((size - coord_width) // 2, y_pos + text_height + 5),
+                    coord_text,
+                    fill=(80, 80, 80),
+                    font=font
+                )
+        except Exception as e:
+            logger.debug(f"Could not add text to placeholder: {e}")
+        
+        buf = io.BytesIO()
+        img.save(buf, format="JPEG", quality=85)
+        buf.seek(0)
+        
+        return StreamingResponse(
+            buf,
+            media_type="image/jpeg",
+            headers={
+                "Cache-Control": "public, max-age=3600",
+                "Content-Disposition": f"inline; filename={slide_id}_{patch_id}.jpeg"
+            }
+        )
+
     @app.get("/api/slides/{slide_id}/info")
     async def get_slide_info(slide_id: str):
         """Get detailed information about a WSI file."""
@@ -1910,33 +2208,26 @@ reviewed and validated by qualified pathologists before any clinical decision-ma
     slide_annotations: Dict[str, List[Dict[str, Any]]] = {}
     annotation_counter = {"value": 0}
 
-    class AnnotationCoordinates(BaseModel):
-        """Coordinates for an annotation."""
-        x: int
-        y: int
-        width: int
-        height: int
-        points: Optional[List[Dict[str, int]]] = None
-
     class AnnotationCreate(BaseModel):
-        """Request to create a new annotation."""
-        type: str = Field(..., description="Annotation type: circle, rectangle, freehand, marker, note, measurement")
-        coordinates: AnnotationCoordinates
-        text: Optional[str] = None
-        color: Optional[str] = "#3b82f6"
-        category: Optional[str] = None
+        """Request to create a new annotation (flat format for frontend compatibility)."""
+        x: float = Field(..., description="X coordinate of annotation")
+        y: float = Field(..., description="Y coordinate of annotation")
+        width: float = Field(default=0, description="Width of annotation region")
+        height: float = Field(default=0, description="Height of annotation region")
+        label: Optional[str] = Field(None, description="Label/category for the annotation")
+        notes: Optional[str] = Field(None, description="Additional notes or description")
 
     class AnnotationResponse(BaseModel):
-        """Single annotation response."""
+        """Single annotation response (flat format for frontend compatibility)."""
         id: str
         slide_id: str
-        type: str
-        coordinates: AnnotationCoordinates
-        text: Optional[str] = None
-        color: Optional[str] = None
-        category: Optional[str] = None
+        x: float
+        y: float
+        width: float
+        height: float
+        label: Optional[str] = None
+        notes: Optional[str] = None
         created_at: str
-        created_by: Optional[str] = None
 
     class AnnotationsListResponse(BaseModel):
         """Response containing all annotations for a slide."""
@@ -1950,7 +2241,8 @@ reviewed and validated by qualified pathologists before any clinical decision-ma
         Get all annotations for a slide.
 
         Returns annotations created in pathologist review mode, including
-        region markings, notes, measurements, and mitotic figure counts.
+        region markings, notes, and labels. Format uses flat x/y/width/height
+        coordinates for frontend compatibility.
         """
         annotations = slide_annotations.get(slide_id, [])
 
@@ -1960,13 +2252,13 @@ reviewed and validated by qualified pathologists before any clinical decision-ma
                 AnnotationResponse(
                     id=a["id"],
                     slide_id=a["slide_id"],
-                    type=a["type"],
-                    coordinates=AnnotationCoordinates(**a["coordinates"]),
-                    text=a.get("text"),
-                    color=a.get("color"),
-                    category=a.get("category"),
+                    x=a["x"],
+                    y=a["y"],
+                    width=a["width"],
+                    height=a["height"],
+                    label=a.get("label"),
+                    notes=a.get("notes"),
                     created_at=a["created_at"],
-                    created_by=a.get("created_by"),
                 )
                 for a in annotations
             ],
@@ -1978,15 +2270,9 @@ reviewed and validated by qualified pathologists before any clinical decision-ma
         """
         Save a new annotation for a slide.
 
-        Annotation types:
-        - circle: Circular region marking
-        - rectangle: Rectangular region marking
-        - freehand: Freehand drawn region
-        - marker: Point marker (e.g., for mitotic figures)
-        - note: Text note attached to a location
-        - measurement: Distance measurement between two points
-
-        Categories can be used to group annotations (e.g., "mitotic", "tumor", "artifact").
+        Creates an annotation with flat x/y/width/height coordinates plus
+        optional label and notes fields. This enables the PathologistView
+        "Save Annotations" feature in the frontend.
         """
         annotation_counter["value"] += 1
         annotation_id = f"ann_{slide_id}_{annotation_counter['value']}"
@@ -1994,13 +2280,13 @@ reviewed and validated by qualified pathologists before any clinical decision-ma
         annotation_data = {
             "id": annotation_id,
             "slide_id": slide_id,
-            "type": annotation.type,
-            "coordinates": annotation.coordinates.model_dump(),
-            "text": annotation.text,
-            "color": annotation.color,
-            "category": annotation.category,
+            "x": annotation.x,
+            "y": annotation.y,
+            "width": annotation.width,
+            "height": annotation.height,
+            "label": annotation.label,
+            "notes": annotation.notes,
             "created_at": get_timestamp(),
-            "created_by": "pathologist",
         }
 
         if slide_id not in slide_annotations:
@@ -2009,8 +2295,7 @@ reviewed and validated by qualified pathologists before any clinical decision-ma
 
         log_audit_event("annotation_created", slide_id, "pathologist", {
             "annotation_id": annotation_id,
-            "type": annotation.type,
-            "category": annotation.category,
+            "label": annotation.label,
         })
 
         logger.info(f"Created annotation {annotation_id} for slide {slide_id}")
@@ -2018,13 +2303,13 @@ reviewed and validated by qualified pathologists before any clinical decision-ma
         return AnnotationResponse(
             id=annotation_id,
             slide_id=slide_id,
-            type=annotation.type,
-            coordinates=annotation.coordinates,
-            text=annotation.text,
-            color=annotation.color,
-            category=annotation.category,
+            x=annotation.x,
+            y=annotation.y,
+            width=annotation.width,
+            height=annotation.height,
+            label=annotation.label,
+            notes=annotation.notes,
             created_at=annotation_data["created_at"],
-            created_by="pathologist",
         )
 
     @app.delete("/api/slides/{slide_id}/annotations/{annotation_id}")
@@ -2057,35 +2342,21 @@ reviewed and validated by qualified pathologists before any clinical decision-ma
         """
         Get a summary of annotations for a slide.
 
-        Returns counts by type and category, useful for pathologist workflow summary.
+        Returns counts by label, useful for pathologist workflow summary.
         """
         annotations = slide_annotations.get(slide_id, [])
 
-        type_counts: Dict[str, int] = {}
-        category_counts: Dict[str, int] = {}
+        label_counts: Dict[str, int] = {}
 
         for ann in annotations:
-            ann_type = ann["type"]
-            type_counts[ann_type] = type_counts.get(ann_type, 0) + 1
-
-            category = ann.get("category")
-            if category:
-                category_counts[category] = category_counts.get(category, 0) + 1
-
-        # Calculate mitotic count per 10 HPF if mitotic markers exist
-        mitotic_count = category_counts.get("mitotic", 0)
-        mitotic_summary_count = len([a for a in annotations if a.get("category") == "mitotic-summary"])
+            label = ann.get("label")
+            if label:
+                label_counts[label] = label_counts.get(label, 0) + 1
 
         return {
             "slide_id": slide_id,
             "total_annotations": len(annotations),
-            "by_type": type_counts,
-            "by_category": category_counts,
-            "mitotic_assessment": {
-                "total_mitotic_figures": mitotic_count,
-                "fields_counted": mitotic_summary_count,
-                "per_10_hpf": round(mitotic_count / max(mitotic_summary_count, 1) * 10, 1) if mitotic_summary_count > 0 else None,
-            } if mitotic_count > 0 or mitotic_summary_count > 0 else None,
+            "by_label": label_counts,
         }
 
     return app

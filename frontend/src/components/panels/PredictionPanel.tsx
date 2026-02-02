@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { ProgressStepper, InlineProgress } from "@/components/ui/ProgressStepper";
 import { SkeletonPrediction } from "@/components/ui/Skeleton";
+import { PredictionGauge, ConfidenceGauge, UncertaintyDisplay } from "@/components/ui/PredictionGauge";
 import { cn, formatProbability } from "@/lib/utils";
 import {
   Activity,
@@ -20,8 +21,10 @@ import {
   RefreshCw,
   ShieldAlert,
   FlaskConical,
+  Gauge,
+  BarChart3,
 } from "lucide-react";
-import type { PredictionResult, SlideQCMetrics } from "@/types";
+import type { PredictionResult, SlideQCMetrics, UncertaintyResult } from "@/types";
 import { ANALYSIS_STEPS } from "@/hooks/useAnalysis";
 
 interface PredictionPanelProps {
@@ -32,6 +35,10 @@ interface PredictionPanelProps {
   error?: string | null;
   onRetry?: () => void;
   qcMetrics?: SlideQCMetrics | null;
+  // Uncertainty quantification
+  uncertaintyResult?: UncertaintyResult | null;
+  isAnalyzingUncertainty?: boolean;
+  onRunUncertaintyAnalysis?: () => void;
 }
 
 export function PredictionPanel({
@@ -42,6 +49,9 @@ export function PredictionPanel({
   error,
   onRetry,
   qcMetrics,
+  uncertaintyResult,
+  isAnalyzingUncertainty,
+  onRunUncertaintyAnalysis,
 }: PredictionPanelProps) {
   // Show error state with retry
   if (error && !isLoading) {
@@ -229,17 +239,23 @@ export function PredictionPanel({
             </Badge>
           </div>
 
-          {/* Raw Score Display */}
-          <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <span className="text-2xl font-bold font-mono text-gray-900">
-                {probabilityPercent}%
-              </span>
-              <span className="text-sm text-gray-500">raw score</span>
-            </div>
-            <div className="flex items-center gap-2 text-xs text-amber-700 bg-amber-50 px-2 py-1 rounded">
-              <AlertTriangle className="h-3 w-3 shrink-0" />
-              <span>Uncalibrated - do not interpret as true probability</span>
+          {/* Visual Gauge + Score Display */}
+          <div className="flex items-center gap-4">
+            <PredictionGauge 
+              value={prediction.score} 
+              size="md" 
+              showLabel={true}
+            />
+            <div className="flex-1 space-y-2">
+              <div className="flex items-center gap-2 text-xs text-amber-700 bg-amber-50 px-2 py-1 rounded">
+                <AlertTriangle className="h-3 w-3 shrink-0" />
+                <span>Uncalibrated - do not interpret as true probability</span>
+              </div>
+              <p className="text-xs text-gray-600 leading-relaxed">
+                {isResponder
+                  ? "Model predicts likely response to bevacizumab treatment based on histopathological features."
+                  : "Model predicts unlikely response to bevacizumab treatment. Consider alternative therapies."}
+              </p>
             </div>
           </div>
         </div>
@@ -287,33 +303,51 @@ export function PredictionPanel({
 
         {/* Confidence Visualization */}
         <div className="p-3 bg-surface-secondary rounded-lg border border-surface-border">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-medium text-gray-600 uppercase tracking-wide">
-              Model Confidence
-            </span>
-            <span className="text-sm font-mono font-semibold text-gray-900">
-              {Math.round(prediction.confidence * 100)}%
-            </span>
-          </div>
-          <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-            <div
-              className={cn(
-                "h-full rounded-full transition-all duration-500",
-                riskLevel === "high"
-                  ? "bg-status-positive"
-                  : riskLevel === "moderate"
-                  ? "bg-status-warning"
-                  : "bg-gray-400"
-              )}
-              style={{ width: `${prediction.confidence * 100}%` }}
-            />
-          </div>
-          <div className="flex justify-between mt-1.5 text-2xs text-gray-400">
-            <span>Low</span>
-            <span>Moderate</span>
-            <span>High</span>
-          </div>
+          <ConfidenceGauge
+            value={prediction.confidence}
+            level={riskLevel}
+          />
         </div>
+
+        {/* Uncertainty Quantification Section */}
+        {uncertaintyResult ? (
+          <UncertaintyDisplay
+            uncertainty={uncertaintyResult.uncertainty}
+            confidenceInterval={uncertaintyResult.confidenceInterval}
+            samples={uncertaintyResult.samples}
+          />
+        ) : onRunUncertaintyAnalysis ? (
+          <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <BarChart3 className="h-4 w-4 text-gray-500" />
+                <div>
+                  <p className="text-xs font-medium text-gray-700">
+                    Uncertainty Analysis
+                  </p>
+                  <p className="text-2xs text-gray-500">
+                    Run MC Dropout for confidence intervals
+                  </p>
+                </div>
+              </div>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={onRunUncertaintyAnalysis}
+                disabled={isAnalyzingUncertainty}
+                leftIcon={
+                  isAnalyzingUncertainty ? (
+                    <RefreshCw className="h-3 w-3 animate-spin" />
+                  ) : (
+                    <BarChart3 className="h-3 w-3" />
+                  )
+                }
+              >
+                {isAnalyzingUncertainty ? "Analyzing..." : "Analyze"}
+              </Button>
+            </div>
+          </div>
+        ) : null}
 
         {/* Slide Quality Warning */}
         {qcMetrics && qcMetrics.overallQuality === "poor" && (

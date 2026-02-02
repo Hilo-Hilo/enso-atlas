@@ -10,7 +10,10 @@ interface SkeletonProps {
 export function Skeleton({ className }: SkeletonProps) {
   return (
     <div
-      className={cn("animate-pulse rounded bg-gray-200", className)}
+      className={cn(
+        "relative overflow-hidden rounded bg-gradient-to-r from-gray-200 via-gray-100 to-gray-200 bg-[length:200%_100%] animate-shimmer",
+        className
+      )}
     />
   );
 }

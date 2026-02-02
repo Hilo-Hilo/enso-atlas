@@ -490,6 +490,9 @@ function PatchThumbnail({
   onClick,
   onZoom,
 }: PatchThumbnailProps) {
+  const [thumbnailError, setThumbnailError] = useState(false);
+  const [thumbnailLoading, setThumbnailLoading] = useState(!!patch.thumbnailUrl);
+  
   const attentionPercent = Math.round(patch.attentionWeight * 100);
   const attentionColor =
     attentionPercent >= 70
@@ -501,36 +504,71 @@ function PatchThumbnail({
   // Get tissue type from backend classification or infer from description
   const tissueType = getTissueType(patch);
   const tissueInfo = TISSUE_TYPES[tissueType];
+  
+  // Check if we have a valid thumbnail URL
+  const hasThumbnail = patch.thumbnailUrl && !thumbnailError;
 
   return (
     <button
       onClick={onClick}
       className={cn(
-        "relative aspect-square rounded-lg overflow-hidden border-2 transition-all group",
-        "hover:border-clinical-500 hover:shadow-md hover:scale-[1.02]",
-        "focus:outline-none focus:ring-2 focus:ring-clinical-500 focus:ring-offset-1",
+        "relative aspect-square rounded-xl overflow-hidden border-2 transition-all duration-200 group",
+        "hover:border-clinical-400 hover:shadow-lg hover:shadow-clinical-200/50 hover:scale-[1.03]",
+        "focus:outline-none focus:ring-2 focus:ring-clinical-500 focus:ring-offset-2",
+        "active:scale-[0.98]",
         isSelected
-          ? "border-clinical-600 ring-2 ring-clinical-200 shadow-md"
-          : "border-gray-200"
+          ? "border-clinical-500 ring-2 ring-clinical-200 shadow-lg shadow-clinical-200/40"
+          : "border-gray-200 hover:border-clinical-300"
       )}
     >
-      {/* Patch Image */}
-      <img
-        src={patch.thumbnailUrl}
-        alt={`Evidence patch ${rank}`}
-        className="w-full h-full object-cover"
-      />
+      {/* Patch Image or Tissue Type Placeholder */}
+      {hasThumbnail ? (
+        <>
+          {thumbnailLoading && (
+            <div className={cn(
+              "absolute inset-0 flex items-center justify-center animate-pulse",
+              tissueInfo.bgColor
+            )}>
+              <Layers className="h-6 w-6 text-gray-400" />
+            </div>
+          )}
+          <img
+            src={patch.thumbnailUrl}
+            alt={`Evidence patch ${rank}`}
+            className={cn(
+              "w-full h-full object-cover transition-opacity",
+              thumbnailLoading ? "opacity-0" : "opacity-100"
+            )}
+            onLoad={() => setThumbnailLoading(false)}
+            onError={() => {
+              setThumbnailError(true);
+              setThumbnailLoading(false);
+            }}
+          />
+        </>
+      ) : (
+        <div className={cn(
+          "w-full h-full flex flex-col items-center justify-center",
+          tissueInfo.bgColor
+        )}>
+          <Layers className={cn("h-6 w-6 mb-1", tissueInfo.color)} />
+          <span className={cn("text-2xs font-medium", tissueInfo.color)}>
+            {tissueInfo.shortLabel}
+          </span>
+        </div>
+      )}
 
       {/* Rank Badge */}
-      <div className="absolute top-1 left-1 bg-navy-900/80 backdrop-blur-sm text-white text-xs font-bold px-1.5 py-0.5 rounded shadow">
+      <div className="absolute top-1.5 left-1.5 bg-gradient-to-br from-navy-800 to-navy-900 backdrop-blur-sm text-white text-xs font-bold px-2 py-0.5 rounded-full shadow-lg border border-white/10">
         #{rank}
       </div>
 
       {/* Attention Score Indicator */}
-      <div className="absolute top-1 right-1">
+      <div className="absolute top-1.5 right-1.5">
         <div
           className={cn(
-            "w-6 h-6 rounded-full flex items-center justify-center text-2xs font-bold text-white shadow",
+            "w-7 h-7 rounded-full flex items-center justify-center text-2xs font-bold text-white shadow-lg border-2 border-white/20",
+            "transition-transform group-hover:scale-110",
             attentionColor
           )}
         >
@@ -557,16 +595,25 @@ function PatchThumbnail({
                 ({patch.coordinates.x}, {patch.coordinates.y})
               </span>
             </div>
-            <button
+            <div
+              role="button"
+              tabIndex={0}
               onClick={(e) => {
                 e.stopPropagation();
                 onZoom?.();
               }}
-              className="p-1 bg-white/20 rounded hover:bg-white/40 transition-colors"
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.stopPropagation();
+                  e.preventDefault();
+                  onZoom?.();
+                }
+              }}
+              className="p-1 bg-white/20 rounded hover:bg-white/40 transition-colors cursor-pointer"
               title="View enlarged"
             >
               <ZoomIn className="h-4 w-4" />
-            </button>
+            </div>
           </div>
         </div>
       </div>
@@ -675,16 +722,25 @@ function PatchListItem({
       </div>
 
       {/* Zoom button */}
-      <button
+      <div
+        role="button"
+        tabIndex={0}
         onClick={(e) => {
           e.stopPropagation();
           onZoom?.();
         }}
-        className="shrink-0 p-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-all hover:bg-clinical-100"
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.stopPropagation();
+            e.preventDefault();
+            onZoom?.();
+          }
+        }}
+        className="shrink-0 p-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-all hover:bg-clinical-100 cursor-pointer"
         title="View enlarged"
       >
         <ZoomIn className="h-4 w-4 text-clinical-600" />
-      </button>
+      </div>
     </button>
   );
 }

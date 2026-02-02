@@ -7,8 +7,9 @@ import type {
   AnalysisRequest,
   StructuredReport,
   ReportRequest,
+  UncertaintyResult,
 } from "@/types";
-import { analyzeSlide, generateReport } from "@/lib/api";
+import { analyzeSlide, generateReport, analyzeWithUncertainty } from "@/lib/api";
 
 // Analysis progress steps
 export const ANALYSIS_STEPS = [
@@ -23,7 +24,9 @@ export type AnalysisStepId = typeof ANALYSIS_STEPS[number]["id"];
 interface UseAnalysisState {
   isAnalyzing: boolean;
   isGeneratingReport: boolean;
+  isAnalyzingUncertainty: boolean;
   analysisResult: AnalysisResponse | null;
+  uncertaintyResult: UncertaintyResult | null;
   report: StructuredReport | null;
   error: string | null;
   // Progress tracking
@@ -33,6 +36,7 @@ interface UseAnalysisState {
 
 interface UseAnalysisReturn extends UseAnalysisState {
   analyze: (request: AnalysisRequest) => Promise<AnalysisResponse | null>;
+  analyzeUncertainty: (slideId: string, nSamples?: number) => Promise<UncertaintyResult | null>;
   generateSlideReport: (request: ReportRequest) => Promise<void>;
   clearResults: () => void;
   clearError: () => void;
@@ -44,7 +48,9 @@ export function useAnalysis(): UseAnalysisReturn {
   const [state, setState] = useState<UseAnalysisState>({
     isAnalyzing: false,
     isGeneratingReport: false,
+    isAnalyzingUncertainty: false,
     analysisResult: null,
+    uncertaintyResult: null,
     report: null,
     error: null,
     analysisStep: -1,
@@ -54,6 +60,7 @@ export function useAnalysis(): UseAnalysisReturn {
   // Store last requests for retry functionality
   const lastAnalysisRequest = useRef<AnalysisRequest | null>(null);
   const lastReportRequest = useRef<ReportRequest | null>(null);
+  const lastUncertaintySlideId = useRef<string | null>(null);
 
   // Simulate progress steps during analysis
   // In a real implementation, the backend would send progress updates via SSE/WebSocket
@@ -63,11 +70,14 @@ export function useAnalysis(): UseAnalysisReturn {
 
     const advanceStep = () => {
       if (currentStep < ANALYSIS_STEPS.length) {
-        setState((prev) => ({
-          ...prev,
-          analysisStep: currentStep,
-          analysisStepId: ANALYSIS_STEPS[currentStep].id,
-        }));
+        const step = ANALYSIS_STEPS[currentStep];
+        if (step) {
+          setState((prev) => ({
+            ...prev,
+            analysisStep: currentStep,
+            analysisStepId: step.id,
+          }));
+        }
         currentStep++;
         setTimeout(advanceStep, stepDurations[currentStep - 1] || 500);
       } else {
@@ -171,11 +181,47 @@ export function useAnalysis(): UseAnalysisReturn {
     }
   }, [generateSlideReport]);
 
+  // Uncertainty analysis with MC Dropout
+  const analyzeUncertainty = useCallback(async (
+    slideId: string,
+    nSamples: number = 20
+  ): Promise<UncertaintyResult | null> => {
+    lastUncertaintySlideId.current = slideId;
+
+    setState((prev) => ({
+      ...prev,
+      isAnalyzingUncertainty: true,
+      error: null,
+    }));
+
+    try {
+      const result = await analyzeWithUncertainty(slideId, nSamples);
+      
+      setState((prev) => ({
+        ...prev,
+        isAnalyzingUncertainty: false,
+        uncertaintyResult: result,
+      }));
+      
+      return result;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Uncertainty analysis failed";
+      setState((prev) => ({
+        ...prev,
+        isAnalyzingUncertainty: false,
+        error: message,
+      }));
+      return null;
+    }
+  }, []);
+
   const clearResults = useCallback(() => {
     setState({
       isAnalyzing: false,
       isGeneratingReport: false,
+      isAnalyzingUncertainty: false,
       analysisResult: null,
+      uncertaintyResult: null,
       report: null,
       error: null,
       analysisStep: -1,
@@ -183,6 +229,7 @@ export function useAnalysis(): UseAnalysisReturn {
     });
     lastAnalysisRequest.current = null;
     lastReportRequest.current = null;
+    lastUncertaintySlideId.current = null;
   }, []);
 
   const clearError = useCallback(() => {
@@ -195,6 +242,7 @@ export function useAnalysis(): UseAnalysisReturn {
   return {
     ...state,
     analyze,
+    analyzeUncertainty,
     generateSlideReport,
     clearResults,
     clearError,
