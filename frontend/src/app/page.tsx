@@ -103,12 +103,21 @@ function SidebarToggle({
   isOpen: boolean;
   onClick: () => void;
 }) {
+  const positionClasses =
+    side === "left"
+      ? isOpen
+        ? "-right-3 rounded-r-lg border-l-0"
+        : "left-0 rounded-r-lg border-l-0"
+      : isOpen
+        ? "-left-3 rounded-l-lg border-r-0"
+        : "right-0 rounded-l-lg border-r-0";
+
   return (
     <button
       onClick={onClick}
       className={cn(
         "hidden lg:flex absolute top-1/2 -translate-y-1/2 z-10 w-6 h-12 items-center justify-center bg-white border border-gray-200 shadow-sm hover:bg-gray-50 transition-colors",
-        side === "left" ? "-right-3 rounded-r-lg border-l-0" : "-left-3 rounded-l-lg border-r-0"
+        positionClasses
       )}
       title={isOpen ? "Collapse panel" : "Expand panel"}
     >
@@ -1263,8 +1272,8 @@ export default function HomePage() {
           ref={slideSelectorRef as React.RefObject<HTMLElement>}
           tabIndex={-1}
           className={cn(
-            "hidden lg:block bg-white border-r border-surface-border p-4 overflow-y-auto shrink-0 space-y-4 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-clinical-500 relative transition-all duration-300",
-            leftSidebarOpen ? "w-72 xl:w-80" : "w-0 p-0 overflow-hidden"
+            "hidden lg:block bg-white border-r border-surface-border shrink-0 space-y-4 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-clinical-500 relative transition-all duration-300",
+            leftSidebarOpen ? "w-72 xl:w-80 p-4 overflow-y-auto" : "w-0 p-0 overflow-visible"
           )}
           data-demo="slide-selector"
         >
