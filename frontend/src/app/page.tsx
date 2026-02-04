@@ -187,6 +187,7 @@ export default function HomePage() {
   const [slideQCMetrics, setSlideQCMetrics] = useState<SlideQCMetrics | null>(null);
   const [selectedModels, setSelectedModels] = useState<string[]>(["platinum_sensitivity", "tumor_grade"]);
   const [resolutionLevel, setResolutionLevel] = useState<number>(1); // 0 = full res, 1 = downsampled
+  const [forceReembed, setForceReembed] = useState(false);
   const [heatmapModel, setHeatmapModel] = useState<string | null>(null); // null = legacy CLAM heatmap
   const [heatmapLevel, setHeatmapLevel] = useState<number>(2); // 0-4, default 2 (512px)
 
@@ -516,11 +517,11 @@ export default function HomePage() {
     );
 
     try {
-      const embedResult = await embedSlideWithPolling(
-        selectedSlide.id, 
-        resolutionLevel,
-        false,  // don't force re-embed
-        (progress) => {
+    const embedResult = await embedSlideWithPolling(
+      selectedSlide.id, 
+      resolutionLevel,
+      forceReembed,
+      (progress) => {
           const nextProgress = {
             phase: progress.phase === "complete" ? "complete" : "embedding",
             progress: progress.progress,
@@ -566,7 +567,7 @@ export default function HomePage() {
       setIsGeneratingEmbeddings(false);
       setEmbeddingProgress(null);
     }
-  }, [selectedSlide, resolutionLevel, toast]);
+  }, [selectedSlide, resolutionLevel, forceReembed, toast]);
 
   // Handle multi-model analysis with improved error handling and progress
   const handleMultiModelAnalyze = useCallback(async () => {
@@ -607,7 +608,7 @@ export default function HomePage() {
       const embedResult = await embedSlideWithPolling(
         selectedSlide.id, 
         resolutionLevel,
-        false,  // don't force re-embed
+        forceReembed,
         (progress) => {
           // Update progress UI with real-time status from backend
           const nextProgress = {
@@ -705,7 +706,7 @@ export default function HomePage() {
       setIsAnalyzingMultiModel(false);
       setEmbeddingProgress(null);
     }
-  }, [selectedSlide, selectedModels, resolutionLevel, toast]);
+  }, [selectedSlide, selectedModels, resolutionLevel, forceReembed, toast]);
   // Handle analyze button
   const handleAnalyze = useCallback(async () => {
     if (!selectedSlide) return;
@@ -1050,6 +1051,8 @@ export default function HomePage() {
         onModelsChange={setSelectedModels}
         resolutionLevel={resolutionLevel}
         onResolutionChange={setResolutionLevel}
+        forceReembed={forceReembed}
+        onForceReembedChange={setForceReembed}
         isGeneratingEmbeddings={isGeneratingEmbeddings}
         embeddingProgress={embeddingProgress}
       />
