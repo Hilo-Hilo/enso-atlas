@@ -521,10 +521,14 @@ export default function HomePage() {
         resolutionLevel,
         false,  // don't force re-embed
         (progress) => {
-          setEmbeddingProgress((prev) => ({
-            phase: progress.phase === 'complete' ? 'complete' : 'embedding',
+          const nextProgress = {
+            phase: progress.phase === "complete" ? "complete" : "embedding",
             progress: progress.progress,
             message: progress.message,
+          };
+
+          setEmbeddingProgress((prev) => ({
+            ...nextProgress,
             startTime: prev?.startTime ?? Date.now(),
           }));
           
@@ -606,10 +610,14 @@ export default function HomePage() {
         false,  // don't force re-embed
         (progress) => {
           // Update progress UI with real-time status from backend
-          setEmbeddingProgress((prev) => ({
-            phase: progress.phase === 'complete' ? 'analyzing' : 'embedding',
+          const nextProgress = {
+            phase: progress.phase === "complete" ? "analyzing" : "embedding",
             progress: progress.progress,
             message: progress.message,
+          };
+
+          setEmbeddingProgress((prev) => ({
+            ...nextProgress,
             startTime: prev?.startTime ?? Date.now(),
           }));
           
@@ -634,7 +642,7 @@ export default function HomePage() {
         phase: "analyzing",
         progress: 100,
         message: "Running multi-model inference...",
-        startTime: prev?.startTime
+        startTime: prev?.startTime ?? Date.now()
       }));
 
       // Then run multi-model analysis with the correct level

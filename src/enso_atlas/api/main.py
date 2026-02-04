@@ -2378,12 +2378,26 @@ DISCLAIMER: This is a research tool. All findings must be validated by qualified
         embeddings = np.load(emb_path)
 
         # Load or generate coordinates
+        patch_size = 224
         if coord_path.exists():
-            coords = np.load(coord_path)
+            coords_arr = np.load(coord_path)
+            coords_arr = coords_arr.astype(np.int64, copy=False)
         else:
-            coords = np.random.randint(0, 50000, (len(embeddings), 2))
+            n_patches = len(embeddings)
+            if n_patches > 0:
+                grid_size = int(np.ceil(np.sqrt(n_patches)))
+                grid_x, grid_y = np.meshgrid(
+                    np.arange(grid_size) * patch_size,
+                    np.arange(grid_size) * patch_size,
+                )
+                coords_arr = np.stack([grid_x.ravel(), grid_y.ravel()], axis=1)[:n_patches]
+            else:
+                coords_arr = np.zeros((0, 2), dtype=np.int64)
+            logger.warning(
+                f"No coords found for {slide_id}; generated {len(coords_arr)} grid coords from embeddings"
+            )
 
-        coords = [tuple(c) for c in coords]
+        coords = [tuple(map(int, c)) for c in coords_arr]
 
         # Helper function for CPU-only inference (avoids CUDA driver issues)
         def cpu_predict(embs):
@@ -2438,21 +2452,27 @@ DISCLAIMER: This is a research tool. All findings must be validated by qualified
         
         # Fall back to computing bounds from coordinates if no slide available
         if slide_dims is None:
-            coords_arr = np.array(coords)
-            x_max = int(coords_arr[:, 0].max()) + 224  # Add patch size
-            y_max = int(coords_arr[:, 1].max()) + 224
-            slide_dims = (x_max, y_max)
-            logger.info(f"Heatmap using coords-derived dims: {slide_dims}")
+            if coords_arr.size == 0:
+                slide_dims = (patch_size, patch_size)
+                logger.warning(
+                    f"No coordinates available to derive dims for {slide_id}; "
+                    f"falling back to {slide_dims}"
+                )
+            else:
+                x_max = int(coords_arr[:, 0].max()) + patch_size  # Add patch size
+                y_max = int(coords_arr[:, 1].max()) + patch_size
+                slide_dims = (x_max, y_max)
+                logger.info(f"Heatmap using coords-derived dims: {slide_dims}")
         
         # Calculate aspect-ratio-preserving thumbnail dimensions
         # This ensures the heatmap matches the slide geometry for correct overlay alignment
         slide_w, slide_h = slide_dims
         if slide_w >= slide_h:
             thumb_w = thumbnail_size
-            thumb_h = max(1, int(thumbnail_size * slide_h / slide_w))
+            thumb_h = max(1, int(round(thumbnail_size * slide_h / slide_w)))
         else:
             thumb_h = thumbnail_size
-            thumb_w = max(1, int(thumbnail_size * slide_w / slide_h))
+            thumb_w = max(1, int(round(thumbnail_size * slide_w / slide_h)))
         
         logger.info(f"Heatmap thumbnail size: {thumb_w}x{thumb_h} (preserving aspect ratio of {slide_w}x{slide_h})")
         
@@ -3897,13 +3917,25 @@ DISCLAIMER: This is a research tool. All findings must be validated by qualified
         embeddings = np.load(emb_path)
         
         # Check for coordinates
+        patch_size = 224
         if coord_path.exists():
-            coords = np.load(coord_path)
+            coords_arr = np.load(coord_path)
+            coords_arr = coords_arr.astype(np.int64, copy=False)
         else:
-            # Generate grid coordinates as fallback
+            # Generate grid coordinates (pixel space) as fallback
             n_patches = len(embeddings)
-            grid_size = int(np.ceil(np.sqrt(n_patches)))
-            coords = np.array([[i % grid_size, i // grid_size] for i in range(n_patches)])
+            if n_patches > 0:
+                grid_size = int(np.ceil(np.sqrt(n_patches)))
+                grid_x, grid_y = np.meshgrid(
+                    np.arange(grid_size) * patch_size,
+                    np.arange(grid_size) * patch_size,
+                )
+                coords_arr = np.stack([grid_x.ravel(), grid_y.ravel()], axis=1)[:n_patches]
+            else:
+                coords_arr = np.zeros((0, 2), dtype=np.int64)
+            logger.warning(
+                f"No coords found for {slide_id}; generated {len(coords_arr)} grid coords from embeddings"
+            )
         
         # Get prediction with attention from specific model
         try:
@@ -3941,13 +3973,20 @@ DISCLAIMER: This is a research tool. All findings must be validated by qualified
             
             # Fall back to computing bounds from coordinates
             if slide_dims is None:
-                x_max = int(coords[:, 0].max()) + 224
-                y_max = int(coords[:, 1].max()) + 224
-                slide_dims = (x_max, y_max)
-                logger.info(f"Model heatmap using coords-derived dims: {slide_dims}")
+                if coords_arr.size == 0:
+                    slide_dims = (patch_size, patch_size)
+                    logger.warning(
+                        f"No coordinates available to derive dims for {slide_id}; "
+                        f"falling back to {slide_dims}"
+                    )
+                else:
+                    x_max = int(coords_arr[:, 0].max()) + patch_size
+                    y_max = int(coords_arr[:, 1].max()) + patch_size
+                    slide_dims = (x_max, y_max)
+                    logger.info(f"Model heatmap using coords-derived dims: {slide_dims}")
             
             # Use EvidenceGenerator for consistent heatmap generation
-            coords_list = [tuple(c) for c in coords]
+            coords_list = [tuple(map(int, c)) for c in coords_arr]
             
             # Calculate aspect-ratio-preserving thumbnail dimensions
             # This ensures the heatmap matches the slide geometry for correct overlay alignment
@@ -3955,10 +3994,10 @@ DISCLAIMER: This is a research tool. All findings must be validated by qualified
             slide_w, slide_h = slide_dims
             if slide_w >= slide_h:
                 thumb_w = base_size
-                thumb_h = max(1, int(base_size * slide_h / slide_w))
+                thumb_h = max(1, int(round(base_size * slide_h / slide_w)))
             else:
                 thumb_h = base_size
-                thumb_w = max(1, int(base_size * slide_w / slide_h))
+                thumb_w = max(1, int(round(base_size * slide_w / slide_h)))
             
             logger.info(f"Model heatmap thumbnail size: {thumb_w}x{thumb_h} (preserving aspect ratio)")
             
@@ -3986,9 +4025,15 @@ DISCLAIMER: This is a research tool. All findings must be validated by qualified
                     with openslide.OpenSlide(str(slide_path)) as slide:
                         slide_dims = slide.dimensions
                 except Exception:
-                    slide_dims = (int(coords[:, 0].max()) + 224, int(coords[:, 1].max()) + 224)
+                    if coords_arr.size == 0:
+                        slide_dims = (patch_size, patch_size)
+                    else:
+                        slide_dims = (int(coords_arr[:, 0].max()) + patch_size, int(coords_arr[:, 1].max()) + patch_size)
             else:
-                slide_dims = (int(coords[:, 0].max()) + 224, int(coords[:, 1].max()) + 224)
+                if coords_arr.size == 0:
+                    slide_dims = (patch_size, patch_size)
+                else:
+                    slide_dims = (int(coords_arr[:, 0].max()) + patch_size, int(coords_arr[:, 1].max()) + patch_size)
             
             return StreamingResponse(
                 buf, 

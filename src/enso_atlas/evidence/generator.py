@@ -88,8 +88,9 @@ class EvidenceGenerator:
         patch_size_thumb = max(1, int(224 * scale_x))  # Approximate patch size in thumbnail
 
         for (x, y), weight in zip(coordinates, attention_weights):
-            tx = int(x * scale_x)
-            ty = int(y * scale_y)
+            # Round instead of floor to avoid systematic left/up bias
+            tx = int(round(x * scale_x))
+            ty = int(round(y * scale_y))
 
             # Add attention weight to heatmap region
             x1 = max(0, tx)
