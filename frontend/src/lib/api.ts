@@ -1369,14 +1369,24 @@ interface BackendSlideSearchResult {
 
 /**
  * Get all tags with their usage counts
+ * Falls back to empty array if endpoint not available
  */
 export async function getAllTags(): Promise<Tag[]> {
-  const backend = await fetchApi<BackendTag[]>("/api/tags");
-  return backend.map(t => ({
-    name: t.name,
-    color: t.color,
-    count: t.count,
-  }));
+  try {
+    const backend = await fetchApi<BackendTag[]>("/api/tags", {}, { skipRetry: true });
+    return backend.map(t => ({
+      name: t.name,
+      color: t.color,
+      count: t.count,
+    }));
+  } catch (error) {
+    // Endpoint not implemented - return empty array
+    if (error instanceof AtlasApiError && error.statusCode === 404) {
+      console.warn("[API] Tags endpoint not available, returning empty array");
+      return [];
+    }
+    throw error;
+  }
 }
 
 /**
@@ -1408,17 +1418,27 @@ export async function removeTagFromSlide(slideId: string, tag: string): Promise<
 
 /**
  * Get all slide groups
+ * Falls back to empty array if endpoint not available
  */
 export async function getGroups(): Promise<Group[]> {
-  const backend = await fetchApi<BackendGroup[]>("/api/groups");
-  return backend.map(g => ({
-    id: g.id,
-    name: g.name,
-    description: g.description,
-    slideIds: g.slide_ids,
-    createdAt: g.created_at,
-    updatedAt: g.updated_at,
-  }));
+  try {
+    const backend = await fetchApi<BackendGroup[]>("/api/groups", {}, { skipRetry: true });
+    return backend.map(g => ({
+      id: g.id,
+      name: g.name,
+      description: g.description,
+      slideIds: g.slide_ids,
+      createdAt: g.created_at,
+      updatedAt: g.updated_at,
+    }));
+  } catch (error) {
+    // Endpoint not implemented - return empty array
+    if (error instanceof AtlasApiError && error.statusCode === 404) {
+      console.warn("[API] Groups endpoint not available, returning empty array");
+      return [];
+    }
+    throw error;
+  }
 }
 
 /**
@@ -1507,7 +1527,88 @@ export async function removeSlideFromGroup(groupId: string, slideId: string): Pr
 // ====== Search/Filter API ======
 
 /**
+ * Apply client-side filtering when search endpoint is not available
+ */
+function applyClientSideFilters(
+  slides: SlideInfo[],
+  filters: SlideFilters
+): { slides: SlideInfo[]; total: number } {
+  let filtered = [...slides];
+
+  // Search filter (filename/id)
+  if (filters.search) {
+    const searchLower = filters.search.toLowerCase();
+    filtered = filtered.filter(
+      (s) =>
+        s.id.toLowerCase().includes(searchLower) ||
+        s.filename.toLowerCase().includes(searchLower)
+    );
+  }
+
+  // Label filter
+  if (filters.label) {
+    filtered = filtered.filter((s) => s.label === filters.label);
+  }
+
+  // Embeddings filter
+  if (filters.hasEmbeddings !== undefined) {
+    filtered = filtered.filter((s) => s.hasEmbeddings === filters.hasEmbeddings);
+  }
+
+  // Patch count filters
+  if (filters.minPatches !== undefined) {
+    filtered = filtered.filter((s) => (s.numPatches ?? 0) >= filters.minPatches!);
+  }
+  if (filters.maxPatches !== undefined) {
+    filtered = filtered.filter((s) => (s.numPatches ?? 0) <= filters.maxPatches!);
+  }
+
+  // Starred filter
+  if (filters.starred) {
+    filtered = filtered.filter((s) => s.starred === true);
+  }
+
+  // Sort
+  if (filters.sortBy) {
+    filtered.sort((a, b) => {
+      let aVal: unknown, bVal: unknown;
+      switch (filters.sortBy) {
+        case "name":
+          aVal = a.filename;
+          bVal = b.filename;
+          break;
+        case "date":
+          aVal = a.createdAt;
+          bVal = b.createdAt;
+          break;
+        case "patches":
+          aVal = a.numPatches ?? 0;
+          bVal = b.numPatches ?? 0;
+          break;
+        default:
+          aVal = a.id;
+          bVal = b.id;
+      }
+      if (aVal === bVal) return 0;
+      const cmp = aVal! < bVal! ? -1 : 1;
+      return filters.sortOrder === "desc" ? -cmp : cmp;
+    });
+  }
+
+  const total = filtered.length;
+
+  // Pagination
+  const page = filters.page ?? 1;
+  const perPage = filters.perPage ?? 20;
+  const start = (page - 1) * perPage;
+  const paginated = filtered.slice(start, start + perPage);
+
+  return { slides: paginated, total };
+}
+
+/**
  * Search and filter slides with pagination
+ * Falls back to client-side filtering if search endpoint not available
  */
 export async function searchSlides(filters: SlideFilters): Promise<SlideSearchResult> {
   const params = new URLSearchParams();
@@ -1527,35 +1628,57 @@ export async function searchSlides(filters: SlideFilters): Promise<SlideSearchRe
   if (filters.page !== undefined) params.set("page", String(filters.page));
   if (filters.perPage !== undefined) params.set("per_page", String(filters.perPage));
 
-  const backend = await fetchApi<BackendSlideSearchResult>(
-    `/api/slides/search?${params.toString()}`
-  );
+  try {
+    const backend = await fetchApi<BackendSlideSearchResult>(
+      `/api/slides/search?${params.toString()}`,
+      {},
+      { skipRetry: true }
+    );
 
-  return {
-    slides: backend.slides.map(s => ({
-      id: s.slide_id,
-      filename: `${s.slide_id}.svs`,
-      dimensions: s.dimensions ?? { width: 0, height: 0 },
-      magnification: s.magnification ? parseInt(s.magnification.replace('x', ''), 10) : 40,
-      mpp: s.mpp ?? 0.25,
-      createdAt: new Date().toISOString(),
-      label: s.label,
-      hasEmbeddings: s.has_embeddings,
-      numPatches: s.num_patches,
-      patient: s.patient ? {
-        age: s.patient.age,
-        sex: s.patient.sex,
-        stage: s.patient.stage,
-        grade: s.patient.grade,
-        prior_lines: s.patient.prior_lines,
-        histology: s.patient.histology,
-      } : undefined,
-    })),
-    total: backend.total,
-    page: backend.page,
-    perPage: backend.per_page,
-    filters: backend.filters,
-  };
+    return {
+      slides: backend.slides.map(s => ({
+        id: s.slide_id,
+        filename: `${s.slide_id}.svs`,
+        dimensions: s.dimensions ?? { width: 0, height: 0 },
+        magnification: s.magnification ? parseInt(s.magnification.replace('x', ''), 10) : 40,
+        mpp: s.mpp ?? 0.25,
+        createdAt: new Date().toISOString(),
+        label: s.label,
+        hasEmbeddings: s.has_embeddings,
+        numPatches: s.num_patches,
+        patient: s.patient ? {
+          age: s.patient.age,
+          sex: s.patient.sex,
+          stage: s.patient.stage,
+          grade: s.patient.grade,
+          prior_lines: s.patient.prior_lines,
+          histology: s.patient.histology,
+        } : undefined,
+      })),
+      total: backend.total,
+      page: backend.page,
+      perPage: backend.per_page,
+      filters: backend.filters,
+    };
+  } catch (error) {
+    // Endpoint not implemented - fall back to client-side filtering
+    if (error instanceof AtlasApiError && error.statusCode === 404) {
+      console.warn("[API] Search endpoint not available, using client-side filtering");
+      
+      // Fetch all slides and filter client-side
+      const allSlides = await getSlides({});
+      const { slides: filtered, total } = applyClientSideFilters(allSlides.slides, filters);
+      
+      return {
+        slides: filtered,
+        total,
+        page: filters.page ?? 1,
+        perPage: filters.perPage ?? 20,
+        filters,
+      };
+    }
+    throw error;
+  }
 }
 
 // ====== Metadata API ======
