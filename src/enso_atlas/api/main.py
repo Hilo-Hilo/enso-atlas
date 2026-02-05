@@ -821,6 +821,89 @@ def create_app(
 
         return slides
 
+    @app.get("/api/slides/search")
+    async def search_slides(
+        search: Optional[str] = None,
+        label: Optional[str] = None,
+        has_embeddings: Optional[bool] = None,
+        min_patches: Optional[int] = None,
+        max_patches: Optional[int] = None,
+        tags: Optional[str] = None,
+        group_id: Optional[str] = None,
+        starred: Optional[bool] = None,
+        date_from: Optional[str] = None,
+        date_to: Optional[str] = None,
+        sort_by: Optional[str] = "date",
+        sort_order: Optional[str] = "desc",
+        page: int = 1,
+        per_page: int = 20,
+    ):
+        """Search and filter slides with pagination."""
+        # Get all slides first (reuse existing logic from list_slides)
+        all_slides = await list_slides()
+        
+        # Convert SlideInfo objects to dicts for filtering
+        slides_data = [
+            {
+                "slide_id": s.slide_id,
+                "patient_id": s.patient_id,
+                "has_embeddings": s.has_embeddings,
+                "has_level0_embeddings": s.has_level0_embeddings,
+                "label": s.label,
+                "num_patches": s.num_patches,
+                "patient": s.patient.dict() if s.patient else None,
+                "dimensions": s.dimensions.dict() if s.dimensions else {"width": 0, "height": 0},
+                "mpp": s.mpp,
+                "magnification": s.magnification,
+            }
+            for s in all_slides
+        ]
+        
+        # Apply filters
+        filtered = slides_data
+        
+        if search:
+            search_lower = search.lower()
+            filtered = [s for s in filtered if search_lower in s.get("slide_id", "").lower()]
+        
+        if label:
+            # Map frontend values to data values
+            label_map = {
+                "platinum_sensitive": "1",
+                "platinum_resistant": "0",
+                "Sensitive": "1",
+                "Resistant": "0",
+                "sensitive": "1",
+                "resistant": "0",
+                "responder": "1",
+                "non-responder": "0",
+            }
+            data_label = label_map.get(label, label)
+            filtered = [s for s in filtered if s.get("label") == data_label]
+        
+        if has_embeddings is not None:
+            filtered = [s for s in filtered if s.get("has_embeddings") == has_embeddings]
+        
+        if min_patches is not None:
+            filtered = [s for s in filtered if (s.get("num_patches") or 0) >= min_patches]
+        
+        if max_patches is not None:
+            filtered = [s for s in filtered if (s.get("num_patches") or 0) <= max_patches]
+        
+        # Calculate pagination
+        total = len(filtered)
+        start = (page - 1) * per_page
+        end = start + per_page
+        paginated = filtered[start:end]
+        
+        return {
+            "slides": paginated,
+            "total": total,
+            "page": page,
+            "per_page": per_page,
+            "filters": {"label": label, "search": search}
+        }
+
     # Tissue type constants for classification
     TISSUE_TYPES = ["tumor", "stroma", "necrosis", "inflammatory", "normal", "artifact"]
     TISSUE_DESCRIPTIONS = {
