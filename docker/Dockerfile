@@ -60,7 +60,8 @@ RUN pip install --no-cache-dir \
 
 # Fix OpenCV compatibility issue (cv2.dnn.DictValue AttributeError)
 # The NVIDIA base image has a newer OpenCV that breaks cv2.typing imports
-RUN pip install opencv-python-headless==4.8.1.78 --force-reinstall
+# Also pin numpy to 1.26.x to maintain compatibility with scipy, soxr, etc.
+RUN pip install numpy==1.26.4 opencv-python-headless==4.8.1.78 --force-reinstall
 
 # Copy application code
 COPY src/ ./src/
