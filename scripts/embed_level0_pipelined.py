@@ -52,8 +52,8 @@ def import_libs():
 class PatchExtractor:
     """Extracts patches from a slide in a background thread."""
     
-    def __init__(self, slide_path, patch_size=224, step=None, max_patches=20000,
-                 batch_size=512, tissue_threshold=0.1):
+    def __init__(self, slide_path, patch_size=224, step=None, max_patches=50000,
+                 batch_size=512, tissue_threshold=0.05):
         self.slide_path = slide_path
         self.patch_size = patch_size
         self.step = step or patch_size  # Dense by default
@@ -180,7 +180,7 @@ class PathFoundationEmbedder:
 
 
 def process_slide_pipelined(slide_path, output_dir, patch_size=224, step=None,
-                            max_patches=20000, batch_size=512):
+                            max_patches=50000, batch_size=512):
     """
     Process a single slide with pipelined extraction and embedding.
     GPU stays busy while CPU extracts patches in parallel.

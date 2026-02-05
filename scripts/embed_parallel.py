@@ -45,7 +45,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def is_tissue(patch, threshold=0.1):
+def is_tissue(patch, threshold=0.05):
     """Check if patch contains tissue (not background)."""
     import cv2
     hsv = cv2.cvtColor(patch, cv2.COLOR_RGB2HSV)
@@ -128,7 +128,7 @@ class PathFoundationEmbedder:
 
 
 def process_slide_parallel(slide_path, output_dir, patch_size=224, step=None,
-                          max_patches=20000, batch_size=256, n_workers=6):
+                          max_patches=50000, batch_size=256, n_workers=6):
     """Process a single slide with parallel extraction."""
     
     slide_name = Path(slide_path).stem

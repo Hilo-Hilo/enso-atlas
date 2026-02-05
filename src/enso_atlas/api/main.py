@@ -3701,7 +3701,7 @@ DISCLAIMER: This is a research tool. All findings must be validated by qualified
             width, height = level_dims
             patch_size = 224
             stride = 224
-            max_patches = 30000 if level == 0 else 10000
+            max_patches = 50000 if level == 0 else 20000
             
             task_manager.update_task(task_id,
                 progress=10,
