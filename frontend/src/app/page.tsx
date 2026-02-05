@@ -1388,6 +1388,9 @@ export default function HomePage() {
             // AIAssistantPanel already normalizes the report, just store it
             setAgentReport(normalizedReport);
           }}
+          onHighlightRegion={(x, y, _weight) => {
+            setTargetCoordinates({ x, y, level: 0, width: 224, height: 224 });
+          }}
         />
       </div>
       </div>

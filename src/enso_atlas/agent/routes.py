@@ -266,6 +266,7 @@ async def get_session(session_id: str):
         "predictions": result.predictions if result else {},
         "similar_cases": result.similar_cases if result else [],
         "top_evidence": result.top_evidence if result else [],
+        "semantic_search_results": result.semantic_search_results if result else {},
         "report": result.report if result else None,
         "reasoning_chain": result.reasoning_chain if result else [],
         

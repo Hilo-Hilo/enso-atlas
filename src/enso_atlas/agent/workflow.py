@@ -28,6 +28,7 @@ class AgentStep(str, Enum):
     ANALYZE = "analyze"
     RETRIEVE = "retrieve"
     COMPARE = "compare"
+    SEMANTIC_SEARCH = "semantic_search"
     REASON = "reason"
     REPORT = "report"
     COMPLETE = "complete"
@@ -95,6 +96,9 @@ class AgentState:
     # Evidence patches
     top_evidence: List[Dict[str, Any]] = field(default_factory=list)
     
+    # Semantic search results (MedSigLIP)
+    semantic_search_results: Dict[str, List[Dict[str, Any]]] = field(default_factory=dict)
+    
     # Generated report
     report: Optional[Dict[str, Any]] = None
     
@@ -117,6 +121,7 @@ class AgentResult:
     predictions: Dict[str, Dict[str, Any]]
     similar_cases: List[Dict[str, Any]]
     top_evidence: List[Dict[str, Any]]
+    semantic_search_results: Dict[str, List[Dict[str, Any]]]
     report: Optional[Dict[str, Any]]
     reasoning_chain: List[str]
     total_duration_ms: float
@@ -143,6 +148,7 @@ class AgentWorkflow:
         multi_model_inference: Any = None,
         evidence_generator: Any = None,
         medgemma_reporter: Any = None,
+        medsiglip_embedder: Any = None,
         slide_labels: Dict[str, str] = None,
         slide_mean_index: Any = None,
         slide_mean_ids: List[str] = None,
@@ -152,6 +158,7 @@ class AgentWorkflow:
         self.multi_model_inference = multi_model_inference
         self.evidence_generator = evidence_generator
         self.medgemma_reporter = medgemma_reporter
+        self.medsiglip_embedder = medsiglip_embedder
         self.slide_labels = slide_labels or {}
         self.slide_mean_index = slide_mean_index
         self.slide_mean_ids = slide_mean_ids or []
@@ -218,13 +225,16 @@ class AgentWorkflow:
             # Step 3: Retrieve similar cases
             yield await self._step_retrieve(state)
             
-            # Step 4: Compare with similar cases
+            # Step 4: Semantic search via MedSigLIP
+            yield await self._step_semantic_search(state)
+            
+            # Step 5: Compare with similar cases
             yield await self._step_compare(state)
             
-            # Step 5: Generate reasoning
+            # Step 6: Generate reasoning
             yield await self._step_reason(state)
             
-            # Step 6: Generate final report
+            # Step 7: Generate final report
             yield await self._step_report(state)
             
             # Complete
@@ -489,6 +499,114 @@ class AgentWorkflow:
             state.step_results[AgentStep.RETRIEVE] = result
             return result
     
+    async def _step_semantic_search(self, state: AgentState) -> StepResult:
+        """Semantic Search: Run key pathology queries via MedSigLIP to find tissue patterns."""
+        import time
+        start = time.time()
+
+        state.current_step = AgentStep.SEMANTIC_SEARCH
+
+        if self.medsiglip_embedder is None:
+            duration = (time.time() - start) * 1000
+            result = StepResult(
+                step=AgentStep.SEMANTIC_SEARCH,
+                status=StepStatus.SKIPPED,
+                message="MedSigLIP embedder not available",
+                reasoning="Semantic tissue search skipped — MedSigLIP model not loaded.",
+                duration_ms=duration,
+            )
+            state.step_results[AgentStep.SEMANTIC_SEARCH] = result
+            return result
+
+        try:
+            slide_id = state.context.slide_id
+
+            # Load or compute MedSigLIP embeddings for this slide
+            siglip_cache_path = self.embeddings_dir / "medsiglip_cache" / f"{slide_id}_siglip.npy"
+            if siglip_cache_path.exists():
+                siglip_embeddings = np.load(siglip_cache_path)
+            else:
+                # Fall back: cannot compute on-the-fly without WSI access in the workflow
+                duration = (time.time() - start) * 1000
+                result = StepResult(
+                    step=AgentStep.SEMANTIC_SEARCH,
+                    status=StepStatus.SKIPPED,
+                    message="MedSigLIP patch embeddings not cached for this slide",
+                    reasoning="Pre-computed MedSigLIP embeddings not found. Run semantic embedding first.",
+                    duration_ms=duration,
+                )
+                state.step_results[AgentStep.SEMANTIC_SEARCH] = result
+                return result
+
+            # Build metadata for each patch
+            metadata = []
+            for i in range(len(siglip_embeddings)):
+                meta: Dict[str, Any] = {"index": i}
+                if state.context.coordinates is not None and i < len(state.context.coordinates):
+                    meta["coordinates"] = [
+                        int(state.context.coordinates[i][0]),
+                        int(state.context.coordinates[i][1]),
+                    ]
+                metadata.append(meta)
+
+            # Key pathology queries to characterise the tissue
+            queries = [
+                "tumor cells and malignant tissue",
+                "necrotic tissue and cell death",
+                "lymphocyte infiltration and immune cells",
+                "stromal and connective tissue",
+                "mitotic figures and cell division",
+            ]
+
+            all_results: Dict[str, list] = {}
+            reasoning_parts = ["Semantic tissue search results (MedSigLIP):"]
+
+            for query in queries:
+                hits = self.medsiglip_embedder.search(
+                    query=query,
+                    embeddings=siglip_embeddings,
+                    metadata=metadata,
+                    top_k=5,
+                )
+                short_name = query.split(" and ")[0].strip()
+                all_results[short_name] = hits
+
+                if hits:
+                    best = hits[0]
+                    reasoning_parts.append(
+                        f"- {short_name}: top match score {best['similarity_score']:.3f} "
+                        f"(patch #{best['patch_index']})"
+                    )
+
+            state.semantic_search_results = all_results
+            reasoning = "\n".join(reasoning_parts)
+            state.reasoning_chain.append(reasoning)
+
+            duration = (time.time() - start) * 1000
+
+            result = StepResult(
+                step=AgentStep.SEMANTIC_SEARCH,
+                status=StepStatus.COMPLETE,
+                message=f"Searched {len(queries)} pathology patterns across {len(siglip_embeddings)} patches",
+                data={"semantic_search": {k: v[:3] for k, v in all_results.items()}},
+                reasoning=reasoning,
+                duration_ms=duration,
+            )
+            state.step_results[AgentStep.SEMANTIC_SEARCH] = result
+            return result
+
+        except Exception as e:
+            logger.error(f"Semantic search step failed: {e}")
+            duration = (time.time() - start) * 1000
+            result = StepResult(
+                step=AgentStep.SEMANTIC_SEARCH,
+                status=StepStatus.ERROR,
+                message=f"Semantic search failed: {str(e)}",
+                duration_ms=duration,
+            )
+            state.step_results[AgentStep.SEMANTIC_SEARCH] = result
+            return result
+
     async def _step_compare(self, state: AgentState) -> StepResult:
         """Compare: Analyze similarities and differences with reference cases."""
         import time
@@ -606,6 +724,18 @@ class AgentWorkflow:
                 f"\nSimilar case analysis: {responders}/{len(state.similar_cases)} similar cases were responders"
             )
         
+        # Add semantic search context
+        if state.semantic_search_results:
+            reasoning_parts.append("\nSemantic tissue pattern analysis (MedSigLIP):")
+            for query_name, hits in state.semantic_search_results.items():
+                if hits:
+                    best = hits[0]
+                    score = best.get("similarity_score", 0)
+                    strength = "strong" if score > 0.3 else "moderate" if score > 0.2 else "weak"
+                    reasoning_parts.append(
+                        f"  - {query_name}: {strength} signal (score: {score:.3f})"
+                    )
+        
         # Answer user questions if provided
         if state.context.questions:
             reasoning_parts.append("\nAnswering your questions:")
@@ -630,7 +760,7 @@ class AgentWorkflow:
         return result
 
     async def _step_report(self, state: AgentState) -> StepResult:
-        """Report: Generate final structured report (optionally with MedGemma)."""
+        """Report: Generate final structured report (with MedGemma when available)."""
         import time
         start = time.time()
 
@@ -640,7 +770,6 @@ class AgentWorkflow:
         label = "unknown"
         score = 0.0
         if state.predictions:
-            # Prefer the primary bevacizumab response model if present; otherwise take first.
             preferred_keys = [
                 "bevacizumab_response",
                 "treatment_response",
@@ -661,46 +790,18 @@ class AgentWorkflow:
                 score = float(pred.get("score", pred.get("probability", score)) or score)
 
         try:
-            if self.medgemma_reporter is None:
-                # Minimal report payload when MedGemma isn't configured.
-                state.report = {
-                    "structured": {
-                        "case_id": state.context.slide_id,
-                        "task": "Slide analysis report",
-                        "model_output": {
-                            "label": label,
-                            "probability": score,
-                            "calibration_note": "MedGemma reporter not configured.",
-                        },
-                        "limitations": [
-                            "Automated report generation not configured.",
-                            "For research use only.",
-                        ],
-                        "suggested_next_steps": [
-                            "Review evidence patches and prediction outputs.",
-                            "Correlate with clinical context.",
-                        ],
-                        "safety_statement": "This is a research decision-support tool only. Findings require validation by qualified clinicians.",
-                    },
-                    "summary": "Report generation not configured.",
-                }
-                status = StepStatus.SKIPPED
-                message = "Report generation not available"
-                reasoning = "MedGemma reporter is not configured; returning a minimal placeholder report."
-            else:
-                # Convert evidence into the reporter's expected format as best-effort.
+            if self.medgemma_reporter is not None:
+                # Use MedGemma for structured clinical report
                 evidence_patches = []
                 for ev in state.top_evidence[:8]:
                     coords = ev.get("coordinates") or [0, 0]
-                    evidence_patches.append(
-                        {
-                            "patch_id": f"patch_{ev.get('rank', 0)}",
-                            "coordinates": coords,
-                            "attention_weight": ev.get("attention_weight"),
-                            "morphology_description": "high-attention region",
-                            "significance": "High attention region",
-                        }
-                    )
+                    evidence_patches.append({
+                        "patch_id": f"patch_{ev.get('rank', 0)}",
+                        "coordinates": coords,
+                        "attention_weight": ev.get("attention_weight"),
+                        "morphology_description": "high-attention region",
+                        "significance": "High attention region",
+                    })
 
                 state.report = self.medgemma_reporter.generate_report(
                     evidence_patches=evidence_patches,
@@ -711,8 +812,81 @@ class AgentWorkflow:
                     patient_context=None,
                 )
                 status = StepStatus.COMPLETE
-                message = "Generated structured clinical report"
+                message = "Generated structured clinical report via MedGemma"
                 reasoning = "Generated a structured report grounded in model outputs and high-attention evidence regions."
+            else:
+                # Build a rich structured report from collected evidence (no MedGemma)
+                report: Dict[str, Any] = {
+                    "case_id": state.context.slide_id,
+                    "task": "Multi-model slide analysis for treatment response prediction",
+                    "clinical_context": state.context.clinical_context,
+                    "generated_at": datetime.utcnow().isoformat() + "Z",
+                    "predictions": {},
+                    "evidence": [],
+                    "similar_cases": [],
+                    "semantic_search": {},
+                    "reasoning_summary": "",
+                    "limitations": [
+                        "This is a research model and should not be used for clinical decisions without validation",
+                        "Predictions are based on morphological features only",
+                        "Model confidence should be considered when interpreting results",
+                    ],
+                    "suggested_next_steps": [
+                        "Review evidence patches and prediction outputs",
+                        "Correlate with clinical context",
+                        "Consider molecular testing for confirmation",
+                    ],
+                    "safety_statement": (
+                        "This analysis is for research and decision support only. "
+                        "All findings must be validated by qualified pathologists and clinicians."
+                    ),
+                }
+
+                for model_id, p in state.predictions.items():
+                    if "error" not in p:
+                        report["predictions"][model_id] = {
+                            "model_name": p.get("model_name", model_id),
+                            "label": p.get("label"),
+                            "score": p.get("score"),
+                            "confidence": p.get("confidence"),
+                        }
+
+                for ev in state.top_evidence[:5]:
+                    report["evidence"].append({
+                        "rank": ev["rank"],
+                        "patch_index": ev["patch_index"],
+                        "attention_weight": ev["attention_weight"],
+                        "coordinates": ev.get("coordinates"),
+                    })
+
+                for case in state.similar_cases[:5]:
+                    report["similar_cases"].append({
+                        "slide_id": case["slide_id"],
+                        "similarity_score": case["similarity_score"],
+                        "label": case.get("label"),
+                    })
+
+                # Include semantic search highlights
+                for query_name, hits in state.semantic_search_results.items():
+                    report["semantic_search"][query_name] = [
+                        {
+                            "patch_index": h["patch_index"],
+                            "similarity_score": h["similarity_score"],
+                            "coordinates": h.get("metadata", {}).get("coordinates"),
+                        }
+                        for h in hits[:3]
+                    ]
+
+                report["reasoning_summary"] = "\n\n".join(state.reasoning_chain)
+                state.report = report
+                status = StepStatus.COMPLETE
+                message = "Generated structured analysis report"
+                reasoning = (
+                    f"Report generated with {len(report['predictions'])} model predictions, "
+                    f"{len(report['evidence'])} evidence regions, "
+                    f"{len(report['similar_cases'])} similar cases, "
+                    f"and {len(report['semantic_search'])} semantic queries."
+                )
 
             duration = (time.time() - start) * 1000
             result = StepResult(
@@ -965,78 +1139,6 @@ The prediction suggests favorable response to platinum agents."""
 
 Please rephrase your question using one of these topics."""
 
-    async def _step_report(self, state: AgentState) -> StepResult:
-        """Report: Generate final structured report."""
-        import time
-        start = time.time()
-        
-        state.current_step = AgentStep.REPORT
-        
-        # Build a structured report from collected evidence
-        report = {
-            "case_id": state.context.slide_id,
-            "task": "Multi-model slide analysis for treatment response prediction",
-            "clinical_context": state.context.clinical_context,
-            "generated_at": datetime.utcnow().isoformat() + "Z",
-            
-            "predictions": {},
-            "evidence": [],
-            "similar_cases": [],
-            "reasoning_summary": "",
-            "limitations": [
-                "This is a research model and should not be used for clinical decisions without validation",
-                "Predictions are based on morphological features only",
-                "Model confidence should be considered when interpreting results",
-            ],
-            "safety_statement": "This analysis is for research and decision support only. All findings must be validated by qualified pathologists and clinicians.",
-        }
-        
-        # Add predictions
-        for model_id, pred in state.predictions.items():
-            if "error" not in pred:
-                report["predictions"][model_id] = {
-                    "model_name": pred.get("model_name", model_id),
-                    "label": pred.get("label"),
-                    "score": pred.get("score"),
-                    "confidence": pred.get("confidence"),
-                }
-        
-        # Add evidence
-        for ev in state.top_evidence[:5]:
-            report["evidence"].append({
-                "rank": ev["rank"],
-                "patch_index": ev["patch_index"],
-                "attention_weight": ev["attention_weight"],
-                "coordinates": ev.get("coordinates"),
-            })
-        
-        # Add similar cases
-        for case in state.similar_cases[:5]:
-            report["similar_cases"].append({
-                "slide_id": case["slide_id"],
-                "similarity_score": case["similarity_score"],
-                "label": case.get("label"),
-            })
-        
-        # Add reasoning summary
-        report["reasoning_summary"] = "\n\n".join(state.reasoning_chain)
-        
-        state.report = report
-        
-        duration = (time.time() - start) * 1000
-        
-        result = StepResult(
-            step=AgentStep.REPORT,
-            status=StepStatus.COMPLETE,
-            message="Generated structured analysis report",
-            data={"report": report},
-            reasoning=f"Report generated with {len(report['predictions'])} model predictions, "
-                     f"{len(report['evidence'])} evidence regions, and {len(report['similar_cases'])} similar cases.",
-            duration_ms=duration,
-        )
-        state.step_results[AgentStep.REPORT] = result
-        return result
-    
     async def followup(
         self,
         session_id: str,
@@ -1110,6 +1212,7 @@ Please rephrase your question using one of these topics."""
             },
             similar_cases=state.similar_cases,
             top_evidence=state.top_evidence,
+            semantic_search_results=state.semantic_search_results,
             report=state.report,
             reasoning_chain=state.reasoning_chain,
             total_duration_ms=total_duration,

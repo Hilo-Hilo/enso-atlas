@@ -125,6 +125,7 @@ const STEP_ICONS: Record<string, React.ReactNode> = {
   initialize: <Activity className="h-4 w-4" />,
   analyze: <Brain className="h-4 w-4" />,
   retrieve: <Search className="h-4 w-4" />,
+  semantic_search: <Eye className="h-4 w-4" />,
   compare: <Target className="h-4 w-4" />,
   reason: <Lightbulb className="h-4 w-4" />,
   report: <FileText className="h-4 w-4" />,
@@ -137,6 +138,7 @@ const STEP_NAMES: Record<string, string> = {
   initialize: "Loading Data",
   analyze: "Running Models",
   retrieve: "Finding Similar Cases",
+  semantic_search: "Semantic Tissue Search",
   compare: "Comparing Cases",
   reason: "Generating Reasoning",
   report: "Creating Report",
@@ -227,11 +229,13 @@ function WorkflowStep({
         top_evidence?: EvidencePatch[];
         predictions?: Record<string, AgentPrediction>;
         similar_cases?: SimilarCase[];
+        semantic_search?: Record<string, Array<{ patch_index: number; similarity_score: number; metadata?: { coordinates?: [number, number] } }>>;
       }
     | undefined;
   const topEvidence = stepData?.top_evidence ?? [];
   const predictions = stepData?.predictions;
   const similarCases = stepData?.similar_cases;
+  const semanticSearch = stepData?.semantic_search;
 
   return (
     <div className={cn("border rounded-lg transition-all", statusBg[step.status])}>
@@ -345,6 +349,42 @@ function WorkflowStep({
                     </span>
                   </div>
                 ))}
+              </div>
+            </div>
+          ) : null}
+          
+          {/* Semantic Search Results */}
+          {semanticSearch ? (
+            <div>
+              <div className="text-xs font-medium text-gray-500 mb-1 flex items-center gap-1">
+                <Eye className="h-3 w-3" />
+                Tissue Pattern Search (MedSigLIP)
+              </div>
+              <div className="space-y-1">
+                {Object.entries(semanticSearch).map(([query, hits]) => {
+                  const best = hits[0];
+                  if (!best) return null;
+                  const score = best.similarity_score;
+                  const strength = score > 0.3 ? "strong" : score > 0.2 ? "moderate" : "weak";
+                  const color = score > 0.3 ? "text-green-600" : score > 0.2 ? "text-yellow-600" : "text-gray-500";
+                  return (
+                    <button
+                      key={query}
+                      onClick={() => {
+                        const coords = best.metadata?.coordinates;
+                        if (onHighlightRegion && coords) {
+                          onHighlightRegion(coords[0], coords[1], score);
+                        }
+                      }}
+                      className="flex items-center justify-between w-full text-xs text-gray-600 hover:bg-white/60 rounded px-1 py-0.5"
+                    >
+                      <span className="capitalize">{query}</span>
+                      <span className={cn("font-medium", color)}>
+                        {strength} ({(score * 100).toFixed(0)}%)
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
           ) : null}
