@@ -142,21 +142,24 @@ class MedSigLIPEmbedder:
         with torch.no_grad():
             outputs = self._model.get_text_features(**inputs)
 
-            # HF SiglipModel.get_text_features() usually returns a Tensor,
-            # but some MedSigLIP checkpoints return a BaseModelOutputWithPooling.
-            if isinstance(outputs, torch.Tensor):
-                features = outputs
-            elif hasattr(outputs, "pooler_output") and isinstance(outputs.pooler_output, torch.Tensor):
-                features = outputs.pooler_output
-            elif isinstance(outputs, (tuple, list)) and outputs and isinstance(outputs[0], torch.Tensor):
-                features = outputs[0]
+            # HF SiglipModel.get_text_features() can return a Tensor or a model output.
+            if hasattr(outputs, "pooler_output") and isinstance(outputs.pooler_output, torch.Tensor):
+                embeddings = outputs.pooler_output
+            elif hasattr(outputs, "last_hidden_state") and isinstance(outputs.last_hidden_state, torch.Tensor):
+                # Use CLS token representation if pooling isn't provided.
+                embeddings = outputs.last_hidden_state[:, 0, :]
             else:
+                embeddings = outputs
+                if isinstance(embeddings, (tuple, list)) and embeddings and isinstance(embeddings[0], torch.Tensor):
+                    embeddings = embeddings[0]
+
+            if not isinstance(embeddings, torch.Tensor):
                 raise TypeError(f"Unexpected output from get_text_features: {type(outputs)}")
 
             # L2 normalize for cosine similarity
-            features = features / features.norm(dim=-1, keepdim=True)
+            embeddings = embeddings / embeddings.norm(dim=-1, keepdim=True)
 
-        embeddings = features.detach().cpu().float().numpy()
+        embeddings = embeddings.detach().cpu().float().numpy()
         
         if is_single:
             return embeddings.squeeze(0)
