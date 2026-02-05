@@ -32,16 +32,16 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse, Response
 from pydantic import BaseModel, Field
 
-# PDF Export
+logger = logging.getLogger(__name__)
+
+# PDF Export (optional)
 try:
     from .pdf_export import generate_pdf_report
     PDF_EXPORT_AVAILABLE = True
-except ImportError as e:
+except Exception as e:
     logger.warning(f"PDF export not available: {e}")
     PDF_EXPORT_AVAILABLE = False
     generate_pdf_report = None
-
-logger = logging.getLogger(__name__)
 
 # Multi-model TransMIL inference
 import sys
