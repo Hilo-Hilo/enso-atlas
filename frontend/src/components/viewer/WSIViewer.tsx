@@ -262,6 +262,7 @@ export function WSIViewer({
 
     // Create overlay container
     const overlayDiv = document.createElement("div");
+    overlayDiv.style.position = "relative";
     overlayDiv.style.width = "100%";
     overlayDiv.style.height = "100%";
     overlayDiv.style.pointerEvents = "none";
@@ -270,6 +271,9 @@ export function WSIViewer({
     // Create image inside container
     const img = document.createElement("img");
     img.src = heatmapImageUrl;
+    img.style.position = "absolute";
+    img.style.top = "0";
+    img.style.left = "0";
     img.style.width = "100%";
     img.style.height = "100%";
     img.style.objectFit = "fill";
@@ -326,13 +330,13 @@ export function WSIViewer({
 
   // Update heatmap opacity separately (doesn't recreate overlay)
   useEffect(() => {
-    if (heatmapOverlayRef.current) {
+    if (heatmapOverlayRef.current && heatmapLoaded) {
       const img = heatmapOverlayRef.current.querySelector("img");
       if (img) {
         img.style.opacity = showHeatmap ? String(heatmapOpacity) : "0";
       }
     }
-  }, [showHeatmap, heatmapOpacity]);
+  }, [showHeatmap, heatmapOpacity, heatmapLoaded]);
 
   // Hide/show main pathology tiles when heatmapOnly changes
   useEffect(() => {
