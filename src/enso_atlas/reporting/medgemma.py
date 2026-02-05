@@ -107,7 +107,7 @@ class MedGemmaReporter:
 
             # Determine device
             # Force CPU to avoid CUDA driver issues on Blackwell GPUs
-            use_cpu = True  # Set to False to re-enable CUDA when driver is updated
+            use_cpu = False  # Set to False to re-enable CUDA when driver is updated
             if not use_cpu and torch.cuda.is_available():
                 self._device = torch.device("cuda")
             elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
