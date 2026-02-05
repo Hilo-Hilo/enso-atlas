@@ -2723,8 +2723,54 @@ DISCLAIMER: This is a research tool. All findings must be validated by qualified
                 slide_siglip_embeddings[siglip_cache_key] = siglip_embeddings
                 logger.info(f"Loaded MedSigLIP embeddings from cache for {slide_id}")
             else:
-                use_siglip_search = False
+                # On-the-fly MedSigLIP embedding: extract patches from WSI and embed
                 siglip_embeddings = None
+                wsi_result = get_slide_and_dz(slide_id)
+                coord_path_check = embeddings_dir / f"{slide_id}_coords.npy"
+                
+                if wsi_result is not None and coord_path_check.exists():
+                    try:
+                        slide_obj, _ = wsi_result
+                        patch_coords = np.load(coord_path_check)
+                        patch_size = 224
+                        
+                        logger.info(f"Computing MedSigLIP embeddings on-the-fly for {slide_id} ({len(patch_coords)} patches)")
+                        
+                        # Extract patches from WSI
+                        patches = []
+                        for i, (x, y) in enumerate(patch_coords):
+                            try:
+                                region = slide_obj.read_region((int(x), int(y)), 0, (patch_size, patch_size))
+                                # Convert RGBA to RGB
+                                if region.mode == 'RGBA':
+                                    background = Image.new('RGB', region.size, (255, 255, 255))
+                                    background.paste(region, mask=region.split()[3])
+                                    region = background
+                                elif region.mode != 'RGB':
+                                    region = region.convert('RGB')
+                                patches.append(np.array(region))
+                            except Exception as e:
+                                logger.warning(f"Failed to extract patch {i}: {e}")
+                                # Add a blank patch to maintain indexing
+                                patches.append(np.ones((patch_size, patch_size, 3), dtype=np.uint8) * 255)
+                        
+                        if patches:
+                            # Embed patches with MedSigLIP (with caching)
+                            siglip_embeddings = medsiglip_embedder.embed_patches(
+                                patches=patches,
+                                cache_key=slide_id,
+                                show_progress=True
+                            )
+                            # Store in memory cache
+                            slide_siglip_embeddings[siglip_cache_key] = siglip_embeddings
+                            logger.info(f"Computed and cached MedSigLIP embeddings for {slide_id}: {siglip_embeddings.shape}")
+                    except Exception as e:
+                        logger.warning(f"On-the-fly MedSigLIP embedding failed for {slide_id}: {e}")
+                        siglip_embeddings = None
+                
+                if siglip_embeddings is None:
+                    use_siglip_search = False
+                    logger.info(f"No MedSigLIP embeddings available for {slide_id}, using fallback")
 
         # Load coordinates if available
         coords = None

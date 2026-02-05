@@ -518,12 +518,12 @@ Generate the JSON report:"""
                     configured_max_new_tokens = int(self.config.max_output_tokens)
                     if configured_max_new_tokens <= 0:
                         configured_max_new_tokens = 256
-                    if configured_max_new_tokens > 512:
+                    if configured_max_new_tokens > 2048:
                         logger.warning(
-                            "max_output_tokens=%d too high; capping to 512",
+                            "max_output_tokens=%d too high; capping to 2048",
                             configured_max_new_tokens,
                         )
-                        configured_max_new_tokens = 512
+                        configured_max_new_tokens = 2048
                     max_new_tokens = max(64, configured_max_new_tokens)
 
                     max_time = self.config.max_generation_time_s
