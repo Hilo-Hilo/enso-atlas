@@ -1563,9 +1563,9 @@ function applyClientSideFilters(
     filtered = filtered.filter((s) => (s.numPatches ?? 0) <= filters.maxPatches!);
   }
 
-  // Starred filter
+  // Starred filter (starred may be on ExtendedSlideInfo)
   if (filters.starred) {
-    filtered = filtered.filter((s) => s.starred === true);
+    filtered = filtered.filter((s) => (s as { starred?: boolean }).starred === true);
   }
 
   // Sort
