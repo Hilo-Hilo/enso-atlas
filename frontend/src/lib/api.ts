@@ -2018,8 +2018,8 @@ export async function generateReportWithProgress(
   const taskId = asyncResponse.task_id;
   
   // Poll for completion
-  const maxWaitMs = 120000; // 2 minute max wait
-  const pollIntervalMs = 1000; // Poll every second
+  const maxWaitMs = 180000; // 3 minute max wait (MedGemma can take 120s+)
+  const pollIntervalMs = 1500; // Poll every 1.5 seconds
   const startTime = Date.now();
   
   while (Date.now() - startTime < maxWaitMs) {

@@ -78,11 +78,19 @@ class ReportTaskManager:
             return self.tasks.get(task_id)
     
     def get_task_by_slide(self, slide_id: str) -> Optional[ReportTask]:
-        """Get active task for a slide."""
+        """Get active task for a slide. Returns None if task is stale (>5 min)."""
+        stale_cutoff = time.time() - 300  # 5 minutes max
         with self.lock:
             for task in self.tasks.values():
                 if (task.slide_id == slide_id and 
                     task.status in [ReportTaskStatus.PENDING, ReportTaskStatus.RUNNING]):
+                    # Mark stale tasks as failed so they don't block retries
+                    if task.created_at < stale_cutoff:
+                        task.status = ReportTaskStatus.FAILED
+                        task.error = "Task timed out (stale)"
+                        task.message = "Report generation timed out. Please retry."
+                        logger.warning(f"Marked stale report task {task.task_id} as failed")
+                        continue
                     return task
         return None
     

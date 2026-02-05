@@ -773,6 +773,7 @@ def create_app(
                     multi_model_inference=multi_model_inference,
                     evidence_generator=evidence_gen,
                     medgemma_reporter=reporter,
+                    medsiglip_embedder=medsiglip_embedder,
                     slide_labels=slide_labels,
                     slide_mean_index=slide_mean_index,
                     slide_mean_ids=slide_mean_ids,
@@ -2421,14 +2422,43 @@ should incorporate all available clinical, pathological, and molecular data."""
                     heartbeat.start()
 
                     gen_start = time.time()
-                    report = reporter.generate_report(
-                        evidence_patches=evidence_patches,
-                        score=score,
-                        label=label,
-                        similar_cases=similar_cases,
-                        case_id=slide_id,
-                        patient_context=patient_ctx,
-                    )
+                    # Use a thread with timeout to prevent indefinite blocking
+                    gen_timeout = float(max_time) + 30.0 if max_time else 150.0
+                    gen_result = [None]
+                    gen_error = [None]
+
+                    def _run_medgemma():
+                        try:
+                            gen_result[0] = reporter.generate_report(
+                                evidence_patches=evidence_patches,
+                                score=score,
+                                label=label,
+                                similar_cases=similar_cases,
+                                case_id=slide_id,
+                                patient_context=patient_ctx,
+                            )
+                        except Exception as ex:
+                            gen_error[0] = ex
+
+                    gen_thread = threading.Thread(target=_run_medgemma, daemon=True)
+                    gen_thread.start()
+                    gen_thread.join(timeout=gen_timeout)
+
+                    if gen_thread.is_alive():
+                        logger.warning(
+                            "MedGemma report generation timed out after %.1fs for %s, falling back to template",
+                            gen_timeout, slide_id,
+                        )
+                        stop_event.set()
+                        heartbeat.join(timeout=1)
+                        raise TimeoutError(f"MedGemma generation timed out after {gen_timeout:.0f}s")
+
+                    if gen_error[0] is not None:
+                        stop_event.set()
+                        heartbeat.join(timeout=1)
+                        raise gen_error[0]
+
+                    report = gen_result[0]
                     logger.info(
                         "MedGemma report generation completed for %s in %.1fs",
                         slide_id,
