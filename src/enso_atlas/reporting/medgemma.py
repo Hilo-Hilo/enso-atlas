@@ -237,6 +237,7 @@ class MedGemmaReporter:
                 )
                 inputs = {k: v.to(self._device) for k, v in inputs.items()}
 
+                t0 = time.time()
                 with torch.inference_mode():
                     self._model.generate(
                         **inputs,
@@ -244,8 +245,9 @@ class MedGemmaReporter:
                         do_sample=False,
                         pad_token_id=self._tokenizer.eos_token_id,
                     )
+                duration = time.time() - t0
 
-                logger.info("MedGemma warmup inference completed")
+                logger.info(f"MedGemma warmup inference completed in {duration:.1f}s")
             except Exception as e:
                 logger.warning(f"MedGemma warmup inference failed: {e}")
             finally:

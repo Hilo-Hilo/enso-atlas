@@ -17,6 +17,7 @@ import logging
 import json
 import base64
 import io
+import time
 from datetime import datetime
 from .embedding_tasks import task_manager, TaskStatus, EmbeddingTask
 from .report_tasks import report_task_manager, ReportTaskStatus, ReportTask
@@ -644,10 +645,19 @@ def create_app(
         if reporter is not None:
             try:
                 logger.info("Starting MedGemma warmup (this may take ~30s on first load)...")
-                reporter._warmup_inference()
-                logger.info("MedGemma reporter warmed up successfully")
+                warmup_start = time.time()
+                await asyncio.wait_for(
+                    asyncio.to_thread(reporter._warmup_inference),
+                    timeout=30.0,
+                )
+                warmup_duration = time.time() - warmup_start
+                logger.info(f"MedGemma reporter warmed up successfully in {warmup_duration:.1f}s")
+            except asyncio.TimeoutError:
+                warmup_duration = time.time() - warmup_start
+                logger.warning(f"MedGemma warmup timed out after {warmup_duration:.1f}s, continuing startup")
             except Exception as e:
-                logger.warning(f"MedGemma warmup failed: {e}")
+                warmup_duration = time.time() - warmup_start
+                logger.warning(f"MedGemma warmup failed after {warmup_duration:.1f}s: {e}")
 
         # Setup clinical decision support engine
         decision_support = ClinicalDecisionSupport()
