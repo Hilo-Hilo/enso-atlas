@@ -351,8 +351,13 @@ Generate the JSON report:"""
 
     def _parse_json_response(self, response: str) -> Dict:
         """Extract and parse JSON from model response."""
+        # Strip markdown code fences if present (```json ... ``` or ``` ... ```)
+        cleaned = response.strip()
+        cleaned = re.sub(r'^```(?:json)?\s*', '', cleaned)
+        cleaned = re.sub(r'\s*```$', '', cleaned)
+        
         # Try to find JSON in the response
-        json_match = re.search(r'\{[\s\S]*\}', response)
+        json_match = re.search(r'\{[\s\S]*\}', cleaned)
 
         if json_match:
             try:

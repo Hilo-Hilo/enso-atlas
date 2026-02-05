@@ -31,8 +31,8 @@ logger = logging.getLogger(__name__)
 @dataclass
 class MedSigLIPConfig:
     """MedSigLIP configuration."""
-    model_id: str = "google/siglip-so400m-patch14-384"  # Fallback to general SigLIP (faster download)
-    # Use "google/medsiglip-448" for medical-specific model (requires gated access)
+    model_id: str = "/app/models/medsiglip"  # Local MedSigLIP model (google/medsiglip-448)
+    # Fallback: "google/siglip-so400m-patch14-384" for general SigLIP
     batch_size: int = 32
     precision: str = "fp16"  # fp16 or fp32
     cache_dir: str = "data/embeddings/medsiglip_cache"
