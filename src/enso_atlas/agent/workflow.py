@@ -628,7 +628,117 @@ class AgentWorkflow:
         )
         state.step_results[AgentStep.REASON] = result
         return result
-    
+
+    async def _step_report(self, state: AgentState) -> StepResult:
+        """Report: Generate final structured report (optionally with MedGemma)."""
+        import time
+        start = time.time()
+
+        state.current_step = AgentStep.REPORT
+
+        # Determine primary prediction to report.
+        label = "unknown"
+        score = 0.0
+        if state.predictions:
+            # Prefer the primary bevacizumab response model if present; otherwise take first.
+            preferred_keys = [
+                "bevacizumab_response",
+                "treatment_response",
+                "platinum_sensitivity",
+            ]
+            pred = None
+            for key in preferred_keys:
+                if key in state.predictions and "error" not in state.predictions[key]:
+                    pred = state.predictions[key]
+                    break
+            if pred is None:
+                for v in state.predictions.values():
+                    if "error" not in v:
+                        pred = v
+                        break
+            if pred is not None:
+                label = str(pred.get("label", label))
+                score = float(pred.get("score", pred.get("probability", score)) or score)
+
+        try:
+            if self.medgemma_reporter is None:
+                # Minimal report payload when MedGemma isn't configured.
+                state.report = {
+                    "structured": {
+                        "case_id": state.context.slide_id,
+                        "task": "Slide analysis report",
+                        "model_output": {
+                            "label": label,
+                            "probability": score,
+                            "calibration_note": "MedGemma reporter not configured.",
+                        },
+                        "limitations": [
+                            "Automated report generation not configured.",
+                            "For research use only.",
+                        ],
+                        "suggested_next_steps": [
+                            "Review evidence patches and prediction outputs.",
+                            "Correlate with clinical context.",
+                        ],
+                        "safety_statement": "This is a research decision-support tool only. Findings require validation by qualified clinicians.",
+                    },
+                    "summary": "Report generation not configured.",
+                }
+                status = StepStatus.SKIPPED
+                message = "Report generation not available"
+                reasoning = "MedGemma reporter is not configured; returning a minimal placeholder report."
+            else:
+                # Convert evidence into the reporter's expected format as best-effort.
+                evidence_patches = []
+                for ev in state.top_evidence[:8]:
+                    coords = ev.get("coordinates") or [0, 0]
+                    evidence_patches.append(
+                        {
+                            "patch_id": f"patch_{ev.get('rank', 0)}",
+                            "coordinates": coords,
+                            "attention_weight": ev.get("attention_weight"),
+                            "morphology_description": "high-attention region",
+                            "significance": "High attention region",
+                        }
+                    )
+
+                state.report = self.medgemma_reporter.generate_report(
+                    evidence_patches=evidence_patches,
+                    score=score,
+                    label=label,
+                    similar_cases=state.similar_cases,
+                    case_id=state.context.slide_id,
+                    patient_context=None,
+                )
+                status = StepStatus.COMPLETE
+                message = "Generated structured clinical report"
+                reasoning = "Generated a structured report grounded in model outputs and high-attention evidence regions."
+
+            duration = (time.time() - start) * 1000
+            result = StepResult(
+                step=AgentStep.REPORT,
+                status=status,
+                message=message,
+                data={"report": state.report},
+                reasoning=reasoning,
+                duration_ms=duration,
+            )
+            state.step_results[AgentStep.REPORT] = result
+            return result
+
+        except Exception as e:
+            logger.error(f"Report step failed: {e}")
+            duration = (time.time() - start) * 1000
+            result = StepResult(
+                step=AgentStep.REPORT,
+                status=StepStatus.ERROR,
+                message=f"Report generation failed: {str(e)}",
+                reasoning="Report generation encountered an exception.",
+                duration_ms=duration,
+            )
+            state.step_results[AgentStep.REPORT] = result
+            return result
+
     def _generate_answer(self, question: str, state: AgentState) -> str:
         """Generate a context-aware answer to a user question based on analysis results."""
         q_lower = question.lower()
@@ -645,11 +755,11 @@ class AgentWorkflow:
                 response += f"with a probability of {score:.1%}.\n\n"
                 
                 if confidence > 0.6:
-                    response += "🟢 The model shows **high confidence** in this prediction.\n"
+                    response += "The model shows **high confidence** in this prediction.\n"
                 elif confidence > 0.3:
-                    response += "🟡 The model shows **moderate confidence**; pathologist review is recommended.\n"
+                    response += "The model shows **moderate confidence**; pathologist review is recommended.\n"
                 else:
-                    response += "🔴 The model is **uncertain**; additional testing may be warranted.\n"
+                    response += "The model is **uncertain**; additional testing may be warranted.\n"
                 
                 # Add context from similar cases
                 if state.similar_cases:
@@ -708,29 +818,27 @@ class AgentWorkflow:
                     years = model_id.split("_")[1]
                     
                     if label == "positive" or score > 0.5:
-                        emoji = "🟢"
                         outcome = "favorable"
                     else:
-                        emoji = "🔴"
                         outcome = "concerning"
                     
-                    responses.append(f"• **{years} survival**: {emoji} {outcome} ({score:.1%} positive probability)")
+                    responses.append(f"• **{years} survival**: {outcome} ({score:.1%} positive probability)")
             
             if responses:
                 return "**Survival Predictions:**\n\n" + "\n".join(responses) + \
-                    "\n\n⚠️ These predictions should be interpreted alongside clinical factors including stage, treatment history, and molecular markers."
+                    "\n\nThese predictions should be interpreted alongside clinical factors including stage, treatment history, and molecular markers."
             return "Survival models not available for this analysis."
         
         # Check for region/heatmap questions
         if any(word in q_lower for word in ["region", "area", "attention", "heatmap", "concerning", "patch", "evidence", "show"]):
             if state.top_evidence:
-                response = f"🔍 The model identified **{len(state.top_evidence)} high-attention regions**:\n\n"
+                response = f"The model identified **{len(state.top_evidence)} high-attention regions**:\n\n"
                 for ev in state.top_evidence[:5]:
                     coords = ev.get("coordinates", [0, 0])
                     weight = ev["attention_weight"]
                     intensity = "High" if weight > 0.05 else "Moderate" if weight > 0.02 else "Low"
                     response += f"• **Region #{ev['rank']}** at ({coords[0]:,}, {coords[1]:,}) — {intensity} attention ({weight:.3f})\n"
-                response += "\n👁️ Click on the region buttons to navigate to these areas in the slide viewer."
+                response += "\nClick on the region buttons to navigate to these areas in the slide viewer."
                 response += "\n\nThese regions contributed most to the model's prediction and should be reviewed by the pathologist."
                 return response
             return "No high-attention regions identified in this analysis."
@@ -738,7 +846,7 @@ class AgentWorkflow:
         # Check for comparison questions
         if any(word in q_lower for word in ["compare", "similar", "cases", "other", "like this"]):
             if state.similar_cases:
-                response = f"📊 **Comparison with {len(state.similar_cases)} Similar Cases:**\n\n"
+                response = f"**Comparison with {len(state.similar_cases)} Similar Cases:**\n\n"
                 
                 responders = [c for c in state.similar_cases if c.get("label") == "responder"]
                 non_responders = [c for c in state.similar_cases if c.get("label") == "non-responder"]
@@ -750,8 +858,7 @@ class AgentWorkflow:
                 for c in state.similar_cases[:3]:
                     sim = c["similarity_score"]
                     label = c.get("label", "unknown")
-                    emoji = "🟢" if label == "responder" else "🟠" if label == "non-responder" else "⚪"
-                    response += f"• {emoji} `{c['slide_id']}` — {sim*100:.0f}% match ({label})\n"
+                    response += f"• `{c['slide_id']}` — {sim*100:.0f}% match ({label})\n"
                 
                 return response
             return "No similar cases available for comparison."
@@ -773,7 +880,7 @@ class AgentWorkflow:
 • Topotecan
 • Gemcitabine
 
-⚠️ Treatment decisions should be made by the multidisciplinary tumor board considering:
+Treatment decisions should be made by the multidisciplinary tumor board considering:
 • BRCA/HRD status
 • Prior treatment history
 • Performance status
@@ -801,11 +908,11 @@ The prediction suggests favorable response to platinum agents."""
                     if "error" not in pred:
                         conf = pred.get("confidence", 0)
                         if conf > 0.6:
-                            level = "🟢 HIGH"
+                            level = "HIGH"
                         elif conf > 0.3:
-                            level = "🟡 MODERATE"
+                            level = "MODERATE"
                         else:
-                            level = "🔴 LOW"
+                            level = "LOW"
                         response += f"• {pred.get('model_name', model_id)}: {level} ({conf:.1%})\n"
                 
                 response += "\n**Interpretation:**\n"
@@ -841,7 +948,7 @@ The prediction suggests favorable response to platinum agents."""
                 response += f"Similar cases ({len(state.similar_cases)}) showed diverse outcomes, "
                 response += "emphasizing the importance of molecular confirmation.\n"
             
-            response += "\n⚠️ This AI analysis is for decision support only. Final diagnosis requires expert pathology review."
+            response += "\nThis AI analysis is for decision support only. Final diagnosis requires expert pathology review."
             return response
         
         # Default response with helpful suggestions
