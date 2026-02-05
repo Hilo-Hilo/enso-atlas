@@ -285,7 +285,7 @@ export function FilterPanel({
         {/* Label */}
         <FilterSection title="Label" icon={Activity}>
           <div className="flex flex-wrap gap-2">
-            {["platinum_sensitive", "platinum_resistant"].map((label) => (
+            {["1", "0"].map((label) => (
               <button
                 key={label}
                 onClick={() =>
@@ -298,13 +298,13 @@ export function FilterPanel({
                 className={cn(
                   "px-3 py-1.5 text-xs font-medium rounded-lg border transition-all",
                   filters.label === label
-                    ? label === "platinum_sensitive"
+                    ? label === "1"
                       ? "bg-green-50 text-green-700 border-green-200 ring-2 ring-green-500/30"
                       : "bg-red-50 text-red-700 border-red-200 ring-2 ring-red-500/30"
                     : "bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100"
                 )}
               >
-                {label === "platinum_sensitive" ? "Sensitive" : "Resistant"}
+                {label === "1" ? "Sensitive" : "Resistant"}
               </button>
             ))}
           </div>

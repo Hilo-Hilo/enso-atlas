@@ -193,10 +193,10 @@ function SlideRow({
       <td className="py-3 px-4">
         {slide.label ? (
           <Badge
-            variant={slide.label === "platinum_sensitive" ? "success" : "danger"}
+            variant={slide.label === "1" ? "success" : "danger"}
             size="sm"
           >
-            {slide.label === "platinum_sensitive" ? "Sensitive" : "Resistant"}
+            {slide.label === "1" ? "Sensitive" : "Resistant"}
           </Badge>
         ) : (
           <span className="text-gray-400 text-sm">—</span>

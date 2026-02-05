@@ -187,10 +187,10 @@ function SlideCard({
         {slide.label && (
           <div className="absolute bottom-2 left-2">
             <Badge
-              variant={slide.label === "platinum_sensitive" ? "success" : "danger"}
+              variant={slide.label === "1" ? "success" : "danger"}
               size="sm"
             >
-              {slide.label === "platinum_sensitive" ? "Sensitive" : "Resistant"}
+              {slide.label === "1" ? "Sensitive" : "Resistant"}
             </Badge>
           </div>
         )}
