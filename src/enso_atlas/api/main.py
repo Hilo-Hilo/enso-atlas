@@ -585,10 +585,16 @@ def create_app(
         decision_support = ClinicalDecisionSupport()
         logger.info("Clinical decision support engine initialized")
 
-        # Setup MedSigLIP embedder for semantic search (lazy-loaded on first use)
+        # Setup MedSigLIP embedder for semantic search
         siglip_config = MedSigLIPConfig(cache_dir=str(embeddings_dir / "medsiglip_cache"))
         medsiglip_embedder = MedSigLIPEmbedder(siglip_config)
-        logger.info("MedSigLIP embedder initialized (model loads on first call)")
+        # Load MedSigLIP model on startup to enable semantic search immediately
+        try:
+            logger.info("Loading MedSigLIP model on startup...")
+            medsiglip_embedder._load_model()
+            logger.info("MedSigLIP model loaded successfully")
+        except Exception as e:
+            logger.warning(f"MedSigLIP model loading failed: {e}")
 
         # Find available slides and build FAISS index
         all_embeddings = []
