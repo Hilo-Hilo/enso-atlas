@@ -1545,9 +1545,17 @@ function applyClientSideFilters(
     );
   }
 
-  // Label filter
+  // Label filter - map UI values to data values
   if (filters.label) {
-    filtered = filtered.filter((s) => s.label === filters.label);
+    // Data uses "1" for sensitive, "0" for resistant
+    const labelMap: Record<string, string> = {
+      "platinum_sensitive": "1",
+      "Sensitive": "1",
+      "platinum_resistant": "0", 
+      "Resistant": "0",
+    };
+    const dataLabel = labelMap[filters.label] ?? filters.label;
+    filtered = filtered.filter((s) => s.label === dataLabel);
   }
 
   // Embeddings filter
