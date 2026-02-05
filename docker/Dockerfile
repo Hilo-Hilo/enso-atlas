@@ -7,7 +7,7 @@
 # Run:   docker run --gpus all --ipc=host -p 7860:7860 -v ./models:/app/models enso-atlas
 
 # NVIDIA PyTorch container - proper ARM64 + CUDA support for Blackwell
-FROM nvcr.io/nvidia/pytorch:25.12-py3
+FROM nvcr.io/nvidia/pytorch:24.04-py3
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV PYTHONUNBUFFERED=1
