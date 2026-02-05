@@ -50,9 +50,11 @@ done
 curl -s http://localhost:8000/health | python -m json.tool 2>/dev/null || true
 echo ""
 
-# Start Gradio UI in foreground
-echo "Starting Gradio UI on port 7860..."
-python -m enso_atlas.ui.demo_app --port 7860
+# Gradio UI disabled due to cv2.dnn.DictValue compatibility issue with NVIDIA container
+# The API server provides all functionality needed for the hackathon
+echo "Gradio UI disabled - API server running on port 8000"
+echo "Use API endpoints directly or access via frontend"
+echo ""
 
-# If Gradio exits, kill API
-kill $API_PID 2>/dev/null || true
+# Keep container running - wait for API process
+wait $API_PID
