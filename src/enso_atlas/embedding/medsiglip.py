@@ -190,7 +190,21 @@ class MedSigLIPEmbedder:
             inputs = {k: v.half() if v.dtype == torch.float32 else v for k, v in inputs.items()}
 
         with torch.no_grad():
-            features = self._model.get_image_features(**inputs)
+            outputs = self._model.get_image_features(**inputs)
+            
+            # Handle case where model returns BaseModelOutputWithPooling instead of tensor
+            if hasattr(outputs, "pooler_output") and isinstance(outputs.pooler_output, torch.Tensor):
+                features = outputs.pooler_output
+            elif hasattr(outputs, "last_hidden_state") and isinstance(outputs.last_hidden_state, torch.Tensor):
+                features = outputs.last_hidden_state[:, 0, :]
+            else:
+                features = outputs
+                if isinstance(features, (tuple, list)) and features and isinstance(features[0], torch.Tensor):
+                    features = features[0]
+            
+            if not isinstance(features, torch.Tensor):
+                raise TypeError(f"Unexpected output from get_image_features: {type(outputs)}")
+            
             features = features / features.norm(dim=-1, keepdim=True)
 
         return features.cpu().float().numpy().squeeze()
@@ -251,7 +265,18 @@ class MedSigLIPEmbedder:
 
             # Forward pass
             with torch.no_grad():
-                features = self._model.get_image_features(**inputs)
+                outputs = self._model.get_image_features(**inputs)
+                
+                # Handle case where model returns BaseModelOutputWithPooling instead of tensor
+                if hasattr(outputs, "pooler_output") and isinstance(outputs.pooler_output, torch.Tensor):
+                    features = outputs.pooler_output
+                elif hasattr(outputs, "last_hidden_state") and isinstance(outputs.last_hidden_state, torch.Tensor):
+                    features = outputs.last_hidden_state[:, 0, :]
+                else:
+                    features = outputs
+                    if isinstance(features, (tuple, list)) and features and isinstance(features[0], torch.Tensor):
+                        features = features[0]
+                
                 features = features / features.norm(dim=-1, keepdim=True)
 
             all_embeddings.append(features.cpu().float().numpy())

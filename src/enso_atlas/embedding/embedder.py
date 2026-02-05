@@ -293,7 +293,18 @@ class MedSigLIPEmbedder:
             inputs = {k: v.half() if v.dtype == torch.float32 else v for k, v in inputs.items()}
 
         with torch.no_grad():
-            embedding = self._model.get_image_features(**inputs)
+            outputs = self._model.get_image_features(**inputs)
+            
+            # Handle case where model returns BaseModelOutputWithPooling instead of tensor
+            if hasattr(outputs, "pooler_output") and isinstance(outputs.pooler_output, torch.Tensor):
+                embedding = outputs.pooler_output
+            elif hasattr(outputs, "last_hidden_state") and isinstance(outputs.last_hidden_state, torch.Tensor):
+                embedding = outputs.last_hidden_state[:, 0, :]
+            else:
+                embedding = outputs
+                if isinstance(embedding, (tuple, list)) and embedding and isinstance(embedding[0], torch.Tensor):
+                    embedding = embedding[0]
+            
             # Normalize for cosine similarity
             embedding = embedding / embedding.norm(dim=-1, keepdim=True)
 
@@ -317,7 +328,18 @@ class MedSigLIPEmbedder:
         inputs = {k: v.to(self._device) for k, v in inputs.items()}
 
         with torch.no_grad():
-            embedding = self._model.get_text_features(**inputs)
+            outputs = self._model.get_text_features(**inputs)
+            
+            # Handle case where model returns BaseModelOutputWithPooling instead of tensor
+            if hasattr(outputs, "pooler_output") and isinstance(outputs.pooler_output, torch.Tensor):
+                embedding = outputs.pooler_output
+            elif hasattr(outputs, "last_hidden_state") and isinstance(outputs.last_hidden_state, torch.Tensor):
+                embedding = outputs.last_hidden_state[:, 0, :]
+            else:
+                embedding = outputs
+                if isinstance(embedding, (tuple, list)) and embedding and isinstance(embedding[0], torch.Tensor):
+                    embedding = embedding[0]
+            
             # Normalize for cosine similarity
             embedding = embedding / embedding.norm(dim=-1, keepdim=True)
 
@@ -376,7 +398,18 @@ class MedSigLIPEmbedder:
 
             # Forward pass
             with torch.no_grad():
-                embeddings = self._model.get_image_features(**inputs)
+                outputs = self._model.get_image_features(**inputs)
+                
+                # Handle case where model returns BaseModelOutputWithPooling instead of tensor
+                if hasattr(outputs, "pooler_output") and isinstance(outputs.pooler_output, torch.Tensor):
+                    embeddings = outputs.pooler_output
+                elif hasattr(outputs, "last_hidden_state") and isinstance(outputs.last_hidden_state, torch.Tensor):
+                    embeddings = outputs.last_hidden_state[:, 0, :]
+                else:
+                    embeddings = outputs
+                    if isinstance(embeddings, (tuple, list)) and embeddings and isinstance(embeddings[0], torch.Tensor):
+                        embeddings = embeddings[0]
+                
                 # Normalize for cosine similarity
                 embeddings = embeddings / embeddings.norm(dim=-1, keepdim=True)
 
