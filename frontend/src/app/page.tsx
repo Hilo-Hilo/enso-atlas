@@ -1150,8 +1150,34 @@ export default function HomePage() {
       });
       
       if (!response.ok) {
-        // Fallback to client-side PDF if server fails
-        console.warn("Server PDF export failed, falling back to client-side");
+        // Try the lightweight /api/report/pdf endpoint as a second attempt
+        console.warn("Server PDF export failed, trying lightweight endpoint...");
+        try {
+          const lightResponse = await fetch(
+            `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8003"}/api/report/pdf`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ report, case_id: selectedSlide.id }),
+            }
+          );
+          if (lightResponse.ok) {
+            const lightBlob = await lightResponse.blob();
+            const lightFilename =
+              lightResponse.headers
+                .get("Content-Disposition")
+                ?.split("filename=")[1]
+                ?.replace(/"/g, "") ||
+              `atlas-report-${selectedSlide.id}.pdf`;
+            downloadPdf(lightBlob, lightFilename);
+            toast.success("PDF Exported", "Report downloaded");
+            return;
+          }
+        } catch (lightErr) {
+          console.warn("Lightweight PDF endpoint also failed:", lightErr);
+        }
+
+        // Final fallback to client-side PDF generation
         const caseNotes = getCaseNotes(selectedSlide.id);
         const blob = await generatePdfReport({
           report,

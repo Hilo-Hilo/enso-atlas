@@ -1,8 +1,11 @@
 """
 Enso Atlas - Server-side PDF Export
 
-Generates professional tumor board PDF reports using ReportLab.
-Includes attention heatmaps and evidence patch images.
+Generates professional tumor board PDF reports.
+
+Two implementations:
+  - generate_pdf_report()  -- full-featured, requires ReportLab (heavyweight)
+  - generate_report_pdf()  -- lightweight, uses fpdf2 (pure Python, no system deps)
 """
 
 import io
@@ -11,37 +14,54 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional, List, Dict, Any
 
-from reportlab.lib import colors
-from reportlab.lib.pagesizes import A4, letter
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib.units import inch, mm
-from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_JUSTIFY
-from reportlab.platypus import (
-    SimpleDocTemplate,
-    Paragraph,
-    Spacer,
-    Table,
-    TableStyle,
-    Image as RLImage,
-    PageBreak,
-    KeepTogether,
-    HRFlowable,
-)
-from reportlab.graphics.shapes import Drawing, Rect
-from reportlab.pdfgen import canvas
-from PIL import Image
-import numpy as np
-
 logger = logging.getLogger(__name__)
 
-# Colors
-ENSO_BLUE = colors.Color(0/255, 102/255, 153/255)
-ENSO_BLUE_LIGHT = colors.Color(230/255, 242/255, 250/255)
-RESPONDER_GREEN = colors.Color(34/255, 139/255, 34/255)
-NON_RESPONDER_RED = colors.Color(178/255, 34/255, 34/255)
-WARNING_AMBER = colors.Color(255/255, 193/255, 7/255)
-WARNING_AMBER_BG = colors.Color(255/255, 248/255, 225/255)
+# ReportLab imports are optional - only needed for the legacy generate_pdf_report()
+try:
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import A4, letter
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.units import inch, mm
+    from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_JUSTIFY
+    from reportlab.platypus import (
+        SimpleDocTemplate,
+        Paragraph,
+        Spacer,
+        Table,
+        TableStyle,
+        Image as RLImage,
+        PageBreak,
+        KeepTogether,
+        HRFlowable,
+    )
+    from reportlab.graphics.shapes import Drawing, Rect
+    from reportlab.pdfgen import canvas
+    from PIL import Image
+    import numpy as np
+    _REPORTLAB_AVAILABLE = True
+except ImportError:
+    _REPORTLAB_AVAILABLE = False
 
+# Colors (only available when ReportLab is installed)
+if _REPORTLAB_AVAILABLE:
+    ENSO_BLUE = colors.Color(0/255, 102/255, 153/255)
+    ENSO_BLUE_LIGHT = colors.Color(230/255, 242/255, 250/255)
+    RESPONDER_GREEN = colors.Color(34/255, 139/255, 34/255)
+    NON_RESPONDER_RED = colors.Color(178/255, 34/255, 34/255)
+    WARNING_AMBER = colors.Color(255/255, 193/255, 7/255)
+    WARNING_AMBER_BG = colors.Color(255/255, 248/255, 225/255)
+
+
+if not _REPORTLAB_AVAILABLE:
+    # Provide stubs so imports don't break when ReportLab is missing.
+    # The only public function from the ReportLab path is generate_pdf_report.
+    def generate_pdf_report(**kwargs):  # type: ignore[misc]
+        raise RuntimeError(
+            "generate_pdf_report requires ReportLab. "
+            "Install it with: pip install reportlab>=4.0.0"
+        )
+
+# ---- begin ReportLab-based implementation (guarded by _REPORTLAB_AVAILABLE) ----
 
 def create_header_footer(canvas_obj, doc):
     """Add header and footer to each page."""
@@ -552,3 +572,279 @@ def generate_pdf_report(
     buffer.close()
     
     return pdf_bytes
+
+
+# ---------------------------------------------------------------------------
+# Lightweight PDF generation using fpdf2 (pure Python, no system deps)
+# ---------------------------------------------------------------------------
+
+def generate_report_pdf(report: Dict[str, Any], case_id: str) -> bytes:
+    """
+    Generate a professional clinical pathology PDF report using fpdf2.
+
+    This is a lightweight alternative to the ReportLab-based
+    ``generate_pdf_report`` above.  It accepts the report JSON returned by
+    ``POST /api/report`` and produces a self-contained PDF suitable for
+    printing or archiving.
+
+    Args:
+        report: Structured report dict (from /api/report endpoint).
+        case_id: Case identifier string.
+
+    Returns:
+        PDF file contents as bytes.
+    """
+    from fpdf import FPDF
+
+    HEADER_TITLE = "Enso Atlas - Pathology Decision Support Report"
+    FOOTER_TEXT = "Research use only - not for clinical diagnosis"
+
+    class _ClinicalPDF(FPDF):
+        """Custom FPDF subclass with header/footer for clinical reports."""
+
+        def header(self):
+            # Header bar
+            self.set_fill_color(0, 102, 153)
+            self.rect(0, 0, self.w, 22, style="F")
+            self.set_font("Helvetica", "B", 13)
+            self.set_text_color(255, 255, 255)
+            self.set_y(4)
+            self.cell(0, 8, HEADER_TITLE, align="C", new_x="LMARGIN", new_y="NEXT")
+            self.set_font("Helvetica", "", 8)
+            self.cell(0, 5, "AI-Assisted Diagnostic Platform", align="C",
+                      new_x="LMARGIN", new_y="NEXT")
+            self.ln(6)
+
+        def footer(self):
+            self.set_y(-15)
+            self.set_font("Helvetica", "I", 7)
+            self.set_text_color(120, 120, 120)
+            self.cell(0, 10, f"{FOOTER_TEXT}  |  Page {self.page_no()}/{{nb}}",
+                      align="C")
+
+    pdf = _ClinicalPDF(orientation="P", unit="mm", format="A4")
+    pdf.alias_nb_pages()
+    pdf.set_auto_page_break(auto=True, margin=20)
+    pdf.add_page()
+
+    # ---- helpers --------------------------------------------------------
+    def _section_heading(text: str):
+        pdf.set_font("Helvetica", "B", 11)
+        pdf.set_text_color(0, 102, 153)
+        pdf.cell(0, 8, text, new_x="LMARGIN", new_y="NEXT")
+        pdf.set_draw_color(0, 102, 153)
+        pdf.line(pdf.l_margin, pdf.get_y(), pdf.w - pdf.r_margin, pdf.get_y())
+        pdf.ln(2)
+
+    def _label_value(label: str, value: str):
+        pdf.set_font("Helvetica", "B", 9)
+        pdf.set_text_color(60, 60, 60)
+        pdf.cell(40, 6, label, new_x="RIGHT")
+        pdf.set_font("Helvetica", "", 9)
+        pdf.set_text_color(30, 30, 30)
+        pdf.cell(0, 6, value, new_x="LMARGIN", new_y="NEXT")
+
+    def _body_text(text: str):
+        pdf.set_font("Helvetica", "", 9)
+        pdf.set_text_color(30, 30, 30)
+        pdf.multi_cell(0, 5, text)
+        pdf.ln(1)
+
+    def _bullet(text: str):
+        x = pdf.get_x()
+        pdf.set_font("Helvetica", "", 9)
+        pdf.set_text_color(30, 30, 30)
+        pdf.cell(5, 5, "-")
+        pdf.multi_cell(0, 5, text)
+
+    # ---- Disclaimer banner ---------------------------------------------
+    pdf.set_fill_color(255, 248, 225)
+    pdf.set_draw_color(255, 193, 7)
+    y_start = pdf.get_y()
+    pdf.rect(pdf.l_margin, y_start, pdf.w - pdf.l_margin - pdf.r_margin, 14,
+             style="DF")
+    pdf.set_xy(pdf.l_margin + 2, y_start + 2)
+    pdf.set_font("Helvetica", "B", 9)
+    pdf.set_text_color(153, 102, 0)
+    pdf.cell(0, 5, "UNCALIBRATED MODEL - RESEARCH USE ONLY",
+             new_x="LMARGIN", new_y="NEXT")
+    pdf.set_font("Helvetica", "", 8)
+    pdf.cell(0, 5,
+             "Probabilities are raw model outputs. Not validated for clinical "
+             "decision-making.",
+             new_x="LMARGIN", new_y="NEXT")
+    pdf.set_y(y_start + 16)
+
+    # ---- Case Information -----------------------------------------------
+    _section_heading("Case Information")
+    _label_value("Case ID:", case_id)
+    task = report.get("task", "Treatment Response Prediction")
+    _label_value("Task:", task)
+    generated_at = report.get("generated_at",
+                              report.get("generatedAt",
+                                         datetime.now().strftime("%Y-%m-%d %H:%M")))
+    _label_value("Date:", str(generated_at))
+    pdf.ln(3)
+
+    # ---- Prediction Section ---------------------------------------------
+    model_output = report.get("model_output", report.get("modelOutput", {}))
+    if model_output:
+        _section_heading("Prediction")
+        label = model_output.get("label", "Unknown")
+        prob = model_output.get("probability",
+                                model_output.get("score", 0))
+        ci = model_output.get("confidence_interval",
+                              model_output.get("confidenceInterval"))
+
+        # Color-code prediction
+        is_responder = "responder" in label.lower() and "non" not in label.lower()
+        if is_responder:
+            pdf.set_text_color(34, 139, 34)
+        else:
+            pdf.set_text_color(178, 34, 34)
+        pdf.set_font("Helvetica", "B", 12)
+        pdf.cell(0, 8, label.upper(), new_x="LMARGIN", new_y="NEXT")
+        pdf.set_text_color(30, 30, 30)
+
+        _label_value("Score:", f"{prob:.4f}" if isinstance(prob, float) else str(prob))
+        if ci:
+            _label_value("Confidence Interval:",
+                         f"[{ci[0]:.4f}, {ci[1]:.4f}]"
+                         if isinstance(ci, (list, tuple)) and len(ci) >= 2
+                         else str(ci))
+        cal_note = model_output.get("calibration_note",
+                                    model_output.get("calibrationNote", ""))
+        if cal_note:
+            _label_value("Calibration Note:", cal_note)
+        pdf.ln(2)
+
+    # ---- Evidence Section -----------------------------------------------
+    evidence_items = report.get("evidence", [])
+    if evidence_items:
+        _section_heading("Evidence")
+        for i, item in enumerate(evidence_items[:10], 1):
+            patch_id = item.get("patch_id", item.get("patchId", f"patch-{i}"))
+            morphology = item.get("morphology_description",
+                                  item.get("morphologyDescription", "N/A"))
+            significance = item.get("significance",
+                                    item.get("whyThisPatchMatters", ""))
+            attention = item.get("attention_weight",
+                                 item.get("attentionWeight"))
+
+            pdf.set_font("Helvetica", "B", 9)
+            pdf.set_text_color(0, 102, 153)
+            header_parts = [f"Evidence #{i} ({patch_id})"]
+            if attention is not None:
+                header_parts.append(f"Attention: {float(attention):.4f}")
+            pdf.cell(0, 6, "  |  ".join(header_parts),
+                     new_x="LMARGIN", new_y="NEXT")
+            pdf.set_text_color(30, 30, 30)
+            _body_text(morphology)
+            if significance:
+                pdf.set_font("Helvetica", "I", 8)
+                pdf.set_text_color(80, 80, 80)
+                pdf.multi_cell(0, 4, f"Significance: {significance}")
+                pdf.ln(1)
+        pdf.ln(2)
+
+    # ---- Similar Cases Section ------------------------------------------
+    similar = report.get("similar_cases",
+                         report.get("similarExamples", []))
+    if similar:
+        _section_heading("Similar Cases")
+        # Table header
+        col_w = [(pdf.w - pdf.l_margin - pdf.r_margin) * r
+                 for r in (0.45, 0.30, 0.25)]
+        pdf.set_font("Helvetica", "B", 8)
+        pdf.set_fill_color(0, 102, 153)
+        pdf.set_text_color(255, 255, 255)
+        for header, w in zip(["Case ID", "Outcome", "Distance"], col_w):
+            pdf.cell(w, 6, header, border=1, fill=True, align="C")
+        pdf.ln()
+        pdf.set_text_color(30, 30, 30)
+        pdf.set_font("Helvetica", "", 8)
+        for idx, case in enumerate(similar[:8]):
+            cid = str(case.get("exampleId", case.get("case_id", "N/A")))[:30]
+            outcome = str(case.get("label", case.get("outcome", "N/A")))
+            dist = case.get("distance", case.get("similarity_score", ""))
+            dist_str = f"{float(dist):.4f}" if dist != "" else "N/A"
+            if idx % 2 == 1:
+                pdf.set_fill_color(245, 245, 245)
+            else:
+                pdf.set_fill_color(255, 255, 255)
+            pdf.cell(col_w[0], 6, cid, border=1, fill=True, align="C")
+            pdf.cell(col_w[1], 6, outcome, border=1, fill=True, align="C")
+            pdf.cell(col_w[2], 6, dist_str, border=1, fill=True, align="C")
+            pdf.ln()
+        pdf.ln(3)
+
+    # ---- Decision Support Section ---------------------------------------
+    decision = report.get("decision_support",
+                          report.get("decisionSupport"))
+    if decision:
+        _section_heading("Clinical Decision Support")
+        rec = decision.get("primary_recommendation",
+                           decision.get("primaryRecommendation", ""))
+        if rec:
+            _label_value("Recommendation:", rec)
+        rationale = decision.get("supporting_rationale",
+                                 decision.get("supportingRationale", []))
+        if rationale:
+            pdf.set_font("Helvetica", "B", 9)
+            pdf.set_text_color(60, 60, 60)
+            pdf.cell(0, 6, "Supporting Evidence:", new_x="LMARGIN", new_y="NEXT")
+            for r in rationale:
+                _bullet(r)
+        workup = decision.get("suggested_workup",
+                              decision.get("suggestedWorkup", []))
+        if workup:
+            pdf.set_font("Helvetica", "B", 9)
+            pdf.set_text_color(60, 60, 60)
+            pdf.cell(0, 6, "Suggested Workup:", new_x="LMARGIN", new_y="NEXT")
+            for idx_w, w in enumerate(workup, 1):
+                _body_text(f"{idx_w}. {w}")
+        pdf.ln(2)
+
+    # ---- Suggested Next Steps -------------------------------------------
+    next_steps = report.get("suggested_next_steps",
+                            report.get("suggestedNextSteps", []))
+    if next_steps:
+        _section_heading("Suggested Next Steps")
+        for idx_s, step in enumerate(next_steps, 1):
+            _body_text(f"{idx_s}. {step}")
+        pdf.ln(2)
+
+    # ---- Limitations ----------------------------------------------------
+    limitations = report.get("limitations", [])
+    if limitations:
+        _section_heading("Limitations")
+        for lim in limitations:
+            _bullet(lim)
+        pdf.ln(2)
+
+    # ---- Safety Statement -----------------------------------------------
+    safety = report.get("safety_statement",
+                        report.get("safetyStatement", ""))
+    if safety:
+        _section_heading("Important Safety Notice")
+        pdf.set_fill_color(255, 235, 235)
+        pdf.set_draw_color(178, 34, 34)
+        y0 = pdf.get_y()
+        # Pre-calculate height needed
+        pdf.set_font("Helvetica", "", 9)
+        # Use a temporary approach - write then box
+        x0 = pdf.l_margin + 3
+        box_w = pdf.w - pdf.l_margin - pdf.r_margin
+        pdf.set_xy(x0, y0 + 3)
+        pdf.multi_cell(box_w - 6, 5, safety)
+        y1 = pdf.get_y() + 3
+        pdf.rect(pdf.l_margin, y0, box_w, y1 - y0, style="D")
+        pdf.set_y(y1 + 2)
+
+    # ---- Final footer disclaimer ----------------------------------------
+    pdf.ln(5)
+    pdf.set_font("Helvetica", "B", 8)
+    pdf.set_text_color(120, 120, 120)
+    pdf.cell(0, 5, FOOTER_TEXT, align="C", new_x="LMARGIN", new_y="NEXT")
+
+    return pdf.output()

@@ -35,26 +35,28 @@ from pydantic import BaseModel, Field
 
 # PDF Export
 try:
-    from .pdf_export import generate_pdf_report
+    from .pdf_export import generate_pdf_report, generate_report_pdf
     PDF_EXPORT_AVAILABLE = True
 except ImportError as e:
-    logger.warning(f"PDF export not available: {e}")
     PDF_EXPORT_AVAILABLE = False
     generate_pdf_report = None
+    generate_report_pdf = None
 
 # Configure logging to show INFO level for our module (Python defaults to WARNING)
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
-# PDF Export (optional)
-try:
-    from .pdf_export import generate_pdf_report
-    PDF_EXPORT_AVAILABLE = True
-except Exception as e:
-    logger.warning(f"PDF export not available: {e}")
-    PDF_EXPORT_AVAILABLE = False
-    generate_pdf_report = None
+# PDF Export (optional) - second import block kept for compatibility
+if not PDF_EXPORT_AVAILABLE:
+    try:
+        from .pdf_export import generate_pdf_report, generate_report_pdf
+        PDF_EXPORT_AVAILABLE = True
+    except Exception as e:
+        logger.warning(f"PDF export not available: {e}")
+        PDF_EXPORT_AVAILABLE = False
+        generate_pdf_report = None
+        generate_report_pdf = None
 
 # Multi-model TransMIL inference
 import sys
@@ -2667,7 +2669,59 @@ DISCLAIMER: This is a research tool. All findings must be validated by qualified
         }
 
     # ==================== PDF Export ====================
-    
+
+    class ReportPdfRequest(BaseModel):
+        """Request body for the lightweight /api/report/pdf endpoint."""
+        report: Dict[str, Any] = Field(..., description="Report JSON from /api/report")
+        case_id: Optional[str] = Field(default=None, description="Case identifier (falls back to report.case_id)")
+
+    @app.post("/api/report/pdf")
+    async def report_pdf(request: ReportPdfRequest):
+        """
+        Generate a professional PDF from a report JSON payload.
+
+        This is a lightweight endpoint that accepts the same report JSON
+        returned by ``POST /api/report`` and produces a downloadable PDF
+        using fpdf2 (pure-Python, no system dependencies).
+
+        The PDF includes:
+        - Header: Enso Atlas branding
+        - Case ID, date, disclaimer
+        - Prediction section (label, score, confidence interval)
+        - Evidence section (patch descriptions, attention weights)
+        - Similar cases section
+        - Decision support section (if available)
+        - Limitations and safety statement
+        - Footer: Research use only disclaimer
+        """
+        if generate_report_pdf is None:
+            raise HTTPException(
+                status_code=503,
+                detail="PDF export not available. Install fpdf2: pip install fpdf2"
+            )
+
+        report_data = request.report
+        cid = request.case_id or report_data.get("case_id", report_data.get("caseId", "UNKNOWN"))
+
+        try:
+            pdf_bytes = generate_report_pdf(report_data, cid)
+        except Exception as e:
+            logger.error(f"PDF generation failed: {e}")
+            raise HTTPException(status_code=500, detail=f"PDF generation failed: {str(e)}")
+
+        filename = f"enso-atlas-report-{cid}-{datetime.utcnow().strftime('%Y%m%d-%H%M%S')}.pdf"
+
+        log_audit_event("pdf_exported", cid, details={"endpoint": "/api/report/pdf"})
+
+        return Response(
+            content=pdf_bytes,
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": f'attachment; filename="{filename}"',
+                "Content-Length": str(len(pdf_bytes)),
+            },
+        )
+
     @app.post("/api/export/pdf")
     async def export_pdf(request: PdfExportRequest):
         """
