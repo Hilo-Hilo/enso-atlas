@@ -4499,7 +4499,8 @@ DISCLAIMER: This is a research tool. All findings must be validated by qualified
             width, height = level_dims
             patch_size = 224
             stride = 224
-            max_patches = 50000 if level == 0 else 20000
+            # No patch limit — embed all tissue patches regardless of slide size
+            max_patches = float('inf')
             
             task_manager.update_task(task_id,
                 progress=10,
@@ -4652,7 +4653,8 @@ DISCLAIMER: This is a research tool. All findings must be validated by qualified
             width, height = level_dims
             patch_size = 224
             stride = 224
-            max_patches = 10000
+            # No patch limit — embed all tissue patches
+            max_patches = float('inf')
             
             patches = []
             coords = []
@@ -4905,7 +4907,8 @@ DISCLAIMER: This is a research tool. All findings must be validated by qualified
                 width, height = level_dims
                 patch_size = 224
                 stride = 224
-                max_patches = 50000 if level == 0 else 20000
+                # No patch limit — embed all tissue patches
+                max_patches = float('inf')
 
                 patches = []
                 coords = []
