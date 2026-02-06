@@ -154,9 +154,14 @@ class EnsoAtlas:
         label = "responder" if score >= threshold else "non-responder"
         # Confidence based on distance from threshold, normalized to [0,1]
         if score >= threshold:
-            confidence = min((score - threshold) / (1.0 - threshold), 1.0)
+            # Confidence based on distance from decision boundary
+            # Uses sigmoid-like scaling: small distances map to ~50%, large distances to ~100%
+            margin = score - threshold
+            # Scale margin to [0,1] where 0.05 margin -> ~73% confidence, 0.1 -> ~88%
+            confidence = min(1.0 - 0.5 * (2.0 ** (-20.0 * margin)), 0.99)
         else:
-            confidence = min((threshold - score) / threshold, 1.0)
+            margin = threshold - score
+            confidence = min(1.0 - 0.5 * (2.0 ** (-20.0 * margin)), 0.99)
         confidence = max(confidence, 0.0)
         logger.info(
             "Prediction: %s (score=%.3f, threshold=%.3f)",

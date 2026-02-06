@@ -1142,9 +1142,12 @@ def create_app(
         label = "RESPONDER" if score >= threshold else "NON-RESPONDER"
         # Confidence based on distance from threshold, normalized to [0,1]
         if score >= threshold:
-            confidence = min((score - threshold) / (1.0 - threshold), 1.0)
+            # Sigmoid-like scaling: small margins -> ~50%, large margins -> ~99%
+            margin = score - threshold
+            confidence = min(1.0 - 0.5 * (2.0 ** (-20.0 * margin)), 0.99)
         else:
-            confidence = min((threshold - score) / threshold, 1.0)
+            margin = threshold - score
+            confidence = min(1.0 - 0.5 * (2.0 ** (-20.0 * margin)), 0.99)
 
         # Load coordinates if available for tissue classification
         coord_path = embeddings_dir / f"{slide_id}_coords.npy"
