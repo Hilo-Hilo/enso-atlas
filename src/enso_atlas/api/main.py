@@ -683,11 +683,11 @@ def create_app(
         # This runs a test inference to ensure CUDA kernels are loaded
         if reporter is not None:
             try:
-                logger.info("Starting MedGemma warmup (this may take ~60-90s on CPU)...")
+                logger.info("Starting MedGemma warmup (may take ~60-120s for GPU kernel compilation)...")
                 warmup_start = time.time()
                 await asyncio.wait_for(
                     asyncio.to_thread(reporter._warmup_inference),
-                    timeout=90.0,
+                    timeout=180.0,
                 )
                 warmup_duration = time.time() - warmup_start
                 logger.info(f"MedGemma reporter warmed up successfully in {warmup_duration:.1f}s")
@@ -703,7 +703,11 @@ def create_app(
         logger.info("Clinical decision support engine initialized")
 
         # Setup MedSigLIP embedder for semantic search
-        siglip_config = MedSigLIPConfig(cache_dir=str(embeddings_dir / "medsiglip_cache"))
+        # Force CPU to keep GPU VRAM free for MedGemma (the bottleneck model).
+        siglip_config = MedSigLIPConfig(
+            cache_dir=str(embeddings_dir / "medsiglip_cache"),
+            device="cpu",
+        )
         medsiglip_embedder = MedSigLIPEmbedder(siglip_config)
         # Load MedSigLIP model on startup to enable semantic search immediately
         try:
