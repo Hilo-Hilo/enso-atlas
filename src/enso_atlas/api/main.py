@@ -4228,7 +4228,11 @@ DISCLAIMER: This is a research tool. All findings must be validated by qualified
             raise HTTPException(status_code=400, detail="level must be 0 or 1")
         
         # Level-specific embedding paths
-        level_dir = embeddings_dir / f"level{level}"
+        # If embeddings_dir is already the level0 dir and level==0, use it directly
+        if level == 0 and embeddings_dir.name == "level0":
+            level_dir = embeddings_dir
+        else:
+            level_dir = embeddings_dir / f"level{level}"
         level_dir.mkdir(parents=True, exist_ok=True)
         
         emb_path = level_dir / f"{slide_id}.npy"
@@ -4630,7 +4634,7 @@ DISCLAIMER: This is a research tool. All findings must be validated by qualified
         result = task.to_dict()
         
         if task.status == TaskStatus.COMPLETED:
-            level_dir = embeddings_dir / f"level{task.level}"
+            level_dir = embeddings_dir if (task.level == 0 and embeddings_dir.name == "level0") else embeddings_dir / f"level{task.level}"
             emb_path = level_dir / f"{task.slide_id}.npy"
             result["embedding_path"] = str(emb_path) if emb_path.exists() else None
         
@@ -4749,7 +4753,7 @@ DISCLAIMER: This is a research tool. All findings must be validated by qualified
 
             # Setup paths
             level = task.level
-            level_dir = embeddings_dir / f"level{level}"
+            level_dir = embeddings_dir if (level == 0 and embeddings_dir.name == "level0") else embeddings_dir / f"level{level}"
             level_dir.mkdir(parents=True, exist_ok=True)
             emb_path = level_dir / f"{slide_id}.npy"
             coord_path = level_dir / f"{slide_id}_coords.npy"
