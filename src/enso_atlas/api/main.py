@@ -4960,9 +4960,14 @@ DISCLAIMER: This is a research tool. All findings must be validated by qualified
         level = request.level  # Get requested resolution level
         
         # Determine embedding path based on level
+        # embeddings_dir may already point to level0 (auto-detected at startup)
         if level == 0:
-            level0_dir = embeddings_dir / "level0"
-            emb_path = level0_dir / f"{slide_id}.npy"
+            # Try embeddings_dir directly first (it may already be level0)
+            emb_path = embeddings_dir / f"{slide_id}.npy"
+            if not emb_path.exists():
+                # Try explicit level0 subdir
+                level0_dir = embeddings_dir / "level0"
+                emb_path = level0_dir / f"{slide_id}.npy"
             
             # Block analysis if level 0 embeddings don't exist
             if not emb_path.exists():
@@ -4977,13 +4982,14 @@ DISCLAIMER: This is a research tool. All findings must be validated by qualified
                     }
                 )
         else:
-            # Level 1: check level1 subdir first, then fallback to flat embeddings
-            level1_dir = embeddings_dir / "level1"
-            level1_emb_path = level1_dir / f"{slide_id}.npy"
-            if level1_emb_path.exists():
-                emb_path = level1_emb_path
-            else:
-                emb_path = embeddings_dir / f"{slide_id}.npy"
+            # Default level: use current embeddings_dir (which may already be level0)
+            # Also check for level1 subdir under the data/embeddings root
+            emb_path = embeddings_dir / f"{slide_id}.npy"
+            if not emb_path.exists():
+                level1_dir = _data_root / "embeddings" / "level1"
+                level1_emb_path = level1_dir / f"{slide_id}.npy"
+                if level1_emb_path.exists():
+                    emb_path = level1_emb_path
         
         if not emb_path.exists():
             raise HTTPException(status_code=404, detail=f"Slide {slide_id} not found")
