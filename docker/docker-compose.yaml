@@ -33,6 +33,8 @@ services:
       # Model storage (pre-downloaded)
       - /home/hansonwen/.cache/huggingface:/root/.cache/huggingface
       - /home/hansonwen/med-gemma-hackathon/models:/app/models
+      # Config files (projects.yaml, default.yaml)
+      - /home/hansonwen/med-gemma-hackathon/config:/app/config:ro
       # Source code mount for development (allows live editing)
       - /home/hansonwen/med-gemma-hackathon/src:/app/src:ro
     ports:
