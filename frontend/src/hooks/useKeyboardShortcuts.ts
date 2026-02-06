@@ -13,6 +13,8 @@ export interface KeyboardShortcut {
     shift?: boolean;
     meta?: boolean;
   };
+  /** If true, this shortcut is an alias and should be hidden from the shortcuts modal */
+  hidden?: boolean;
 }
 
 export interface UseKeyboardShortcutsOptions {

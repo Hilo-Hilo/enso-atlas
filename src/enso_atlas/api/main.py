@@ -95,6 +95,10 @@ def get_timestamp() -> str:
     return datetime.utcnow().isoformat() + "Z"
 
 
+# Track server startup time for uptime calculation
+_STARTUP_TIME = time.time()
+
+
 def log_audit_event(
     event_type: str,
     slide_id: Optional[str] = None,
@@ -830,6 +834,7 @@ def create_app(
             "model_loaded": classifier is not None,
             "cuda_available": _check_cuda(),
             "slides_available": len(available_slides),
+            "uptime": time.time() - _STARTUP_TIME,
         }
 
     @app.get("/api/health")
@@ -2034,8 +2039,9 @@ def create_app(
             try:
                 timeout_s = getattr(reporter.config, "max_generation_time_s", None)
                 if timeout_s is None:
-                    timeout_s = 120.0
-                timeout_s = max(10.0, float(timeout_s) + 10.0)
+                    timeout_s = 90.0
+                # Cap at 90s — MedGemma either finishes or hangs on Blackwell GPUs
+                timeout_s = min(90.0, max(10.0, float(timeout_s) + 10.0))
 
                 report = await asyncio.wait_for(
                     asyncio.to_thread(
@@ -2445,22 +2451,28 @@ should incorporate all available clinical, pathological, and molecular data."""
 
                     stop_event = threading.Event()
                     def _progress_heartbeat():
-                        progress = 60
-                        while not stop_event.wait(5):
-                            progress = min(85, progress + 2)
+                        """Smoothly advance progress from 60 to 92 over the timeout period."""
+                        progress = 60.0
+                        tick = 0
+                        while not stop_event.wait(3):
+                            tick += 1
+                            # Smooth asymptotic approach: fast initially, slows near cap
+                            progress = min(92, 60 + 32 * (1 - 1.0 / (1 + tick * 0.15)))
+                            elapsed = time.time() - gen_start if 'gen_start' in dir() else tick * 3
                             report_task_manager.update_task(
                                 task_id,
-                                progress=progress,
+                                progress=round(progress, 1),
                                 stage="generating",
-                                message="MedGemma is generating the report..."
+                                message=f"MedGemma is generating the report... ({int(elapsed)}s)"
                             )
 
+                    gen_start = time.time()
                     heartbeat = threading.Thread(target=_progress_heartbeat, daemon=True)
                     heartbeat.start()
 
-                    gen_start = time.time()
                     # Use a thread with timeout to prevent indefinite blocking
-                    gen_timeout = float(max_time) + 30.0 if max_time else 150.0
+                    # Cap at 90s — if MedGemma hasn't finished by then, it's likely hung
+                    gen_timeout = min(90.0, float(max_time) + 10.0) if max_time else 90.0
                     gen_result = [None]
                     gen_error = [None]
 
@@ -2481,39 +2493,41 @@ should incorporate all available clinical, pathological, and molecular data."""
                     gen_thread.start()
                     gen_thread.join(timeout=gen_timeout)
 
+                    stop_event.set()
+                    heartbeat.join(timeout=2)
+
                     if gen_thread.is_alive():
                         logger.warning(
                             "MedGemma report generation timed out after %.1fs for %s, falling back to template",
-                            gen_timeout, slide_id,
+                            time.time() - gen_start, slide_id,
                         )
-                        stop_event.set()
-                        heartbeat.join(timeout=1)
-                        raise TimeoutError(f"MedGemma generation timed out after {gen_timeout:.0f}s")
+                        # Don't raise — fall through to template fallback below
+                    elif gen_error[0] is not None:
+                        logger.warning(f"MedGemma generation error: {gen_error[0]}")
+                        # Don't raise — fall through to template fallback below
+                    elif gen_result[0] is not None:
+                        report = gen_result[0]
+                        logger.info(
+                            "MedGemma report generation completed for %s in %.1fs",
+                            slide_id,
+                            time.time() - gen_start,
+                        )
+                        
+                        report_json = report["structured"]
+                        summary_text = report["summary"]
+                        
+                        if decision_support_data:
+                            report_json["decision_support"] = decision_support_data
+                    else:
+                        logger.warning("MedGemma returned None result for %s", slide_id)
 
-                    if gen_error[0] is not None:
-                        stop_event.set()
-                        heartbeat.join(timeout=1)
-                        raise gen_error[0]
-
-                    report = gen_result[0]
-                    logger.info(
-                        "MedGemma report generation completed for %s in %.1fs",
-                        slide_id,
-                        time.time() - gen_start,
-                    )
-                    
-                    report_json = report["structured"]
-                    summary_text = report["summary"]
-                    
-                    if decision_support_data:
-                        report_json["decision_support"] = decision_support_data
-
-                    stop_event.set()
-                    heartbeat.join(timeout=1)
                 except Exception as e:
-                    stop_event.set()
-                    heartbeat.join(timeout=1)
                     logger.warning(f"MedGemma failed: {e}")
+                    try:
+                        stop_event.set()
+                        heartbeat.join(timeout=1)
+                    except Exception:
+                        pass
             
             # Fallback to template if MedGemma failed
             if report_json is None:

@@ -989,6 +989,7 @@ export default function HomePage() {
       description: "Zoom in",
       category: "Viewer",
       handler: handleViewerZoomIn,
+      hidden: true, // Duplicate of "=" — same physical key; hidden from shortcuts modal
     },
     {
       key: "-",

@@ -70,7 +70,9 @@ export function KeyboardShortcutsModal({
 
   if (!isOpen) return null;
 
-  const groupedShortcuts = groupShortcutsByCategory(shortcuts);
+  // Filter out hidden shortcuts (aliases) before grouping
+  const visibleShortcuts = shortcuts.filter((s) => !s.hidden);
+  const groupedShortcuts = groupShortcutsByCategory(visibleShortcuts);
 
   // Sort categories by predefined order
   const sortedCategories = Array.from(groupedShortcuts.keys()).sort((a, b) => {
