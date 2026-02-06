@@ -1428,7 +1428,7 @@ export default function HomePage() {
           clinicalContext=""
           onAnalysisComplete={(rawAgentReport) => {
             // Normalize and hydrate the main Clinical Report panel with the agent-generated report
-            const normalized = normalizeAgentReport(rawAgentReport);
+            const normalized = normalizeAgentReport(rawAgentReport as unknown as Record<string, unknown>);
             if (normalized) {
               setAgentReport(normalized);
             }
