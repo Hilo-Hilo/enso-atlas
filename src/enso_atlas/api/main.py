@@ -619,6 +619,17 @@ def create_app(
             "MIL_THRESHOLD_CONFIG",
             str(model_path.parent / "threshold_config.json"),
         )
+
+        # Resolve model checkpoint: use architecture-specific file if it exists
+        mil_model_path_env = _os.environ.get("MIL_MODEL_PATH", "")
+        if mil_model_path_env:
+            mil_model_path = Path(mil_model_path_env)
+        elif mil_arch == "transmil":
+            candidate = model_path.parent / "transmil_best.pt"
+            mil_model_path = candidate if candidate.exists() else model_path
+        else:
+            mil_model_path = model_path
+
         config = MILConfig(
             input_dim=384,
             hidden_dim=256,
@@ -627,11 +638,11 @@ def create_app(
             threshold_config_path=threshold_cfg_path,
         )
         classifier = create_classifier(config)
-        if model_path.exists():
-            classifier.load(model_path)
+        if mil_model_path.exists():
+            classifier.load(mil_model_path)
             logger.info(
                 "Loaded MIL model (%s) from %s  [threshold=%.4f]",
-                mil_arch, model_path, classifier.threshold,
+                mil_arch, mil_model_path, classifier.threshold,
             )
 
         # Initialize multi-model TransMIL inference
