@@ -227,7 +227,7 @@ export function PredictionPanel({
                     : "text-responder-negative"
                 )}
               >
-                {prediction.label}
+                {isResponder ? positiveLabel.toUpperCase() : negativeLabel.toUpperCase()}
               </span>
             </div>
             <Badge
