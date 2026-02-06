@@ -2730,12 +2730,15 @@ DISCLAIMER: This is a research tool. All findings must be validated by qualified
 
         log_audit_event("pdf_exported", cid, details={"endpoint": "/api/report/pdf"})
 
+        # Ensure bytes (fpdf2 may return bytearray which Starlette can't encode)
+        pdf_content = bytes(pdf_bytes) if not isinstance(pdf_bytes, bytes) else pdf_bytes
+
         return Response(
-            content=pdf_bytes,
+            content=pdf_content,
             media_type="application/pdf",
             headers={
                 "Content-Disposition": f'attachment; filename="{filename}"',
-                "Content-Length": str(len(pdf_bytes)),
+                "Content-Length": str(len(pdf_content)),
             },
         )
 
