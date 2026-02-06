@@ -566,7 +566,7 @@ def create_app(
         nonlocal classifier, evidence_gen, embedder, medsiglip_embedder, reporter, decision_support, multi_model_inference, available_slides, slide_labels, slides_dir, embeddings_dir, slide_mean_index, slide_mean_ids, slide_mean_meta
 
         from ..config import MILConfig, EvidenceConfig, EmbeddingConfig
-        from ..mil.clam import CLAMClassifier
+        from ..mil.clam import CLAMClassifier, create_classifier
         from ..evidence.generator import EvidenceGenerator
         from ..embedding.embedder import PathFoundationEmbedder
         from ..embedding.medsiglip import MedSigLIPEmbedder, MedSigLIPConfig
@@ -610,12 +610,29 @@ def create_app(
                     f'No embeddings found in {primary_embeddings_dir} and no demo embeddings found at {demo_embeddings_dir}.'
                 )
 
-        # Load MIL classifier
-        config = MILConfig(input_dim=384, hidden_dim=256)
-        classifier = CLAMClassifier(config)
+        # Load MIL classifier (architecture from env or default to clam)
+        import os as _os
+        mil_arch = _os.environ.get("MIL_ARCHITECTURE", "clam")
+        mil_threshold_str = _os.environ.get("MIL_THRESHOLD", "")
+        mil_threshold = float(mil_threshold_str) if mil_threshold_str else None
+        threshold_cfg_path = _os.environ.get(
+            "MIL_THRESHOLD_CONFIG",
+            str(model_path.parent / "threshold_config.json"),
+        )
+        config = MILConfig(
+            input_dim=384,
+            hidden_dim=256,
+            architecture=mil_arch,
+            threshold=mil_threshold,
+            threshold_config_path=threshold_cfg_path,
+        )
+        classifier = create_classifier(config)
         if model_path.exists():
             classifier.load(model_path)
-            logger.info(f"Loaded MIL model from {model_path}")
+            logger.info(
+                "Loaded MIL model (%s) from %s  [threshold=%.4f]",
+                mil_arch, model_path, classifier.threshold,
+            )
 
         # Initialize multi-model TransMIL inference
         multi_model_inference = None

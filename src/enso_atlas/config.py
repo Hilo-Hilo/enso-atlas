@@ -41,6 +41,18 @@ class MILConfig:
     weight_decay: float = 1e-5
     epochs: int = 200
     patience: int = 20
+    # Decision threshold for binary classification.
+    # When set to None the classifier falls back to 0.5.
+    # Use scripts/optimize_threshold.py to compute the optimal value.
+    threshold: Optional[float] = None
+    # Explicit path to a model checkpoint file.  When set, the classifier's
+    # load() method will use this path.  Useful for pointing at TransMIL
+    # weights (e.g. "models/transmil_best.pt").
+    model_path: Optional[str] = None
+    # Path to a threshold_config.json produced by optimize_threshold.py.
+    # If set and threshold is None, the recommended_threshold from the
+    # config file is loaded automatically.
+    threshold_config_path: Optional[str] = None
 
 
 @dataclass

@@ -12,7 +12,7 @@ import numpy as np
 from .config import AtlasConfig
 from .wsi.processor import WSIProcessor
 from .embedding.embedder import PathFoundationEmbedder
-from .mil.clam import CLAMClassifier
+from .mil.clam import CLAMClassifier, TransMILClassifier, create_classifier
 from .evidence.generator import EvidenceGenerator
 from .reporting.medgemma import MedGemmaReporter
 
@@ -62,7 +62,7 @@ class EnsoAtlas:
         # Initialize components (lazy loading)
         self._wsi_processor: Optional[WSIProcessor] = None
         self._embedder: Optional[PathFoundationEmbedder] = None
-        self._classifier: Optional[CLAMClassifier] = None
+        self._classifier = None  # CLAMClassifier or TransMILClassifier
         self._evidence_generator: Optional[EvidenceGenerator] = None
         self._reporter: Optional[MedGemmaReporter] = None
 
@@ -97,10 +97,10 @@ class EnsoAtlas:
         return self._embedder
 
     @property
-    def classifier(self) -> CLAMClassifier:
-        """Lazy-load MIL classifier."""
+    def classifier(self):
+        """Lazy-load MIL classifier (CLAM or TransMIL based on config)."""
         if self._classifier is None:
-            self._classifier = CLAMClassifier(self.config.mil)
+            self._classifier = create_classifier(self.config.mil)
         return self._classifier
 
     @property
@@ -150,9 +150,14 @@ class EnsoAtlas:
         # Step 3: Run MIL classifier
         logger.info("Running classifier...")
         score, attention_weights = self.classifier.predict(embeddings)
-        label = "responder" if score > 0.5 else "non-responder"
-        confidence = abs(score - 0.5) * 2  # Convert to 0-1 confidence
-        logger.info(f"Prediction: {label} (score={score:.3f})")
+        threshold = self.classifier.threshold
+        label = "responder" if score >= threshold else "non-responder"
+        confidence = abs(score - threshold) / max(threshold, 1.0 - threshold)
+        confidence = min(max(confidence, 0.0), 1.0)
+        logger.info(
+            "Prediction: %s (score=%.3f, threshold=%.3f)",
+            label, score, threshold,
+        )
 
         # Step 4: Generate evidence
         logger.info("Generating evidence...")

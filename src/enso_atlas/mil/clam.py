@@ -151,11 +151,41 @@ class CLAMClassifier:
     - Instance-level pseudo-labels for refinement
     """
 
+    DEFAULT_THRESHOLD = 0.5
+
     def __init__(self, config: MILConfig):
         self.config = config
         self._model = None
         self._device = None
         self._is_trained = False
+        self._threshold = self._resolve_threshold(config)
+
+    @staticmethod
+    def _resolve_threshold(config: MILConfig) -> float:
+        """Determine decision threshold from config (explicit > file > default)."""
+        if config.threshold is not None:
+            return float(config.threshold)
+        if getattr(config, "threshold_config_path", None):
+            import json
+            try:
+                with open(config.threshold_config_path) as fh:
+                    data = json.load(fh)
+                return float(data.get("recommended_threshold", 0.5))
+            except (FileNotFoundError, json.JSONDecodeError, KeyError):
+                logger.warning(
+                    "Could not load threshold from %s, using 0.5",
+                    config.threshold_config_path,
+                )
+        return CLAMClassifier.DEFAULT_THRESHOLD
+
+    @property
+    def threshold(self) -> float:
+        """Current decision threshold."""
+        return self._threshold
+
+    @threshold.setter
+    def threshold(self, value: float) -> None:
+        self._threshold = float(value)
 
     def _build_model(self):
         """Build the CLAM model."""
@@ -458,7 +488,8 @@ class CLAMClassifier:
             embeddings: Patch embeddings of shape (n_patches, embedding_dim)
 
         Returns:
-            Tuple of (probability, attention_weights)
+            Tuple of (probability, attention_weights).  The caller can derive
+            the binary label via ``prob >= self.threshold``.
         """
         import torch
 
@@ -476,6 +507,18 @@ class CLAMClassifier:
             prob, attention = self._model(x, return_attention=True)
 
         return prob.item(), attention.cpu().numpy()
+
+    def classify(self, embeddings: np.ndarray) -> Tuple[str, float, np.ndarray]:
+        """
+        Predict and return a label string using the configured threshold.
+
+        Returns:
+            (label, probability, attention_weights) where label is
+            "RESPONDER" or "NON-RESPONDER".
+        """
+        prob, attention = self.predict(embeddings)
+        label = "RESPONDER" if prob >= self._threshold else "NON-RESPONDER"
+        return label, prob, attention
 
     def predict_batch(
         self,
@@ -569,7 +612,7 @@ class CLAMClassifier:
         is_uncertain = std_pred > UNCERTAINTY_THRESHOLD
 
         return {
-            "prediction": "RESPONDER" if mean_pred > 0.5 else "NON-RESPONDER",
+            "prediction": "RESPONDER" if mean_pred >= self._threshold else "NON-RESPONDER",
             "probability": mean_pred,
             "uncertainty": std_pred,
             "confidence_interval": [ci_lower, ci_upper],
@@ -578,6 +621,7 @@ class CLAMClassifier:
             "samples": predictions.tolist(),
             "is_uncertain": is_uncertain,
             "n_samples": n_samples,
+            "threshold": self._threshold,
         }
 
 
@@ -598,11 +642,23 @@ class TransMILClassifier:
     The underlying model is imported from ``models/transmil.py``.
     """
 
+    DEFAULT_THRESHOLD = 0.5
+
     def __init__(self, config: MILConfig):
         self.config = config
         self._model = None
         self._device = None
         self._is_trained = False
+        self._threshold = CLAMClassifier._resolve_threshold(config)
+
+    @property
+    def threshold(self) -> float:
+        """Current decision threshold."""
+        return self._threshold
+
+    @threshold.setter
+    def threshold(self, value: float) -> None:
+        self._threshold = float(value)
 
     def _setup_device(self):
         """Select the best available device."""
@@ -706,7 +762,8 @@ class TransMILClassifier:
         Returns:
             ``(probability, attention_weights)`` where *probability* is a
             float in [0, 1] and *attention_weights* is a 1-D array of
-            length ``n_patches``.
+            length ``n_patches``.  The caller can derive the binary label
+            via ``prob >= self.threshold``.
         """
         import torch
 
@@ -724,6 +781,18 @@ class TransMILClassifier:
             prob, attention = self._model(x, return_attention=True)
 
         return prob.item(), attention.cpu().numpy()
+
+    def classify(self, embeddings: np.ndarray) -> Tuple[str, float, np.ndarray]:
+        """
+        Predict and return a label string using the configured threshold.
+
+        Returns:
+            (label, probability, attention_weights) where label is
+            "RESPONDER" or "NON-RESPONDER".
+        """
+        prob, attention = self.predict(embeddings)
+        label = "RESPONDER" if prob >= self._threshold else "NON-RESPONDER"
+        return label, prob, attention
 
     def predict_batch(
         self,
@@ -789,7 +858,7 @@ class TransMILClassifier:
         UNCERTAINTY_THRESHOLD = 0.15
 
         return {
-            "prediction": "RESPONDER" if mean_pred > 0.5 else "NON-RESPONDER",
+            "prediction": "RESPONDER" if mean_pred >= self._threshold else "NON-RESPONDER",
             "probability": mean_pred,
             "uncertainty": std_pred,
             "confidence_interval": [ci_lower, ci_upper],
@@ -798,6 +867,7 @@ class TransMILClassifier:
             "samples": predictions_arr.tolist(),
             "is_uncertain": std_pred > UNCERTAINTY_THRESHOLD,
             "n_samples": n_samples,
+            "threshold": self._threshold,
         }
 
 

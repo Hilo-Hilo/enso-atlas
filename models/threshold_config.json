@@ -1,0 +1,12 @@
+{
+  "model_checkpoint": "models/transmil_best.pt",
+  "architecture": "transmil",
+  "auc_roc": 0.879,
+  "n_slides": 152,
+  "n_positive": 139,
+  "n_negative": 13,
+  "optimal_threshold_youden": null,
+  "optimal_threshold_f1": null,
+  "recommended_threshold": 0.5,
+  "note": "Placeholder -- run scripts/optimize_threshold.py on DGX Spark to compute the real optimal threshold."
+}
