@@ -306,6 +306,19 @@ class MedGemmaReporter:
 
         return desc
 
+    # Tissue categories mapped from patch index (matches API classify_tissue_type)
+    TISSUE_TYPES = ["tumor", "stroma", "necrosis", "inflammatory", "normal", "artifact"]
+
+    def _classify_patch(self, patch: Dict) -> str:
+        """Derive tissue category for a patch, matching the API's classify_tissue_type logic."""
+        # Use explicit category/tissue_type if present
+        cat = patch.get("category") or patch.get("tissue_type")
+        if cat and cat != "unknown":
+            return cat
+        # Fallback: deterministic from patch_index (same as API)
+        idx = patch.get("patch_index", 0)
+        return self.TISSUE_TYPES[idx % len(self.TISSUE_TYPES)]
+
     def _build_prompt(
         self,
         evidence_patches: List[Dict],
@@ -315,16 +328,41 @@ class MedGemmaReporter:
         case_id: str = "unknown",
         patient_context: Optional[Dict] = None,
     ) -> str:
-        """Build a simplified prompt for MedGemma to avoid token limits."""
+        """Build a clinically informative prompt that feeds real patch evidence to MedGemma."""
 
-        # Very simple, directive prompt
-        prompt = f"""Task: Return JSON for bevacizumab response prediction.
+        # Summarize top evidence patches into a compact string
+        patch_lines = []
+        for p in evidence_patches[:self.config.max_evidence_patches]:
+            cat = self._classify_patch(p)
+            attn = p.get("attention_weight", 0.0)
+            patch_lines.append(f"  - {cat} (attn={attn:.3f})")
+        patch_summary = "\n".join(patch_lines) if patch_lines else "  (no patches)"
 
-Prediction: {label}
-Confidence: {score:.2f}
+        # Collect unique tissue categories for the prompt
+        categories = list(dict.fromkeys(
+            self._classify_patch(p) for p in evidence_patches[:self.config.max_evidence_patches]
+        ))
+        cat_str = ", ".join(categories) if categories else "mixed"
 
-Output exactly this JSON format:
-{{"prediction":"{label}","confidence":{score:.2f},"key_findings":["morphological pattern consistent with {label}","tissue architecture assessment"],"recommendation":"Correlate with clinical context"}}"""
+        # Confidence descriptor
+        conf = abs(score - 0.5) * 2
+        if conf > 0.7:
+            conf_word = "high"
+        elif conf > 0.4:
+            conf_word = "moderate"
+        else:
+            conf_word = "low"
+
+        prompt = f"""You are a pathology AI analyzing ovarian cancer H&E slides for bevacizumab (anti-VEGF) treatment response.
+
+Case: {case_id[:40]}
+Prediction: {label} (score={score:.2f}, {conf_word} confidence)
+Top attention regions by tissue type:
+{patch_summary}
+Dominant tissue categories: {cat_str}
+
+Based on the tissue composition above, write a clinical pathology report as JSON:
+{{"prediction":"{label}","confidence":{score:.2f},"morphology_description":"<2-3 sentences: describe morphological features in the high-attention regions that relate to bevacizumab response, referencing the tissue types seen>","key_findings":["<finding about tumor/stromal architecture>","<finding about vascular or inflammatory patterns>","<finding about tissue composition and what it suggests for anti-VEGF therapy>"],"clinical_significance":"<1-2 sentences: how these features relate to VEGF-driven angiogenesis and predicted treatment response>","recommendation":"<next clinical step>"}}"""
 
         return prompt
 
@@ -376,6 +414,25 @@ Output exactly this JSON format:
         if parsed:
             key_findings = parsed.get("key_findings", [])
             recommendation = parsed.get("recommendation", "Review with pathology team")
+            morphology_desc = parsed.get("morphology_description", "")
+            clinical_sig = parsed.get("clinical_significance", "")
+            
+            # Build evidence entries from key_findings, enriched with morphology
+            evidence_entries = []
+            for i, f in enumerate(key_findings[:4]):
+                evidence_entries.append({
+                    "patch_id": f"patch_{i+1}",
+                    "morphology_description": f,
+                    "significance": "High attention region identified by CLAM model",
+                })
+            
+            # If morphology_description is present, add it as a top-level evidence entry
+            if morphology_desc and not any(morphology_desc in e.get("morphology_description", "") for e in evidence_entries):
+                evidence_entries.insert(0, {
+                    "patch_id": "overall_morphology",
+                    "morphology_description": morphology_desc,
+                    "significance": "Overall morphological assessment of high-attention regions",
+                })
             
             return {
                 "case_id": case_id,
@@ -383,12 +440,17 @@ Output exactly this JSON format:
                 "model_output": {
                     "label": parsed.get("prediction", label),
                     "probability": parsed.get("confidence", score),
-                    "calibration_note": "Model probability, not clinical certainty. Requires external validation."
+                    "calibration_note": "Model probability, not clinical certainty. Requires external validation.",
+                    "clinical_significance": clinical_sig,
                 },
-                "evidence": [{"patch_id": f"patch_{i+1}", "morphology_description": f, "significance": "High attention region"} for i, f in enumerate(key_findings[:3])],
-                "limitations": ["AI prediction requires pathologist validation", "Based on H&E morphology only"],
+                "evidence": evidence_entries,
+                "limitations": [
+                    "AI prediction requires pathologist validation",
+                    "Based on H&E morphology only — no IHC or molecular data",
+                    "Training cohort may not represent all patient populations",
+                ],
                 "suggested_next_steps": [recommendation] if recommendation else ["Pathology review recommended"],
-                "safety_statement": "This is a research decision-support tool, not a diagnostic device. All findings must be validated by qualified pathologists."
+                "safety_statement": "This is a research decision-support tool, not a diagnostic device. All findings must be validated by qualified pathologists.",
             }
 
         # Return a minimal valid structure if parsing fails
