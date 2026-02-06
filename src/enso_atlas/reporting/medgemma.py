@@ -338,8 +338,9 @@ class MedGemmaReporter:
             categories.append(f"{cat}({attn:.2f})")
         cat_str = ", ".join(categories) if categories else "mixed"
 
-        prompt = f"""Ovarian H&E. Prediction: {label} ({score:.2f}). Tissue: {cat_str}.
-{{"prediction":"{label}","confidence":{score:.2f},"morphology":""""
+        line1 = f'Ovarian H&E. Prediction: {label} ({score:.2f}). Tissue: {cat_str}.'
+        line2 = f'{{"prediction":"{label}","confidence":{score:.2f},"morphology":"'
+        prompt = line1 + chr(10) + line2
 
         return prompt
 
