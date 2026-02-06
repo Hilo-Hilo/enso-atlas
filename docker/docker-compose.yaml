@@ -17,6 +17,9 @@ services:
       ENSO_CONFIG: /app/config/default.yaml
       TRANSFORMERS_CACHE: /app/cache/huggingface
       HF_HOME: /app/cache/huggingface
+      # MIL model configuration
+      MIL_ARCHITECTURE: transmil
+      MIL_THRESHOLD_CONFIG: /app/models/threshold_config.json
       # Offline mode - set to 1 after models are downloaded
       TRANSFORMERS_OFFLINE: "${TRANSFORMERS_OFFLINE:-0}"
       HF_HUB_OFFLINE: "${HF_HUB_OFFLINE:-0}"
