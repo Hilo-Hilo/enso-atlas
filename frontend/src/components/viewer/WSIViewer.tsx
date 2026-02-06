@@ -2,6 +2,23 @@
 
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import OpenSeadragon from "openseadragon";
+
+// Patch Canvas2D context creation to suppress "willReadFrequently" warnings.
+// OpenSeadragon reads tile pixel data frequently via getImageData; Chrome warns
+// unless the context was created with { willReadFrequently: true }.
+if (typeof window !== "undefined") {
+  const origGetContext = HTMLCanvasElement.prototype.getContext;
+  // @ts-expect-error — overloaded signature mismatch is fine for this patch
+  HTMLCanvasElement.prototype.getContext = function (
+    type: string,
+    attrs?: Record<string, unknown>
+  ) {
+    if (type === "2d") {
+      attrs = { ...attrs, willReadFrequently: true };
+    }
+    return origGetContext.call(this, type, attrs);
+  };
+}
 import { cn } from "@/lib/utils";
 import { Toggle } from "@/components/ui/Toggle";
 import { Slider } from "@/components/ui/Slider";
