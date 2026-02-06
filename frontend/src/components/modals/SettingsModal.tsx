@@ -422,7 +422,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 </p>
 
                 {/* Progress display */}
-                {batchEmbedStatus && batchEmbedStatus.status !== "idle" && (
+                {batchEmbedStatus && (
                   <div className="mb-4 p-4 rounded-lg border bg-gray-50">
                     {/* Status header */}
                     <div className="flex items-center justify-between mb-2">
