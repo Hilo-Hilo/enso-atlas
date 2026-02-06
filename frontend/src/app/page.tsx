@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useCallback, useEffect, useRef, useMemo } from "react";
+import { useSearchParams } from "next/navigation";
 import nextDynamic from "next/dynamic";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
@@ -131,6 +132,8 @@ function SidebarToggle({
 }
 
 export default function HomePage() {
+  const searchParams = useSearchParams();
+
   // State
   const [selectedSlide, setSelectedSlide] = useState<SlideInfo | null>(null);
   const [isConnected, setIsConnected] = useState(false);
@@ -389,6 +392,28 @@ export default function HomePage() {
     };
     loadSlideList();
   }, []);
+
+  // Auto-select slide from URL query params (e.g. /?slide=TCGA-... from Slide Manager)
+  useEffect(() => {
+    const slideId = searchParams.get("slide");
+    const analyze = searchParams.get("analyze");
+    if (slideId && slideList.length > 0 && !selectedSlide) {
+      const match = slideList.find((s) => s.id === slideId);
+      if (match) {
+        setSelectedSlide(match);
+        const idx = slideList.indexOf(match);
+        if (idx >= 0) setSlideIndex(idx);
+        // If analyze=true, trigger analysis automatically
+        if (analyze === "true") {
+          // Small delay to let the slide load first
+          setTimeout(() => {
+            const runBtn = document.querySelector("[data-action='run-analysis']") as HTMLButtonElement;
+            if (runBtn) runBtn.click();
+          }, 1000);
+        }
+      }
+    }
+  }, [searchParams, slideList, selectedSlide]);
 
   // Keyboard shortcut handlers
   const handleNavigateSlides = useCallback((direction: "up" | "down") => {
