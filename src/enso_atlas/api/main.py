@@ -4990,15 +4990,25 @@ DISCLAIMER: This is a research tool. All findings must be validated by qualified
         processing_time = (time.time() - start_time) * 1000
         
         # Convert to Pydantic models
+        def _normalize_prediction_dict(p: Dict[str, Any]) -> Dict[str, Any]:
+            out = {k: v for k, v in p.items() if k != "attention"}
+            # Cap confidence to avoid misleading 99.99% displays from extreme sigmoid scores
+            if "confidence" in out and out["confidence"] is not None:
+                try:
+                    out["confidence"] = min(float(out["confidence"]), 0.99)
+                except Exception:
+                    pass
+            return out
+
         predictions = {}
         for model_id, pred in results["predictions"].items():
             if "error" not in pred:
-                predictions[model_id] = ModelPrediction(**{k: v for k, v in pred.items() if k != "attention"})
-        
+                predictions[model_id] = ModelPrediction(**_normalize_prediction_dict(pred))
+
         by_category = {
-            "ovarian_cancer": [ModelPrediction(**{k: v for k, v in p.items() if k != "attention"}) 
+            "ovarian_cancer": [ModelPrediction(**_normalize_prediction_dict(p))
                               for p in results["by_category"]["ovarian_cancer"] if "error" not in p],
-            "general_pathology": [ModelPrediction(**{k: v for k, v in p.items() if k != "attention"}) 
+            "general_pathology": [ModelPrediction(**_normalize_prediction_dict(p))
                                   for p in results["by_category"]["general_pathology"] if "error" not in p],
         }
         
@@ -5018,7 +5028,7 @@ DISCLAIMER: This is a research tool. All findings must be validated by qualified
             by_category=by_category,
             n_patches=results["n_patches"],
             processing_time_ms=processing_time,
-            warnings=results.get("warnings"),
+            warnings=results.get("warnings") or [],
         )
 
 
