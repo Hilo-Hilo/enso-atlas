@@ -350,8 +350,26 @@ class MedGemmaReporter:
             return max(1, len(prompt.split()))
         return len(self._tokenizer.encode(prompt, add_special_tokens=False))
 
-    def _parse_json_response(self, response: str, case_id: str = "unknown", score: float = 0.0, label: str = "unknown") -> Dict:
-        """Extract and parse JSON from model response, mapping simplified output to full report structure."""
+    def _parse_json_response(
+        self,
+        response: str,
+        case_id: str = "unknown",
+        score: float = 0.0,
+        label: str = "unknown",
+        evidence_patches: Optional[List[Dict]] = None,
+    ) -> Dict:
+        """Extract and parse JSON from model response, mapping simplified output to full report structure.
+
+        Evidence entries are ALWAYS built from the real evidence_patches (with attention
+        weights and coordinates computed upstream).  MedGemma output is used only to
+        enrich those entries with morphology descriptions and clinical significance.
+        If MedGemma produces nothing useful, evidence entries still contain the core
+        patch data so the caller never sees evidence=0.
+        """
+        if evidence_patches is None:
+            evidence_patches = []
+
+        # --- Extract JSON from the model response ---------------------------
         # Extract the FIRST JSON object from markdown code blocks
         # Model sometimes repeats the JSON multiple times in fences
         code_block_match = re.search(r'```(?:json)?\s*(\{[^`]*\})\s*```', response)
@@ -361,7 +379,7 @@ class MedGemmaReporter:
             # Fallback: find first JSON object directly
             json_match = re.search(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', response)
             json_str = json_match.group() if json_match else None
-        
+
         # Legacy fallback for any JSON
         if not json_str:
             cleaned = response.strip()
@@ -369,7 +387,7 @@ class MedGemmaReporter:
             cleaned = re.sub(r'\s*```$', '', cleaned)
             json_match = re.search(r'\{[\s\S]*?\}', cleaned)
             json_str = json_match.group() if json_match else None
-        
+
         parsed = None
         if json_str:
             # Try to fix truncated JSON by closing brackets
@@ -397,7 +415,7 @@ class MedGemmaReporter:
                     # Last resort: extract whatever fields we can with regex
                     logger.warning("JSON repair failed, attempting field extraction")
                     parsed = {}
-                    for field in ["prediction", "morphology_description", "clinical_significance", "recommendation"]:
+                    for field in ["prediction", "morphology", "morphology_description", "clinical_significance", "recommendation"]:
                         m = re.search(rf'"{field}"\s*:\s*"([^"]*)"', json_str)
                         if m:
                             parsed[field] = m.group(1)
@@ -412,63 +430,73 @@ class MedGemmaReporter:
                     else:
                         logger.warning("Failed to parse JSON even after repair and regex attempts")
 
-        # Map simplified response to full report structure
-        if parsed:
-            key_findings = parsed.get("key_findings", [])
-            recommendation = parsed.get("recommendation", "Review with pathology team")
-            morphology_desc = parsed.get("morphology_description", "")
-            clinical_sig = parsed.get("clinical_significance", "")
-            
-            # Build evidence entries from key_findings, enriched with morphology
-            evidence_entries = []
-            for i, f in enumerate(key_findings[:4]):
-                evidence_entries.append({
-                    "patch_id": f"patch_{i+1}",
-                    "morphology_description": f,
-                    "significance": "High attention region identified by CLAM model",
-                })
-            
-            # If morphology_description is present, add it as a top-level evidence entry
-            if morphology_desc and not any(morphology_desc in e.get("morphology_description", "") for e in evidence_entries):
-                evidence_entries.insert(0, {
-                    "patch_id": "overall_morphology",
-                    "morphology_description": morphology_desc,
-                    "significance": "Overall morphological assessment of high-attention regions",
-                })
-            
-            return {
-                "case_id": case_id,
-                "task": "Bevacizumab treatment response prediction from H&E histopathology",
-                "model_output": {
-                    "label": parsed.get("prediction", label),
-                    "probability": parsed.get("confidence", score),
-                    "calibration_note": "Model probability, not clinical certainty. Requires external validation.",
-                    "clinical_significance": clinical_sig,
-                },
-                "evidence": evidence_entries,
-                "limitations": [
-                    "AI prediction requires pathologist validation",
-                    "Based on H&E morphology only — no IHC or molecular data",
-                    "Training cohort may not represent all patient populations",
-                ],
-                "suggested_next_steps": [recommendation] if recommendation else ["Pathology review recommended"],
-                "safety_statement": "This is a research decision-support tool, not a diagnostic device. All findings must be validated by qualified pathologists.",
-            }
+        if parsed is None:
+            parsed = {}
 
-        # Return a minimal valid structure if parsing fails
+        # --- Extract MedGemma enrichment fields ------------------------------
+        key_findings = parsed.get("key_findings", [])
+        recommendation = parsed.get("recommendation", "Review with pathology team")
+        # Accept both "morphology" (prompt schema) and "morphology_description"
+        morphology_desc = parsed.get("morphology_description", "") or parsed.get("morphology", "")
+        clinical_sig = parsed.get("clinical_significance", "")
+
+        # --- Build evidence from REAL patches, enriched by MedGemma ----------
+        evidence_entries = []
+        for i, patch in enumerate(evidence_patches):
+            rank = patch.get("rank", i + 1)
+            patch_index = patch.get("patch_index", i)
+            attn_weight = patch.get("attention_weight", 0.0)
+            coords = patch.get("coordinates", [])
+            tissue = self._classify_patch(patch)
+
+            # Pick a morphology description for this patch:
+            # 1. If key_findings has a matching entry, use it
+            # 2. Otherwise fall back to the overall morphology_desc
+            # 3. Last resort: a basic description derived from tissue type
+            if i < len(key_findings) and key_findings[i]:
+                patch_morphology = key_findings[i]
+            elif morphology_desc:
+                patch_morphology = morphology_desc
+            else:
+                patch_morphology = f"{tissue.capitalize()} tissue region (attention weight {attn_weight:.3f})"
+
+            coord_str = f"({coords[0]}, {coords[1]})" if len(coords) >= 2 else "unknown"
+
+            evidence_entries.append({
+                "patch_id": f"patch_{rank}_idx{patch_index}",
+                "morphology_description": patch_morphology,
+                "significance": (
+                    f"Rank {rank} attention region (weight={attn_weight:.4f}) "
+                    f"at coordinates {coord_str}, tissue={tissue}"
+                ),
+            })
+
+        # If there are extra key_findings beyond the patch count, append them
+        # as supplementary observations so no MedGemma insight is lost.
+        for j in range(len(evidence_patches), len(key_findings)):
+            evidence_entries.append({
+                "patch_id": f"finding_{j + 1}",
+                "morphology_description": key_findings[j],
+                "significance": "Additional morphological finding reported by MedGemma",
+            })
+
         return {
             "case_id": case_id,
             "task": "Bevacizumab treatment response prediction from H&E histopathology",
             "model_output": {
-                "label": label,
-                "probability": score,
-                "calibration_note": "Report generation encountered an error"
+                "label": parsed.get("prediction", label),
+                "probability": parsed.get("confidence", score),
+                "calibration_note": "Model probability, not clinical certainty. Requires external validation.",
+                "clinical_significance": clinical_sig,
             },
-            "evidence": [],
-            "limitations": ["Report generation failed - manual review required"],
-            "suggested_next_steps": ["Manual pathology review"],
-            "safety_statement": "This report could not be generated properly. Do not use for any clinical purpose.",
-            "raw_response": response
+            "evidence": evidence_entries,
+            "limitations": [
+                "AI prediction requires pathologist validation",
+                "Based on H&E morphology only -- no IHC or molecular data",
+                "Training cohort may not represent all patient populations",
+            ],
+            "suggested_next_steps": [recommendation] if recommendation else ["Pathology review recommended"],
+            "safety_statement": "This is a research decision-support tool, not a diagnostic device. All findings must be validated by qualified pathologists.",
         }
 
     def _validate_report(self, report: Dict) -> bool:
@@ -730,7 +758,13 @@ class MedGemmaReporter:
                 # The prompt ends mid-JSON, so prepend the JSON start to the response
                 prompt_json_prefix = f'{{"prediction":"{label}","confidence":{score:.2f},"morphology":"'
                 full_json_attempt = prompt_json_prefix + response
-                report = self._parse_json_response(full_json_attempt, case_id=case_id, score=score, label=label)
+                report = self._parse_json_response(
+                    full_json_attempt,
+                    case_id=case_id,
+                    score=score,
+                    label=label,
+                    evidence_patches=evidence_patches[:evidence_limit],
+                )
 
                 # Validate
                 logger.info("MedGemma validating report")
