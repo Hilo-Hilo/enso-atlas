@@ -803,7 +803,13 @@ class AgentWorkflow:
                         "significance": "High attention region",
                     })
 
-                state.report = self.medgemma_reporter.generate_report(
+                # Run MedGemma inference in a thread to avoid blocking the
+                # async event loop (CPU inference takes ~120-180s).
+                import asyncio
+                import functools
+
+                _gen = functools.partial(
+                    self.medgemma_reporter.generate_report,
                     evidence_patches=evidence_patches,
                     score=score,
                     label=label,
@@ -811,6 +817,7 @@ class AgentWorkflow:
                     case_id=state.context.slide_id,
                     patient_context=None,
                 )
+                state.report = await asyncio.to_thread(_gen)
                 status = StepStatus.COMPLETE
                 message = "Generated structured clinical report via MedGemma"
                 reasoning = "Generated a structured report grounded in model outputs and high-attention evidence regions."
