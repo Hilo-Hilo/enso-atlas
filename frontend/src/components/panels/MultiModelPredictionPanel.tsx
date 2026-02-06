@@ -30,6 +30,7 @@ import {
   Zap,
 } from "lucide-react";
 import type { ModelPrediction, MultiModelResponse, AvailableModel } from "@/types";
+import { useProject } from "@/contexts/ProjectContext";
 
 // Skeleton Loading Component for Multi-Model Panel
 function ModelCardSkeleton() {
@@ -507,6 +508,10 @@ export function MultiModelPredictionPanel({
     );
   }
 
+  // Project context for dynamic labels
+  const { currentProject } = useProject();
+  const cancerTypeLabel = currentProject.cancer_type || "Cancer";
+
   // Empty state - no results yet (enhanced)
   if (!multiModelResult) {
     return (
@@ -534,7 +539,7 @@ export function MultiModelPredictionPanel({
               Multi-Model Ensemble Ready
             </p>
             <p className="text-xs text-gray-500 max-w-[280px] mx-auto leading-relaxed">
-              Run analysis to get predictions from 5 specialized TransMIL models trained on TCGA ovarian cancer data.
+              Run analysis to get predictions from 5 specialized TransMIL models trained on TCGA {cancerTypeLabel.toLowerCase()} data.
             </p>
           </div>
 
@@ -544,11 +549,11 @@ export function MultiModelPredictionPanel({
               Available Models Preview
             </p>
             <PlaceholderModelCard
-              modelName="Bevacizumab Response"
+              modelName={currentProject.prediction_target || "Treatment Response"}
               description="Treatment response prediction"
             />
             <PlaceholderModelCard
-              modelName="Platinum Sensitivity"
+              modelName="Chemosensitivity"
               description="Chemotherapy sensitivity"
             />
             <PlaceholderModelCard
@@ -616,9 +621,9 @@ export function MultiModelPredictionPanel({
           <span>Analyzed {nPatches} tissue patches</span>
         </div>
 
-        {/* Ovarian Cancer Specific Models */}
+        {/* Cancer-Specific Models */}
         <CategorySection
-          title="Ovarian Cancer Specific"
+          title={`${cancerTypeLabel} Specific`}
           icon={<HeartPulse className="h-4 w-4 text-pink-600" />}
           predictions={byCategory.ovarianCancer}
           expandedModels={expandedModels}
@@ -639,7 +644,7 @@ export function MultiModelPredictionPanel({
           <div className="flex items-start gap-2">
             <Info className="h-4 w-4 text-gray-400 mt-0.5 shrink-0" />
             <p className="text-xs text-gray-500 leading-relaxed">
-              These predictions are from research models trained on TCGA ovarian cancer data.
+              These predictions are from research models trained on TCGA {cancerTypeLabel.toLowerCase()} data.
               Model reliability varies by AUC score. Clinical decisions should integrate
               multiple factors including patient history, other biomarkers, and clinician expertise.
             </p>

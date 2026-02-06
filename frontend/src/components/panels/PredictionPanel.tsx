@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import type { PredictionResult, SlideQCMetrics, UncertaintyResult } from "@/types";
 import { ANALYSIS_STEPS } from "@/hooks/useAnalysis";
+import { useProject } from "@/contexts/ProjectContext";
 
 interface PredictionPanelProps {
   prediction: PredictionResult | null;
@@ -151,6 +152,11 @@ export function PredictionPanel({
       </Card>
     );
   }
+
+  // Project-aware labels
+  const { currentProject } = useProject();
+  const positiveLabel = currentProject.positive_class || currentProject.classes?.[1] || "Responder";
+  const negativeLabel = currentProject.classes?.find(c => c !== currentProject.positive_class) || currentProject.classes?.[0] || "Non-Responder";
 
   // Determine responder status
   const isResponder = prediction.score >= 0.5;
@@ -295,9 +301,9 @@ export function PredictionPanel({
 
           {/* Scale Labels */}
           <div className="flex justify-between text-xs">
-            <span className="text-red-600 font-medium">Non-Responder</span>
+            <span className="text-red-600 font-medium">{negativeLabel}</span>
             <span className="text-gray-400">50% threshold</span>
-            <span className="text-green-600 font-medium">Responder</span>
+            <span className="text-green-600 font-medium">{positiveLabel}</span>
           </div>
         </div>
 

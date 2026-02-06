@@ -1,0 +1,21 @@
+projects:
+  ovarian-platinum:
+    name: "Ovarian Cancer - Platinum Sensitivity"
+    cancer_type: ovarian
+    prediction_target: platinum_sensitivity
+    classes: ["resistant", "sensitive"]
+    positive_class: sensitive
+    description: "Predicts platinum-based chemotherapy sensitivity in high-grade serous ovarian carcinoma"
+    dataset:
+      slides_dir: data/tcga_full/slides
+      embeddings_dir: data/embeddings/level0
+      labels_file: data/labels.csv
+      label_column: platinum_sensitivity
+    models:
+      embedder: path-foundation
+      mil_architecture: transmil
+      mil_checkpoint: models/transmil_best.pt
+      report_generator: medgemma-4b
+      semantic_search: medsiglip
+    threshold: 0.9229
+    threshold_config: models/threshold_config.json

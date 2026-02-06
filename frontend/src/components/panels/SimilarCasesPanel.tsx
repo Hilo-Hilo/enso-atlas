@@ -23,6 +23,7 @@ import {
   HelpCircle,
 } from "lucide-react";
 import type { SimilarCase } from "@/types";
+import { useProject } from "@/contexts/ProjectContext";
 
 // Helper to classify case outcome
 function classifyOutcome(label?: string): "responder" | "non-responder" | "unknown" {
@@ -62,6 +63,11 @@ export function SimilarCasesPanel({
   const [expandedCase, setExpandedCase] = useState<string | null>(null);
   const [showAll, setShowAll] = useState(false);
   const [viewMode, setViewMode] = useState<"grouped" | "list">("grouped");
+
+  // Project-aware labels
+  const { currentProject } = useProject();
+  const positiveLabel = currentProject.positive_class || currentProject.classes?.[1] || "Responder";
+  const negativeLabel = currentProject.classes?.find(c => c !== currentProject.positive_class) || currentProject.classes?.[0] || "Non-Responder";
 
   // Group cases by outcome
   const groupedCases = useMemo<GroupedCases>(() => {
@@ -223,7 +229,7 @@ export function SimilarCasesPanel({
                 <div className="flex items-center gap-1">
                   <div className="w-2 h-2 rounded-full bg-status-positive" />
                   <span className="text-gray-600">
-                    {outcomeSummary.responders} Responder
+                    {outcomeSummary.responders} {positiveLabel}
                     {outcomeSummary.responders !== 1 ? "s" : ""}
                   </span>
                 </div>
@@ -232,7 +238,7 @@ export function SimilarCasesPanel({
                 <div className="flex items-center gap-1">
                   <div className="w-2 h-2 rounded-full bg-status-negative" />
                   <span className="text-gray-600">
-                    {outcomeSummary.nonResponders} Non-Responder
+                    {outcomeSummary.nonResponders} {negativeLabel}
                     {outcomeSummary.nonResponders !== 1 ? "s" : ""}
                   </span>
                 </div>
@@ -273,13 +279,13 @@ export function SimilarCasesPanel({
         {/* Grouped View - Cases by Outcome */}
         {viewMode === "grouped" ? (
           <div className="space-y-4">
-            {/* Similar Responders */}
+            {/* Similar Positive Class */}
             {groupedCases.responders.length > 0 && (
               <div className="space-y-2">
                 <div className="flex items-center gap-2 pb-1 border-b border-green-200">
                   <CheckCircle className="h-4 w-4 text-green-600" />
                   <span className="text-sm font-semibold text-green-800">
-                    Similar Responders (N={groupedCases.responders.length})
+                    Similar {positiveLabel}s (N={groupedCases.responders.length})
                   </span>
                 </div>
                 <div className="space-y-2 pl-1">
@@ -302,13 +308,13 @@ export function SimilarCasesPanel({
               </div>
             )}
 
-            {/* Similar Non-Responders */}
+            {/* Similar Negative Class */}
             {groupedCases.nonResponders.length > 0 && (
               <div className="space-y-2">
                 <div className="flex items-center gap-2 pb-1 border-b border-red-200">
                   <XCircle className="h-4 w-4 text-red-600" />
                   <span className="text-sm font-semibold text-red-800">
-                    Similar Non-Responders (N={groupedCases.nonResponders.length})
+                    Similar {negativeLabel}s (N={groupedCases.nonResponders.length})
                   </span>
                 </div>
                 <div className="space-y-2 pl-1">
@@ -365,7 +371,7 @@ export function SimilarCasesPanel({
               <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
                 <p className="text-xs text-blue-800 leading-relaxed">
                   <strong>Comparison note:</strong> This case shares morphological features with both 
-                  responder and non-responder cases. Key differentiating features may include tumor 
+                  {positiveLabel.toLowerCase()} and {negativeLabel.toLowerCase()} cases. Key differentiating features may include tumor 
                   cellularity, stromal patterns, and inflammatory infiltrate distribution.
                 </p>
               </div>

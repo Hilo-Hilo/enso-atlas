@@ -27,6 +27,8 @@ import {
   Menu,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useProject } from "@/contexts/ProjectContext";
+import type { Project } from "@/types";
 
 export type UserViewMode = "oncologist" | "pathologist" | "batch";
 
@@ -151,6 +153,82 @@ function MobileViewModeSelector({
   );
 }
 
+// Project Switcher Dropdown Component
+function ProjectSwitcher() {
+  const { projects, currentProject, switchProject } = useProject();
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = React.useRef<HTMLDivElement>(null);
+
+  // Close on click outside
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    if (isOpen) document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [isOpen]);
+
+  if (projects.length <= 1) {
+    // Single project — show label only, no dropdown
+    return (
+      <div className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-navy-800/50 rounded-lg border border-navy-700/30">
+        <Layers className="h-4 w-4 text-clinical-400" />
+        <span className="text-sm text-gray-300 font-medium truncate max-w-[160px]">
+          {currentProject.cancer_type}
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <div ref={dropdownRef} className="relative hidden md:block">
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="flex items-center gap-2 px-3 py-1.5 bg-navy-800/50 hover:bg-navy-700/50 rounded-lg border border-navy-700/30 transition-colors"
+      >
+        <Layers className="h-4 w-4 text-clinical-400" />
+        <span className="text-sm text-gray-300 font-medium truncate max-w-[160px]">
+          {currentProject.name}
+        </span>
+        <ChevronDown className={cn("h-3.5 w-3.5 text-gray-400 transition-transform", isOpen && "rotate-180")} />
+      </button>
+
+      {isOpen && (
+        <div className="absolute top-full left-0 mt-1 w-80 bg-navy-900 border border-navy-700/50 rounded-lg shadow-xl z-50 overflow-hidden">
+          <div className="px-3 py-2 border-b border-navy-700/50">
+            <span className="text-xs text-gray-500 font-medium uppercase tracking-wide">Switch Project</span>
+          </div>
+          <div className="max-h-64 overflow-y-auto py-1">
+            {projects.map((project) => (
+              <button
+                key={project.id}
+                onClick={() => { switchProject(project.id); setIsOpen(false); }}
+                className={cn(
+                  "w-full text-left px-3 py-2.5 hover:bg-navy-800/80 transition-colors",
+                  project.id === currentProject.id && "bg-navy-800/60 border-l-2 border-clinical-400"
+                )}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-gray-200">{project.name}</span>
+                  {project.id === currentProject.id && (
+                    <span className="w-2 h-2 rounded-full bg-clinical-400" />
+                  )}
+                </div>
+                <span className="text-xs text-gray-500">{project.cancer_type} · {project.prediction_target}</span>
+                {project.description && (
+                  <p className="text-xs text-gray-600 mt-0.5 line-clamp-2">{project.description}</p>
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function Header({
   isConnected = false,
   isProcessing = false,
@@ -248,6 +326,9 @@ export function Header({
             <Building2 className="h-4 w-4 text-clinical-400" />
             <span className="text-sm text-gray-300 font-medium truncate max-w-[120px] lg:max-w-none">{institutionName}</span>
           </div>
+
+          {/* Project Switcher */}
+          <ProjectSwitcher />
 
           {/* Slide Manager Link - Desktop */}
           <Link

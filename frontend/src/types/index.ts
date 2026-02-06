@@ -1,6 +1,25 @@
 // Enso Atlas - Type Definitions
 // Professional pathology evidence engine types
 
+// Project configuration from backend
+export interface Project {
+  id: string;
+  name: string;
+  cancer_type: string;
+  prediction_target: string;
+  classes: string[];  // e.g. ["resistant", "sensitive"]
+  positive_class: string;
+  description: string;
+  models: {
+    embedder: string;
+    mil_architecture: string;
+    report_generator: string;
+    semantic_search: string;
+  };
+  slide_count?: number;
+  patient_count?: number;
+}
+
 // Patient demographic and clinical context
 export interface PatientContext {
   age?: number;

@@ -23,6 +23,8 @@ from .embedding_tasks import task_manager, TaskStatus, EmbeddingTask
 from .report_tasks import report_task_manager, ReportTaskStatus, ReportTask
 from .batch_tasks import batch_task_manager, BatchTaskStatus, BatchTask, BatchSlideResult
 from . import database as db
+from .projects import ProjectRegistry
+from .project_routes import router as project_router, set_registry as set_project_registry
 from collections import deque
 
 import numpy as np
@@ -868,6 +870,24 @@ def create_app(
         except Exception as e:
             logger.warning(f"PostgreSQL not available, falling back to flat-file mode: {e}")
             db_available = False
+
+        # Load project registry from YAML config
+        try:
+            _projects_yaml = Path("config/projects.yaml")
+            if _projects_yaml.exists():
+                _project_registry = ProjectRegistry(_projects_yaml)
+                set_project_registry(_project_registry)
+                logger.info(f"Project registry loaded: {list(_project_registry.list_projects().keys())}")
+                # Sync projects to database
+                if db_available:
+                    try:
+                        await db.populate_projects_from_registry(_project_registry)
+                    except Exception as e:
+                        logger.warning(f"Failed to sync projects to database: {e}")
+            else:
+                logger.warning("config/projects.yaml not found, project system disabled")
+        except Exception as e:
+            logger.warning(f"Failed to load project registry: {e}")
 
         # Initialize agent workflow now that models and indexes are ready
         if AGENT_AVAILABLE:
@@ -5397,7 +5417,8 @@ DISCLAIMER: This is a research tool. All findings must be validated by qualified
     metadata_router = create_metadata_router(metadata_manager, get_available_slide_ids)
     app.include_router(metadata_router)
 
-
+    # Project system routes (config-driven multi-cancer support)
+    app.include_router(project_router)
 
     # Agent workflow routes (workflow instance is initialized during startup, after models are loaded)
     if AGENT_AVAILABLE:

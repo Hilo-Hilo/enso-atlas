@@ -120,6 +120,17 @@ CREATE TABLE IF NOT EXISTS embedding_tasks (
 CREATE INDEX IF NOT EXISTS idx_embedding_tasks_slide ON embedding_tasks(slide_id);
 CREATE INDEX IF NOT EXISTS idx_embedding_tasks_status ON embedding_tasks(status);
 
+-- Projects table (config-driven multi-cancer support)
+CREATE TABLE IF NOT EXISTS projects (
+    id              TEXT PRIMARY KEY,
+    name            TEXT NOT NULL,
+    cancer_type     TEXT,
+    prediction_target TEXT,
+    config_json     JSONB,
+    created_at      TIMESTAMPTZ DEFAULT now(),
+    updated_at      TIMESTAMPTZ DEFAULT now()
+);
+
 -- Track schema version for future migrations
 CREATE TABLE IF NOT EXISTS schema_version (
     version    INTEGER PRIMARY KEY,
@@ -175,6 +186,59 @@ async def init_schema():
     async with pool.acquire() as conn:
         await conn.execute(SCHEMA_SQL)
     logger.info("Database schema initialized")
+    # Run migrations for new columns
+    await _migrate_project_columns()
+
+
+async def _migrate_project_columns():
+    """Add project_id column to slides table if not present (v2 migration)."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        col_exists = await conn.fetchval(
+            """
+            SELECT COUNT(*) FROM information_schema.columns
+            WHERE table_name = 'slides' AND column_name = 'project_id'
+            """
+        )
+        if not col_exists:
+            await conn.execute(
+                "ALTER TABLE slides ADD COLUMN project_id TEXT DEFAULT 'ovarian-platinum'"
+            )
+            await conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_slides_project ON slides(project_id)"
+            )
+            logger.info("Added project_id column to slides table")
+        # Mark migration
+        await conn.execute(
+            "INSERT INTO schema_version (version) VALUES (2) ON CONFLICT DO NOTHING"
+        )
+
+
+async def populate_projects_from_registry(registry) -> None:
+    """
+    Populate the projects table from a ProjectRegistry instance.
+
+    Called during startup to sync YAML config → database.
+    """
+    pool = await get_pool()
+    import json as _json
+    async with pool.acquire() as conn:
+        for pid, proj in registry.list_projects().items():
+            config_json = _json.dumps(proj.to_dict())
+            await conn.execute(
+                """
+                INSERT INTO projects (id, name, cancer_type, prediction_target, config_json)
+                VALUES ($1, $2, $3, $4, $5::jsonb)
+                ON CONFLICT (id) DO UPDATE SET
+                    name = EXCLUDED.name,
+                    cancer_type = EXCLUDED.cancer_type,
+                    prediction_target = EXCLUDED.prediction_target,
+                    config_json = EXCLUDED.config_json,
+                    updated_at = now()
+                """,
+                pid, proj.name, proj.cancer_type, proj.prediction_target, config_json,
+            )
+    logger.info(f"Synced {len(registry.list_projects())} project(s) to database")
 
 
 # ---------------------------------------------------------------------------
