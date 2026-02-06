@@ -708,10 +708,11 @@ def create_app(
         logger.info("Clinical decision support engine initialized")
 
         # Setup MedSigLIP embedder for semantic search
-        # Force CPU to keep GPU VRAM free for MedGemma (the bottleneck model).
+        # Share GPU with MedGemma — SigLIP is ~800MB fp16, fits alongside MedGemma 4B.
+        # GPU makes semantic search 10-50x faster (seconds vs minutes for 6000+ patches).
         siglip_config = MedSigLIPConfig(
             cache_dir=str(embeddings_dir / "medsiglip_cache"),
-            device="cpu",
+            device="auto",
         )
         medsiglip_embedder = MedSigLIPEmbedder(siglip_config)
         # Load MedSigLIP model on startup to enable semantic search immediately
