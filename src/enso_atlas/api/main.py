@@ -2039,9 +2039,9 @@ def create_app(
             try:
                 timeout_s = getattr(reporter.config, "max_generation_time_s", None)
                 if timeout_s is None:
-                    timeout_s = 90.0
-                # Cap at 90s — MedGemma either finishes or hangs on Blackwell GPUs
-                timeout_s = min(90.0, max(10.0, float(timeout_s) + 10.0))
+                    timeout_s = 120.0
+                # Allow generous timeout for CPU inference (120s gen + 60s buffer)
+                timeout_s = max(10.0, float(timeout_s) + 60.0)
 
                 report = await asyncio.wait_for(
                     asyncio.to_thread(
