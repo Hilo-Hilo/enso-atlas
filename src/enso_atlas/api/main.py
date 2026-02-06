@@ -987,11 +987,16 @@ def create_app(
                     logger.warning(f"Could not read slide {slide_id}: {e}")
             
             # Check if level 0 embeddings exist
-            level0_dir = embeddings_dir / "level0"
+            # embeddings_dir may already BE the level0 dir (auto-detected at startup)
             has_level0 = False
-            if level0_dir.exists():
-                level0_emb_path = level0_dir / f"{slide_id}.npy"
-                has_level0 = level0_emb_path.exists()
+            # Check if current embeddings_dir is level0 (path ends with /level0)
+            if embeddings_dir.name == "level0":
+                emb_check = embeddings_dir / f"{slide_id}.npy"
+                has_level0 = emb_check.exists()
+            else:
+                level0_dir = embeddings_dir / "level0"
+                if level0_dir.exists():
+                    has_level0 = (level0_dir / f"{slide_id}.npy").exists()
             
             slides.append(SlideInfo(
                 slide_id=slide_id,
