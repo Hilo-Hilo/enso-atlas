@@ -28,11 +28,15 @@ import { PatchZoomModal, KeyboardShortcutsModal } from "@/components/modals";
 import { useAnalysis } from "@/hooks/useAnalysis";
 import { useKeyboardShortcuts, type KeyboardShortcut } from "@/hooks/useKeyboardShortcuts";
 import { getDziUrl, getHeatmapUrl, healthCheck, semanticSearch, getSlideQC, getAnnotations, saveAnnotation, deleteAnnotation, getSlides, analyzeSlideMultiModel, embedSlideWithPolling, visualSearch, getSlideCachedResults } from "@/lib/api";
+import { Panel, Group as PanelGroup, Separator as PanelResizeHandle } from "react-resizable-panels";
+import type { PanelImperativeHandle } from "react-resizable-panels";
 import { generatePdfReport, downloadPdf } from "@/lib/pdfExport";
 import type { SlideInfo, PatchCoordinates, SemanticSearchResult, EvidencePatch, SlideQCMetrics, Annotation, MultiModelResponse, VisualSearchResponse, SimilarCase, StructuredReport } from "@/types";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/ui";
 import { ChevronLeft, ChevronRight, Layers, BarChart3, X } from "lucide-react";
+
+// ResizableLayout removed - using react-resizable-panels directly
 
 // Dynamically import WSIViewer to prevent SSR issues with OpenSeadragon
 const WSIViewer = nextDynamic(
@@ -174,6 +178,8 @@ function HomePage() {
   // Desktop sidebar collapse state
   const [leftSidebarOpen, setLeftSidebarOpen] = useState(true);
   const [rightSidebarOpen, setRightSidebarOpen] = useState(true);
+  const leftPanelRef = useRef<PanelImperativeHandle>(null);
+  const rightPanelRef = useRef<PanelImperativeHandle>(null);
 
   // Check if this is a first visit (show welcome modal)
   useEffect(() => {
@@ -1652,13 +1658,31 @@ function HomePage() {
           {renderLeftSidebarContent()}
         </aside>
 
-        {/* Left Sidebar - Desktop */}
+        {/* Desktop Resizable Layout */}
+        <PanelGroup
+          orientation="horizontal"
+          id="enso-atlas-layout"
+          className="hidden lg:flex flex-1"
+        >
+        {/* Left Sidebar - Desktop (Resizable) */}
+        <Panel
+          panelRef={leftPanelRef}
+          defaultSize={18}
+          minSize={5}
+          maxSize={35}
+          collapsible
+          collapsedSize={0}
+          onResize={(size) => {
+            if (size.asPercentage === 0 && leftSidebarOpen) setLeftSidebarOpen(false);
+            if (size.asPercentage > 0 && !leftSidebarOpen) setLeftSidebarOpen(true);
+          }}
+        >
         <aside
           ref={slideSelectorRef as React.RefObject<HTMLElement>}
           tabIndex={-1}
           className={cn(
-            "hidden lg:block bg-white border-r border-surface-border shrink-0 space-y-4 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-clinical-500 relative transition-all duration-300",
-            leftSidebarOpen ? "w-72 xl:w-80 p-4 overflow-y-auto" : "w-0 p-0 overflow-visible"
+            "h-full bg-white border-r border-surface-border space-y-4 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-clinical-500 relative",
+            leftSidebarOpen ? "p-4 overflow-y-auto" : "overflow-hidden"
           )}
           data-demo="slide-selector"
         >
@@ -1666,21 +1690,26 @@ function HomePage() {
           <SidebarToggle
             side="left"
             isOpen={leftSidebarOpen}
-            onClick={() => setLeftSidebarOpen(!leftSidebarOpen)}
+            onClick={() => {
+              if (leftSidebarOpen) {
+                leftPanelRef.current?.collapse();
+              } else {
+                leftPanelRef.current?.expand();
+              }
+            }}
           />
         </aside>
+        </Panel>
+        <PanelResizeHandle className="w-1.5 bg-gray-100 hover:bg-clinical-200 active:bg-clinical-300 transition-colors cursor-col-resize flex items-center justify-center group">
+          <div className="w-0.5 h-8 bg-gray-300 group-hover:bg-clinical-400 rounded-full transition-colors" />
+        </PanelResizeHandle>
 
         {/* Center - WSI Viewer or Oncologist Summary */}
+        <Panel defaultSize={54} minSize={30}>
         <section
           ref={viewerRef as React.RefObject<HTMLElement>}
           tabIndex={-1}
-          className={cn(
-            "flex-1 flex flex-col overflow-hidden focus:outline-none focus:ring-2 focus:ring-inset focus:ring-clinical-500",
-            // On mobile, hide when viewing panels
-            "hidden lg:flex",
-            // Show on mobile when we have a slide selected OR when there are no panels to show
-            (selectedSlide || (!hasResults && mobilePanelTab === "results")) && "flex"
-          )}
+          className="h-full flex flex-col overflow-hidden focus:outline-none focus:ring-2 focus:ring-inset focus:ring-clinical-500"
         >
           {/* View Mode Toggle - Only show in oncologist mode */}
           {userViewMode === "oncologist" && selectedSlide && analysisResult && (
@@ -1784,40 +1813,28 @@ function HomePage() {
             )}
           </div>
         </section>
+        </Panel>
+        <PanelResizeHandle className="w-1.5 bg-gray-100 hover:bg-clinical-200 active:bg-clinical-300 transition-colors cursor-col-resize flex items-center justify-center group">
+          <div className="w-0.5 h-8 bg-gray-300 group-hover:bg-clinical-400 rounded-full transition-colors" />
+        </PanelResizeHandle>
 
-        {/* Right Sidebar - Results (Oncologist) or Pathologist View */}
-        {/* Mobile Version */}
-        <aside
-          className={cn(
-            "lg:hidden bg-white overflow-y-auto space-y-4",
-            mobilePanelTab === "results" ? "flex-1 p-3 sm:p-4" : "hidden"
-          )}
+        {/* Right Sidebar - Desktop (Resizable) */}
+        <Panel
+          panelRef={rightPanelRef}
+          defaultSize={28}
+          minSize={5}
+          maxSize={45}
+          collapsible
+          collapsedSize={0}
+          onResize={(size) => {
+            if (size.asPercentage === 0 && rightSidebarOpen) setRightSidebarOpen(false);
+            if (size.asPercentage > 0 && !rightSidebarOpen) setRightSidebarOpen(true);
+          }}
         >
-          {userViewMode === "pathologist" && selectedSlide && analysisResult ? (
-            <PathologistView
-              analysisResult={analysisResult}
-              annotations={annotations}
-              onAddAnnotation={handleAddAnnotation}
-              onDeleteAnnotation={handleDeleteAnnotation}
-              onPatchClick={(patchId) => setSelectedPatchId(patchId)}
-              onSwitchToOncologistView={() => setUserViewMode("oncologist")}
-              selectedPatchId={selectedPatchId}
-              slideId={selectedSlide.id}
-            />
-          ) : (
-            renderRightSidebarContent()
-          )}
-        </aside>
-
-        {/* Desktop Version */}
         <aside
           className={cn(
-            "hidden lg:block border-l border-surface-border bg-white p-4 overflow-y-auto shrink-0 space-y-4 relative transition-all duration-300",
-            rightSidebarOpen
-              ? userViewMode === "pathologist"
-                ? "w-96 xl:w-[420px]"
-                : "w-80 xl:w-96"
-              : "w-0 p-0 overflow-hidden"
+            "h-full bg-white p-4 overflow-y-auto space-y-4 relative",
+            !rightSidebarOpen && "overflow-hidden"
           )}
         >
           {rightSidebarOpen && (
@@ -1841,8 +1858,39 @@ function HomePage() {
           <SidebarToggle
             side="right"
             isOpen={rightSidebarOpen}
-            onClick={() => setRightSidebarOpen(!rightSidebarOpen)}
+            onClick={() => {
+              if (rightSidebarOpen) {
+                rightPanelRef.current?.collapse();
+              } else {
+                rightPanelRef.current?.expand();
+              }
+            }}
           />
+        </aside>
+        </Panel>
+        </PanelGroup>
+
+        {/* Right Sidebar - Mobile Version */}
+        <aside
+          className={cn(
+            "lg:hidden bg-white overflow-y-auto space-y-4",
+            mobilePanelTab === "results" ? "flex-1 p-3 sm:p-4" : "hidden"
+          )}
+        >
+          {userViewMode === "pathologist" && selectedSlide && analysisResult ? (
+            <PathologistView
+              analysisResult={analysisResult}
+              annotations={annotations}
+              onAddAnnotation={handleAddAnnotation}
+              onDeleteAnnotation={handleDeleteAnnotation}
+              onPatchClick={(patchId) => setSelectedPatchId(patchId)}
+              onSwitchToOncologistView={() => setUserViewMode("oncologist")}
+              selectedPatchId={selectedPatchId}
+              slideId={selectedSlide.id}
+            />
+          ) : (
+            renderRightSidebarContent()
+          )}
         </aside>
         </>
         )}
