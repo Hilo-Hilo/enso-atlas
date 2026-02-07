@@ -40,6 +40,10 @@ interface PredictionPanelProps {
   uncertaintyResult?: UncertaintyResult | null;
   isAnalyzingUncertainty?: boolean;
   onRunUncertaintyAnalysis?: () => void;
+  // Cache indicators
+  isCached?: boolean;
+  cachedAt?: string | null;
+  onReanalyze?: () => void;
 }
 
 export function PredictionPanel({
@@ -53,6 +57,9 @@ export function PredictionPanel({
   uncertaintyResult,
   isAnalyzingUncertainty,
   onRunUncertaintyAnalysis,
+  isCached,
+  cachedAt,
+  onReanalyze,
 }: PredictionPanelProps) {
   // Project-aware labels (must be before any returns per Rules of Hooks)
   const { currentProject } = useProject();
@@ -183,15 +190,45 @@ export function PredictionPanel({
           <CardTitle className="flex items-center gap-2">
             <Activity className="h-4 w-4 text-clinical-600" />
             Prediction Results
+            {isCached && (
+              <Badge variant="default" size="sm" className="bg-blue-100 text-blue-700 border-blue-200">
+                Cached
+              </Badge>
+            )}
           </CardTitle>
-          {processingTime && (
-            <div className="flex items-center gap-1 text-xs text-gray-500">
-              <Clock className="h-3 w-3" />
-              {processingTime < 1000
-                ? `${processingTime}ms`
-                : `${(processingTime / 1000).toFixed(1)}s`}
-            </div>
-          )}
+          <div className="flex items-center gap-2">
+            {isCached && cachedAt && (
+              <span className="text-2xs text-gray-400">
+                {(() => {
+                  try {
+                    const diffMs = Date.now() - new Date(cachedAt).getTime();
+                    const min = Math.floor(diffMs / 60000);
+                    if (min < 1) return "just now";
+                    if (min < 60) return `${min} min ago`;
+                    const hr = Math.floor(min / 60);
+                    if (hr < 24) return `${hr}h ago`;
+                    return `${Math.floor(hr / 24)}d ago`;
+                  } catch { return ""; }
+                })()}
+              </span>
+            )}
+            {isCached && onReanalyze && (
+              <button
+                onClick={onReanalyze}
+                className="text-2xs text-clinical-600 hover:text-clinical-700 font-medium underline"
+              >
+                Re-analyze
+              </button>
+            )}
+            {processingTime && !isCached && (
+              <div className="flex items-center gap-1 text-xs text-gray-500">
+                <Clock className="h-3 w-3" />
+                {processingTime < 1000
+                  ? `${processingTime}ms`
+                  : `${(processingTime / 1000).toFixed(1)}s`}
+              </div>
+            )}
+          </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-5">

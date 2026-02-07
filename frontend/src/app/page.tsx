@@ -27,7 +27,7 @@ import type { UserViewMode } from "@/components/layout/Header";
 import { PatchZoomModal, KeyboardShortcutsModal } from "@/components/modals";
 import { useAnalysis } from "@/hooks/useAnalysis";
 import { useKeyboardShortcuts, type KeyboardShortcut } from "@/hooks/useKeyboardShortcuts";
-import { getDziUrl, getHeatmapUrl, healthCheck, semanticSearch, getSlideQC, getAnnotations, saveAnnotation, deleteAnnotation, getSlides, analyzeSlideMultiModel, embedSlideWithPolling, visualSearch } from "@/lib/api";
+import { getDziUrl, getHeatmapUrl, healthCheck, semanticSearch, getSlideQC, getAnnotations, saveAnnotation, deleteAnnotation, getSlides, analyzeSlideMultiModel, embedSlideWithPolling, visualSearch, getSlideCachedResults } from "@/lib/api";
 import { generatePdfReport, downloadPdf } from "@/lib/pdfExport";
 import type { SlideInfo, PatchCoordinates, SemanticSearchResult, EvidencePatch, SlideQCMetrics, Annotation, MultiModelResponse, VisualSearchResponse, SimilarCase, StructuredReport } from "@/types";
 import { cn } from "@/lib/utils";
@@ -221,6 +221,10 @@ function HomePage() {
   const [multiModelResult, setMultiModelResult] = useState<MultiModelResponse | null>(null);
   const [isAnalyzingMultiModel, setIsAnalyzingMultiModel] = useState(false);
   const [multiModelError, setMultiModelError] = useState<string | null>(null);
+
+  // Cached results state
+  const [isCachedResult, setIsCachedResult] = useState(false);
+  const [cachedResultTimestamp, setCachedResultTimestamp] = useState<string | null>(null);
 
   // Embedding progress state for better UX during long operations
   const [embeddingProgress, setEmbeddingProgress] = useState<{
@@ -442,9 +446,11 @@ function HomePage() {
       setSelectedPatchId(undefined);
       setSemanticResults([]);
       setSearchError(null);
-      // Clear multi-model results
+      // Clear multi-model results and cache
       setMultiModelResult(null);
       setMultiModelError(null);
+      setIsCachedResult(false);
+      setCachedResultTimestamp(null);
     }
   }, [slideList, slideIndex, clearResults]);
 
@@ -459,9 +465,11 @@ function HomePage() {
       clearResults();
       setSelectedPatchId(undefined);
       setSemanticResults([]);
-      // Clear multi-model results
+      // Clear multi-model results and cache
       setMultiModelResult(null);
       setMultiModelError(null);
+      setIsCachedResult(false);
+      setCachedResultTimestamp(null);
     }
   }, [zoomModalOpen, shortcutsModalOpen, clearResults]);
 
@@ -554,17 +562,76 @@ function HomePage() {
       setSemanticResults([]);
       setSearchError(null);
       setSlideQCMetrics(null);
-      // Clear multi-model results
+      // Clear multi-model results and cache state
       setMultiModelResult(null);
       setMultiModelError(null);
+      setIsCachedResult(false);
+      setCachedResultTimestamp(null);
 
-      // Fetch QC metrics for the selected slide
-      try {
-        const qcMetrics = await getSlideQC(slide.id);
-        setSlideQCMetrics(qcMetrics);
-      } catch (err) {
+      // Fetch QC metrics and cached results in parallel
+      const qcPromise = getSlideQC(slide.id).catch((err) => {
         console.error("Failed to fetch QC metrics:", err);
-        // QC metrics are optional, don't block on failure
+        return null;
+      });
+
+      const cachedPromise = getSlideCachedResults(slide.id).catch((err) => {
+        console.error("Failed to fetch cached results:", err);
+        return null;
+      });
+
+      const [qcResult, cachedResult] = await Promise.all([qcPromise, cachedPromise]);
+
+      if (qcResult) {
+        setSlideQCMetrics(qcResult);
+      }
+
+      // If cached results exist, build a MultiModelResponse from them
+      if (cachedResult && cachedResult.count > 0) {
+        const predictions: Record<string, import("@/types").ModelPrediction> = {};
+        const ovarianCancer: import("@/types").ModelPrediction[] = [];
+        const generalPathology: import("@/types").ModelPrediction[] = [];
+        let latestTimestamp: string | null = null;
+
+        for (const r of cachedResult.results) {
+          // Determine category from known model configs
+          const isOvarian = ["platinum_sensitivity", "survival_1y", "survival_3y", "survival_5y"].includes(r.model_id);
+          const category = isOvarian ? "ovarian_cancer" as const : "general_pathology" as const;
+
+          const pred: import("@/types").ModelPrediction = {
+            modelId: r.model_id,
+            modelName: r.model_id.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()),
+            category,
+            score: r.score,
+            label: r.label,
+            positiveLabel: "Positive",
+            negativeLabel: "Negative",
+            confidence: r.confidence,
+            auc: 0,
+            nTrainingSlides: 0,
+            description: "",
+          };
+
+          predictions[r.model_id] = pred;
+          if (isOvarian) {
+            ovarianCancer.push(pred);
+          } else {
+            generalPathology.push(pred);
+          }
+
+          if (r.created_at && (!latestTimestamp || r.created_at > latestTimestamp)) {
+            latestTimestamp = r.created_at;
+          }
+        }
+
+        setMultiModelResult({
+          slideId: slide.id,
+          predictions,
+          byCategory: { ovarianCancer, generalPathology },
+          nPatches: 0,
+          processingTimeMs: 0,
+        });
+        setIsCachedResult(true);
+        setCachedResultTimestamp(latestTimestamp);
       }
     },
     [clearResults]
@@ -730,11 +797,13 @@ function HomePage() {
   }, [selectedSlide, resolutionLevel, forceReembed, toast]);
 
   // Handle multi-model analysis with improved error handling and progress
-  const handleMultiModelAnalyze = useCallback(async () => {
+  const handleMultiModelAnalyze = useCallback(async (forceRefresh: boolean = false) => {
     if (!selectedSlide) return;
 
-    // Clear previous results immediately to avoid showing stale predictions
+    // Clear previous results and cache state
     setMultiModelResult(null);
+    setIsCachedResult(false);
+    setCachedResultTimestamp(null);
 
     // Check if level 0 is selected but embeddings don't exist
     if (resolutionLevel === 0 && !selectedSlide.hasLevel0Embeddings) {
@@ -808,7 +877,7 @@ function HomePage() {
       }));
 
       // Then run multi-model analysis with the correct level
-      const result = await analyzeSlideMultiModel(selectedSlide.id, selectedModels, false, resolutionLevel);
+      const result = await analyzeSlideMultiModel(selectedSlide.id, selectedModels, false, resolutionLevel, forceRefresh);
       setMultiModelResult(result);
       
       // Success toast
@@ -899,13 +968,18 @@ function HomePage() {
       );
     }
 
-    // Also run multi-model analysis
-    handleMultiModelAnalyze();
+    // Also run multi-model analysis (force=true to bypass cache when user explicitly clicks)
+    handleMultiModelAnalyze(true);
   }, [selectedSlide, analyze, toast, handleMultiModelAnalyze]);
 
-  // Retry multi-model analysis
+  // Retry multi-model analysis (always force)
   const handleRetryMultiModel = useCallback(() => {
-    handleMultiModelAnalyze();
+    handleMultiModelAnalyze(true);
+  }, [handleMultiModelAnalyze]);
+
+  // Re-analyze: force a fresh analysis bypassing cache
+  const handleReanalyze = useCallback(() => {
+    handleMultiModelAnalyze(true);
   }, [handleMultiModelAnalyze]);
 
   // Handle patch click - navigate viewer
@@ -955,9 +1029,11 @@ function HomePage() {
       setSemanticResults([]);
       setSearchError(null);
       setSlideQCMetrics(null);
-      // Clear multi-model results
+      // Clear multi-model results and cache
       setMultiModelResult(null);
       setMultiModelError(null);
+      setIsCachedResult(false);
+      setCachedResultTimestamp(null);
       
       // Switch to slides tab on mobile
       setMobilePanelTab("slides");
@@ -1296,6 +1372,15 @@ function HomePage() {
     toast,
   ]);
 
+  // Compute embedding status from selected slide info
+  const embeddingStatus = useMemo(() => {
+    if (!selectedSlide) return undefined;
+    return {
+      hasLevel0: selectedSlide.hasLevel0Embeddings ?? false,
+      hasLevel1: selectedSlide.hasEmbeddings ?? false,
+    };
+  }, [selectedSlide]);
+
   // Get DZI and heatmap URLs
   const dziUrl = selectedSlide ? getDziUrl(selectedSlide.id) : undefined;
   
@@ -1328,6 +1413,7 @@ function HomePage() {
         onForceReembedChange={setForceReembed}
         isGeneratingEmbeddings={isGeneratingEmbeddings}
         embeddingProgress={embeddingProgress}
+        embeddingStatus={embeddingStatus}
       />
 
       {/* Error Display */}
@@ -1392,6 +1478,9 @@ function HomePage() {
           error={!isAnalyzing && !analysisResult ? error : null}
           onRetry={retryAnalysis}
           qcMetrics={slideQCMetrics}
+          isCached={isCachedResult && !analysisResult}
+          cachedAt={cachedResultTimestamp}
+          onReanalyze={selectedSlide ? handleReanalyze : undefined}
         />
       </div>
 
@@ -1402,9 +1491,11 @@ function HomePage() {
           isLoading={isAnalyzingMultiModel}
           processingTime={multiModelResult?.processingTimeMs}
           error={multiModelError}
-          onRunAnalysis={selectedSlide ? handleMultiModelAnalyze : undefined}
           onRetry={handleRetryMultiModel}
           embeddingProgress={embeddingProgress}
+          isCached={isCachedResult}
+          cachedAt={cachedResultTimestamp}
+          onReanalyze={selectedSlide ? handleReanalyze : undefined}
         />
       </div>
 

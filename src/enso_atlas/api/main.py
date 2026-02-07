@@ -469,6 +469,7 @@ class MultiModelRequest(BaseModel):
     models: Optional[List[str]] = None  # None = run all models
     return_attention: bool = False
     level: int = Field(default=1, ge=0, le=1, description="Resolution level: 0=full res, 1=downsampled")
+    force: bool = Field(default=False, description="Bypass cache and force fresh analysis")
 
 
 class MultiModelResponse(BaseModel):
@@ -4174,6 +4175,42 @@ DISCLAIMER: This is a research tool. All findings must be validated by qualified
             },
         }
 
+    # ====== Cached Results API ======
+
+    @app.get("/api/slides/{slide_id}/cached-results")
+    async def get_slide_cached_results(slide_id: str):
+        """
+        Get all cached analysis results for a slide.
+        
+        Returns the latest result per model from the analysis_results table.
+        Used by the frontend to instantly display previous results when
+        navigating back to a slide.
+        """
+        try:
+            cached = await db.get_all_cached_results(slide_id)
+        except Exception as e:
+            logger.warning(f"Failed to fetch cached results for {slide_id}: {e}")
+            # Return empty if DB is down - cached results are optional
+            cached = []
+
+        results = []
+        for row in cached:
+            results.append({
+                "model_id": row["model_id"],
+                "score": row["score"],
+                "label": row["label"],
+                "confidence": row["confidence"],
+                "threshold": row.get("threshold"),
+                "created_at": row["created_at"].isoformat() if row.get("created_at") else None,
+            })
+
+        return {
+            "slide_id": slide_id,
+            "results": results,
+            "count": len(results),
+            "cached": True,
+        }
+
     # ====== Annotations API (for Pathologist Review Mode) ======
 
     # In-memory storage for annotations (would be persisted to DB in production)
@@ -5125,6 +5162,63 @@ DISCLAIMER: This is a research tool. All findings must be validated by qualified
         slide_id = request.slide_id
         level = request.level  # Get requested resolution level
         
+        # Cache check: if not forcing, look for existing results in the DB
+        if not request.force:
+            try:
+                cached = await db.get_all_cached_results(slide_id)
+                if cached:
+                    # Build a response from cached results
+                    cached_predictions = {}
+                    cached_ovarian = []
+                    cached_general = []
+                    requested_models = set(request.models) if request.models else None
+
+                    for row in cached:
+                        mid = row["model_id"]
+                        if requested_models and mid not in requested_models:
+                            continue
+                        # Look up model config for display metadata
+                        cfg = MODEL_CONFIGS.get(mid, {})
+                        pred_dict = {
+                            "model_id": mid,
+                            "model_name": cfg.get("display_name", mid),
+                            "category": cfg.get("category", "general_pathology"),
+                            "score": row["score"],
+                            "label": row["label"],
+                            "positive_label": cfg.get("positive_label", "Positive"),
+                            "negative_label": cfg.get("negative_label", "Negative"),
+                            "confidence": min(row["confidence"], 0.99) if row["confidence"] else 0,
+                            "auc": cfg.get("auc", 0.0),
+                            "n_training_slides": cfg.get("n_training_slides", 0),
+                            "description": cfg.get("description", ""),
+                        }
+                        mp = ModelPrediction(**pred_dict)
+                        cached_predictions[mid] = mp
+                        cat = cfg.get("category", "general_pathology")
+                        if cat == "ovarian_cancer":
+                            cached_ovarian.append(mp)
+                        else:
+                            cached_general.append(mp)
+
+                    # Only return cached if we found at least one matching result
+                    if cached_predictions:
+                        processing_time = (time.time() - start_time) * 1000
+                        logger.info(f"Returning cached results for {slide_id} ({len(cached_predictions)} models)")
+                        return MultiModelResponse(
+                            slide_id=slide_id,
+                            predictions=cached_predictions,
+                            by_category={
+                                "ovarian_cancer": cached_ovarian,
+                                "general_pathology": cached_general,
+                            },
+                            n_patches=0,
+                            processing_time_ms=processing_time,
+                            warnings=["Results loaded from cache"],
+                        )
+            except Exception as e:
+                # Cache lookup failed; continue with fresh analysis
+                logger.warning(f"Cache lookup failed for {slide_id}, running fresh: {e}")
+        
         # Determine embedding path based on level
         # embeddings_dir may already point to level0 (auto-detected at startup)
         if level == 0:
@@ -5229,6 +5323,20 @@ DISCLAIMER: This is a research tool. All findings must be validated by qualified
                 "processing_time_ms": processing_time,
             },
         )
+
+        # Save results to DB for caching
+        try:
+            for mid, pred in predictions.items():
+                await db.save_analysis_result(
+                    slide_id=slide_id,
+                    model_id=mid,
+                    score=pred.score,
+                    label=pred.label,
+                    confidence=pred.confidence,
+                )
+            logger.info(f"Saved {len(predictions)} analysis results to cache for {slide_id}")
+        except Exception as e:
+            logger.warning(f"Failed to cache analysis results for {slide_id}: {e}")
 
         return MultiModelResponse(
             slide_id=slide_id,

@@ -731,6 +731,48 @@ async def save_analysis_result(
         )
 
 
+async def get_cached_results(
+    slide_id: str,
+    model_id: str | None = None,
+) -> list[dict]:
+    """Fetch cached analysis results for a slide (optionally filtered by model).
+
+    Returns a list of dicts with keys: model_id, score, label, confidence,
+    threshold, attention_hash, created_at.
+    """
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        if model_id:
+            rows = await conn.fetch(
+                """
+                SELECT model_id, score, label, confidence, threshold, attention_hash, created_at
+                FROM analysis_results
+                WHERE slide_id = $1 AND model_id = $2
+                ORDER BY created_at DESC
+                LIMIT 1
+                """,
+                slide_id, model_id,
+            )
+        else:
+            # Get latest result per model using DISTINCT ON
+            rows = await conn.fetch(
+                """
+                SELECT DISTINCT ON (model_id)
+                    model_id, score, label, confidence, threshold, attention_hash, created_at
+                FROM analysis_results
+                WHERE slide_id = $1
+                ORDER BY model_id, created_at DESC
+                """,
+                slide_id,
+            )
+    return [dict(r) for r in rows]
+
+
+async def get_all_cached_results(slide_id: str) -> list[dict]:
+    """Return all cached analysis results for a slide (latest per model)."""
+    return await get_cached_results(slide_id)
+
+
 async def update_slide_embeddings(slide_id: str, num_patches: int, level: int = 1):
     """Update embedding status for a slide after embedding completes."""
     pool = await get_pool()

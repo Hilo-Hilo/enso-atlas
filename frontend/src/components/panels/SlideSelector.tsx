@@ -56,6 +56,11 @@ interface SlideSelectorProps {
     progress: number;
     message: string;
   } | null;
+  // Embedding status for selected slide (passed through to ModelPicker)
+  embeddingStatus?: {
+    hasLevel0: boolean;
+    hasLevel1: boolean;
+  };
 }
 
 type SortField = "filename" | "date" | "dimensions";
@@ -156,6 +161,7 @@ export function SlideSelector({
   analysisStep = -1,
   isGeneratingEmbeddings = false,
   embeddingProgress = null,
+  embeddingStatus,
 }: SlideSelectorProps) {
   const [slides, setSlides] = useState<SlideInfo[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -500,6 +506,7 @@ export function SlideSelector({
               onForceReembedChange={onForceReembedChange}
               disabled={isAnalyzing || isGeneratingEmbeddings}
               className="mb-3"
+              embeddingStatus={embeddingStatus}
             />
             
             {/* Embedding Progress for Level 0 */}

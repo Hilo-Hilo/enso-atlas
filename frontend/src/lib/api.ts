@@ -1359,7 +1359,8 @@ export async function analyzeSlideMultiModel(
   slideId: string,
   models?: string[],
   returnAttention: boolean = false,
-  level: number = 1  // 0 = full resolution, 1 = downsampled
+  level: number = 1,  // 0 = full resolution, 1 = downsampled
+  force: boolean = false  // bypass cache
 ): Promise<MultiModelResponse> {
   const backend = await fetchApi<BackendMultiModelResponse>(
     "/api/analyze-multi",
@@ -1370,6 +1371,7 @@ export async function analyzeSlideMultiModel(
         models: (models === undefined ? null : models),
         return_attention: returnAttention,
         level: level,
+        force: force,
       }),
     },
     { timeoutMs: 120000 } // 2 minute timeout for multi-model analysis
@@ -1393,6 +1395,39 @@ export async function analyzeSlideMultiModel(
   };
 }
 
+
+// ====== Cached Results API ======
+
+interface CachedResultEntry {
+  model_id: string;
+  score: number;
+  label: string;
+  confidence: number;
+  threshold: number | null;
+  created_at: string | null;
+}
+
+interface CachedResultsResponse {
+  slide_id: string;
+  results: CachedResultEntry[];
+  count: number;
+  cached: boolean;
+}
+
+/**
+ * Fetch cached analysis results for a slide.
+ * Returns empty array if no cached results exist.
+ */
+export async function getSlideCachedResults(slideId: string): Promise<CachedResultsResponse> {
+  try {
+    return await fetchApi<CachedResultsResponse>(
+      `/api/slides/${encodeURIComponent(slideId)}/cached-results`
+    );
+  } catch {
+    // Cache is optional - return empty on failure
+    return { slide_id: slideId, results: [], count: 0, cached: false };
+  }
+}
 
 // Backend response types (snake_case)
 interface BackendTag {

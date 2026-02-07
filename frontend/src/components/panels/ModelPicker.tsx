@@ -4,7 +4,7 @@ import React from "react";
 import { cn } from "@/lib/utils";
 
 import { Badge } from "@/components/ui/Badge";
-import { ChevronDown, ChevronUp, FlaskConical, Activity, Layers } from "lucide-react";
+import { ChevronDown, ChevronUp, FlaskConical, Activity, Layers, CheckCircle, Circle } from "lucide-react";
 import { useProject } from "@/contexts/ProjectContext";
 
 export interface ModelConfig {
@@ -15,6 +15,7 @@ export interface ModelConfig {
   category: "ovarian_cancer" | "general_pathology";
 }
 
+// Default models -- used as fallback when project context is not available
 export const AVAILABLE_MODELS: ModelConfig[] = [
   {
     id: "platinum_sensitivity",
@@ -53,6 +54,25 @@ export const AVAILABLE_MODELS: ModelConfig[] = [
   },
 ];
 
+// Build a project-aware model list. The primary prediction target is always
+// included first, followed by the standard TransMIL variants.
+function getProjectModels(predictionTarget: string | undefined): ModelConfig[] {
+  // All TransMIL variants are always available since they share embeddings.
+  // Just reorder so the project's primary target comes first.
+  if (!predictionTarget) return AVAILABLE_MODELS;
+
+  const primary = AVAILABLE_MODELS.find((m) => m.id === predictionTarget);
+  if (!primary) return AVAILABLE_MODELS;
+
+  const rest = AVAILABLE_MODELS.filter((m) => m.id !== predictionTarget);
+  return [primary, ...rest];
+}
+
+interface EmbeddingStatus {
+  hasLevel0: boolean;
+  hasLevel1: boolean;
+}
+
 interface ModelPickerProps {
   selectedModels: string[];
   onSelectionChange: (models: string[]) => void;
@@ -62,6 +82,7 @@ interface ModelPickerProps {
   onForceReembedChange: (force: boolean) => void;
   disabled?: boolean;
   className?: string;
+  embeddingStatus?: EmbeddingStatus;
 }
 
 export function ModelPicker({
@@ -73,10 +94,17 @@ export function ModelPicker({
   onForceReembedChange,
   disabled = false,
   className,
+  embeddingStatus,
 }: ModelPickerProps) {
   const [isExpanded, setIsExpanded] = React.useState(false);
   const { currentProject } = useProject();
   const cancerTypeLabel = currentProject.cancer_type || "Ovarian Cancer";
+
+  // Use project-filtered model list
+  const models = React.useMemo(
+    () => getProjectModels(currentProject.prediction_target),
+    [currentProject.prediction_target]
+  );
 
   const toggleModel = (modelId: string) => {
     if (disabled) return;
@@ -88,7 +116,7 @@ export function ModelPicker({
   };
 
   const selectAll = () => {
-    onSelectionChange(AVAILABLE_MODELS.map((m) => m.id));
+    onSelectionChange(models.map((m) => m.id));
   };
 
   const selectNone = () => {
@@ -97,18 +125,22 @@ export function ModelPicker({
 
   const selectOvarian = () => {
     onSelectionChange(
-      AVAILABLE_MODELS.filter((m) => m.category === "ovarian_cancer").map((m) => m.id)
+      models.filter((m) => m.category === "ovarian_cancer").map((m) => m.id)
     );
   };
 
   const selectGeneral = () => {
     onSelectionChange(
-      AVAILABLE_MODELS.filter((m) => m.category === "general_pathology").map((m) => m.id)
+      models.filter((m) => m.category === "general_pathology").map((m) => m.id)
     );
   };
 
-  const ovarianModels = AVAILABLE_MODELS.filter((m) => m.category === "ovarian_cancer");
-  const generalModels = AVAILABLE_MODELS.filter((m) => m.category === "general_pathology");
+  const ovarianModels = models.filter((m) => m.category === "ovarian_cancer");
+  const generalModels = models.filter((m) => m.category === "general_pathology");
+
+  // Determine embedding readiness for each level
+  const level1Ready = embeddingStatus?.hasLevel1 ?? false;
+  const level0Ready = embeddingStatus?.hasLevel0 ?? false;
 
   return (
     <div className={cn("rounded-lg border border-gray-200 bg-white", className)}>
@@ -126,7 +158,7 @@ export function ModelPicker({
           <FlaskConical className="h-4 w-4 text-clinical-600" />
           <span className="text-sm font-medium text-gray-900">Model Selection</span>
           <Badge variant="default" size="sm">
-            {selectedModels.length}/{AVAILABLE_MODELS.length}
+            {selectedModels.length}/{models.length}
           </Badge>
         </div>
         {isExpanded ? (
@@ -139,7 +171,7 @@ export function ModelPicker({
       {/* Expanded Content */}
       {isExpanded && (
         <div className="px-3 pb-3 space-y-3 border-t border-gray-100 pt-3">
-          {/* Resolution Level Selector */}
+          {/* Resolution Level Selector with Embedding Status */}
           <div className="pb-3 border-b border-gray-100">
             <div className="flex items-center gap-1.5 mb-2">
               <Layers className="h-3 w-3 text-purple-500" />
@@ -159,8 +191,22 @@ export function ModelPicker({
                 )}
               >
                 <div className="text-center">
-                  <div>Level 1</div>
+                  <div className="flex items-center justify-center gap-1.5">
+                    <span>Level 1</span>
+                    {embeddingStatus && (
+                      level1Ready ? (
+                        <CheckCircle className="h-3.5 w-3.5 text-green-600" />
+                      ) : (
+                        <Circle className="h-3.5 w-3.5 text-gray-400" />
+                      )
+                    )}
+                  </div>
                   <div className="text-xs opacity-70">Fast (~100-500 patches)</div>
+                  {embeddingStatus && (
+                    <div className={cn("text-2xs mt-0.5", level1Ready ? "text-green-600" : "text-gray-400")}>
+                      {level1Ready ? "Ready" : "Not generated"}
+                    </div>
+                  )}
                 </div>
               </button>
               <button
@@ -174,14 +220,39 @@ export function ModelPicker({
                 )}
               >
                 <div className="text-center">
-                  <div>Level 0</div>
+                  <div className="flex items-center justify-center gap-1.5">
+                    <span>Level 0</span>
+                    {embeddingStatus && (
+                      level0Ready ? (
+                        <CheckCircle className="h-3.5 w-3.5 text-green-600" />
+                      ) : (
+                        <Circle className="h-3.5 w-3.5 text-gray-400" />
+                      )
+                    )}
+                  </div>
                   <div className="text-xs opacity-70">Full res (~5K-30K patches)</div>
+                  {embeddingStatus && (
+                    <div className={cn("text-2xs mt-0.5", level0Ready ? "text-green-600" : "text-gray-400")}>
+                      {level0Ready ? "Ready" : "Not generated"}
+                    </div>
+                  )}
                 </div>
               </button>
             </div>
-            {resolutionLevel === 0 && (
+            {/* Contextual note for missing embeddings */}
+            {embeddingStatus && resolutionLevel === 0 && !level0Ready && (
               <p className="mt-2 text-xs text-amber-600">
-                Level 0 provides higher accuracy but may take 5-20 min for first analysis.
+                Embeddings will be generated on first analysis (~5-20 min)
+              </p>
+            )}
+            {embeddingStatus && resolutionLevel === 1 && !level1Ready && (
+              <p className="mt-2 text-xs text-amber-600">
+                Embeddings will be generated on first analysis (~2-5 min)
+              </p>
+            )}
+            {resolutionLevel === 0 && level0Ready && (
+              <p className="mt-2 text-xs text-green-600">
+                Level 0 embeddings ready. Full-resolution analysis available.
               </p>
             )}
             <label
@@ -255,6 +326,7 @@ export function ModelPicker({
                     checked={selectedModels.includes(model.id)}
                     onChange={() => toggleModel(model.id)}
                     disabled={disabled}
+                    isPrimary={model.id === currentProject.prediction_target}
                   />
                 ))}
               </div>
@@ -292,11 +364,13 @@ function ModelCheckbox({
   checked,
   onChange,
   disabled,
+  isPrimary,
 }: {
   model: ModelConfig;
   checked: boolean;
   onChange: () => void;
   disabled?: boolean;
+  isPrimary?: boolean;
 }) {
   return (
     <label
@@ -317,6 +391,9 @@ function ModelCheckbox({
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
           <span className="text-sm font-medium text-gray-900">{model.displayName}</span>
+          {isPrimary && (
+            <Badge variant="info" size="sm">Primary</Badge>
+          )}
           <span className="text-xs text-gray-400 font-mono">AUC {model.auc.toFixed(2)}</span>
         </div>
         <p className="text-xs text-gray-500 truncate">{model.description}</p>

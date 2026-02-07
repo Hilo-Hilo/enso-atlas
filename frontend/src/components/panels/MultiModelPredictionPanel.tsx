@@ -320,12 +320,14 @@ interface MultiModelPredictionPanelProps {
   isLoading?: boolean;
   processingTime?: number;
   error?: string | null;
-  onRunAnalysis?: () => void;
   onRetry?: () => void;
   availableModels?: AvailableModel[];
   selectedModels?: string[];
   onModelToggle?: (modelId: string) => void;
   embeddingProgress?: EmbeddingProgress | null;
+  isCached?: boolean;
+  cachedAt?: string | null;
+  onReanalyze?: () => void;
 }
 
 export function MultiModelPredictionPanel({
@@ -333,12 +335,14 @@ export function MultiModelPredictionPanel({
   isLoading,
   processingTime,
   error,
-  onRunAnalysis,
   onRetry,
   availableModels,
   selectedModels,
   onModelToggle,
   embeddingProgress,
+  isCached,
+  cachedAt,
+  onReanalyze,
 }: MultiModelPredictionPanelProps) {
   const [expandedModels, setExpandedModels] = useState<Set<string>>(new Set());
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
@@ -562,23 +566,10 @@ export function MultiModelPredictionPanel({
             />
           </div>
 
-          {/* CTA Button */}
-          {onRunAnalysis && (
-            <Button
-              variant="primary"
-              size="lg"
-              onClick={onRunAnalysis}
-              leftIcon={<Zap className="h-4 w-4" />}
-              className="w-full bg-gradient-to-r from-clinical-600 to-violet-600 hover:from-clinical-700 hover:to-violet-700"
-            >
-              Run Multi-Model Analysis
-            </Button>
-          )}
-
-          {/* Info footer */}
+          {/* Info footer - analysis is triggered from the left sidebar */}
           <div className="flex items-center gap-2 text-2xs text-gray-400 justify-center">
             <Info className="h-3 w-3" />
-            <span>Models run in parallel for faster results</span>
+            <span>Click &quot;Run Analysis&quot; in the sidebar to analyze</span>
           </div>
         </CardContent>
       </Card>
@@ -588,6 +579,25 @@ export function MultiModelPredictionPanel({
   // Results view
   const { byCategory, nPatches, processingTimeMs } = multiModelResult;
 
+  // Format the cached timestamp into a relative string
+  const formatCachedTime = (isoStr: string | null | undefined): string => {
+    if (!isoStr) return "";
+    try {
+      const then = new Date(isoStr).getTime();
+      const now = Date.now();
+      const diffMs = now - then;
+      const diffMin = Math.floor(diffMs / 60000);
+      if (diffMin < 1) return "just now";
+      if (diffMin < 60) return `${diffMin} min ago`;
+      const diffHr = Math.floor(diffMin / 60);
+      if (diffHr < 24) return `${diffHr}h ago`;
+      const diffDay = Math.floor(diffHr / 24);
+      return `${diffDay}d ago`;
+    } catch {
+      return "";
+    }
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -595,15 +605,35 @@ export function MultiModelPredictionPanel({
           <CardTitle className="flex items-center gap-2">
             <Activity className="h-4 w-4 text-clinical-600" />
             Multi-Model Analysis
+            {isCached && (
+              <Badge variant="default" size="sm" className="bg-blue-100 text-blue-700 border-blue-200">
+                Cached
+              </Badge>
+            )}
           </CardTitle>
-          {processingTimeMs > 0 && (
-            <div className="flex items-center gap-1 text-xs text-gray-500">
-              <Clock className="h-3 w-3" />
-              {processingTimeMs < 1000
-                ? `${Math.round(processingTimeMs)}ms`
-                : `${(processingTimeMs / 1000).toFixed(1)}s`}
-            </div>
-          )}
+          <div className="flex items-center gap-2">
+            {isCached && cachedAt && (
+              <span className="text-2xs text-gray-400">
+                {formatCachedTime(cachedAt)}
+              </span>
+            )}
+            {isCached && onReanalyze && (
+              <button
+                onClick={onReanalyze}
+                className="text-2xs text-clinical-600 hover:text-clinical-700 font-medium underline"
+              >
+                Re-analyze
+              </button>
+            )}
+            {processingTimeMs > 0 && !isCached && (
+              <div className="flex items-center gap-1 text-xs text-gray-500">
+                <Clock className="h-3 w-3" />
+                {processingTimeMs < 1000
+                  ? `${Math.round(processingTimeMs)}ms`
+                  : `${(processingTimeMs / 1000).toFixed(1)}s`}
+              </div>
+            )}
+          </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-5">
@@ -616,10 +646,12 @@ export function MultiModelPredictionPanel({
         </div>
 
         {/* Patches analyzed info */}
-        <div className="flex items-center gap-2 text-xs text-gray-600">
-          <Layers className="h-3.5 w-3.5" />
-          <span>Analyzed {nPatches} tissue patches</span>
-        </div>
+        {nPatches > 0 && (
+          <div className="flex items-center gap-2 text-xs text-gray-600">
+            <Layers className="h-3.5 w-3.5" />
+            <span>Analyzed {nPatches} tissue patches</span>
+          </div>
+        )}
 
         {/* Cancer-Specific Models */}
         <CategorySection
