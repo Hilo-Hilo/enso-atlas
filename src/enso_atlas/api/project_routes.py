@@ -66,6 +66,8 @@ class CreateProjectRequest(BaseModel):
     classes: List[str] = Field(default_factory=lambda: ["resistant", "sensitive"])
     positive_class: str = "sensitive"
     description: str = ""
+    slide_ids: Optional[List[str]] = None
+    model_ids: Optional[List[str]] = None
 
 
 class UpdateProjectRequest(BaseModel):
@@ -163,9 +165,24 @@ async def create_project(body: CreateProjectRequest):
         project.dataset.embeddings_dir,
     )
 
+    # Seed project_slides and project_models if provided
+    slides_assigned = 0
+    models_assigned = 0
+    try:
+        from . import database as db
+
+        if body.slide_ids:
+            slides_assigned = await db.assign_slides_to_project(body.id, body.slide_ids)
+        if body.model_ids:
+            models_assigned = await db.assign_models_to_project(body.id, body.model_ids)
+    except Exception as e:
+        logger.warning("Failed to seed slide/model assignments for project '%s': %s", body.id, e)
+
     return {
         "project": project.to_dict(),
         "is_default": body.id == reg.default_project_id,
+        "slides_assigned": slides_assigned,
+        "models_assigned": models_assigned,
     }
 
 
@@ -345,22 +362,42 @@ async def get_project_slides(project_id: str):
     """
     Get slides associated with a project.
 
-    Currently queries the slides table filtered by project_id (if populated),
-    falling back to returning all slides for the default project for backward
-    compatibility.
+    Uses the project_slides junction table. Falls back to the legacy
+    project_id column on slides if the junction table has no rows yet.
     """
     reg = get_registry()
     proj = reg.get_project(project_id)
     if proj is None:
         raise HTTPException(status_code=404, detail=f"Project '{project_id}' not found")
 
-    # Try to get slides from database filtered by project_id
     try:
         from . import database as db
 
+        # First try the junction table
+        slide_ids = await db.get_project_slides(project_id)
+
+        if slide_ids:
+            pool = await db.get_pool()
+            async with pool.acquire() as conn:
+                rows = await conn.fetch(
+                    """
+                    SELECT s.slide_id, s.patient_id, s.filename, s.width, s.height,
+                           s.label, s.has_embeddings, s.has_level0_embeddings, s.num_patches
+                    FROM slides s
+                    WHERE s.slide_id = ANY($1::text[])
+                    ORDER BY s.slide_id
+                    """,
+                    slide_ids,
+                )
+            return {
+                "project_id": project_id,
+                "slides": [dict(r) for r in rows],
+                "count": len(rows),
+            }
+
+        # Fallback: legacy project_id column on slides table
         pool = await db.get_pool()
         async with pool.acquire() as conn:
-            # Check if project_id column exists (migration may not have run)
             col_check = await conn.fetchval(
                 """
                 SELECT COUNT(*) FROM information_schema.columns
@@ -379,7 +416,6 @@ async def get_project_slides(project_id: str):
                     project_id,
                 )
             else:
-                # project_id column not yet added — return all slides
                 rows = await conn.fetch(
                     """
                     SELECT s.slide_id, s.patient_id, s.filename, s.width, s.height,
@@ -396,13 +432,102 @@ async def get_project_slides(project_id: str):
             }
     except Exception as e:
         logger.warning(f"Database query failed for project slides: {e}")
-        # Fallback: return basic project info without slide list
         return {
             "project_id": project_id,
             "slides": [],
             "count": 0,
             "error": "Database not available",
         }
+
+
+class SlideIdsRequest(BaseModel):
+    """Body for assigning/unassigning slides."""
+    slide_ids: List[str] = Field(..., min_length=1)
+
+
+class ModelIdsRequest(BaseModel):
+    """Body for assigning/unassigning models."""
+    model_ids: List[str] = Field(..., min_length=1)
+
+
+@router.post("/{project_id}/slides", status_code=200)
+async def assign_project_slides(project_id: str, body: SlideIdsRequest):
+    """Assign slides to a project (idempotent)."""
+    reg = get_registry()
+    if reg.get_project(project_id) is None:
+        raise HTTPException(status_code=404, detail=f"Project '{project_id}' not found")
+
+    from . import database as db
+    count = await db.assign_slides_to_project(project_id, body.slide_ids)
+    return {
+        "project_id": project_id,
+        "assigned": count,
+        "requested": len(body.slide_ids),
+    }
+
+
+@router.delete("/{project_id}/slides", status_code=200)
+async def unassign_project_slides(project_id: str, body: SlideIdsRequest):
+    """Remove slide assignments from a project."""
+    reg = get_registry()
+    if reg.get_project(project_id) is None:
+        raise HTTPException(status_code=404, detail=f"Project '{project_id}' not found")
+
+    from . import database as db
+    count = await db.unassign_slides_from_project(project_id, body.slide_ids)
+    return {
+        "project_id": project_id,
+        "removed": count,
+        "requested": len(body.slide_ids),
+    }
+
+
+@router.get("/{project_id}/models")
+async def get_project_models_endpoint(project_id: str):
+    """List model_ids assigned to a project."""
+    reg = get_registry()
+    if reg.get_project(project_id) is None:
+        raise HTTPException(status_code=404, detail=f"Project '{project_id}' not found")
+
+    from . import database as db
+    model_ids = await db.get_project_models(project_id)
+    return {
+        "project_id": project_id,
+        "model_ids": model_ids,
+        "count": len(model_ids),
+    }
+
+
+@router.post("/{project_id}/models", status_code=200)
+async def assign_project_models(project_id: str, body: ModelIdsRequest):
+    """Assign models to a project (idempotent)."""
+    reg = get_registry()
+    if reg.get_project(project_id) is None:
+        raise HTTPException(status_code=404, detail=f"Project '{project_id}' not found")
+
+    from . import database as db
+    count = await db.assign_models_to_project(project_id, body.model_ids)
+    return {
+        "project_id": project_id,
+        "assigned": count,
+        "requested": len(body.model_ids),
+    }
+
+
+@router.delete("/{project_id}/models", status_code=200)
+async def unassign_project_models(project_id: str, body: ModelIdsRequest):
+    """Remove model assignments from a project."""
+    reg = get_registry()
+    if reg.get_project(project_id) is None:
+        raise HTTPException(status_code=404, detail=f"Project '{project_id}' not found")
+
+    from . import database as db
+    count = await db.unassign_models_from_project(project_id, body.model_ids)
+    return {
+        "project_id": project_id,
+        "removed": count,
+        "requested": len(body.model_ids),
+    }
 
 
 @router.get("/{project_id}/status")

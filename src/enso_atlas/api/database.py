@@ -131,6 +131,26 @@ CREATE TABLE IF NOT EXISTS projects (
     updated_at      TIMESTAMPTZ DEFAULT now()
 );
 
+-- Project-to-model assignments (many-to-many)
+CREATE TABLE IF NOT EXISTS project_models (
+    project_id  TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    model_id    TEXT NOT NULL,
+    created_at  TIMESTAMPTZ DEFAULT now(),
+    PRIMARY KEY (project_id, model_id)
+);
+
+-- Project-to-slide assignments (many-to-many)
+CREATE TABLE IF NOT EXISTS project_slides (
+    project_id  TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    slide_id    TEXT NOT NULL REFERENCES slides(slide_id) ON DELETE CASCADE,
+    created_at  TIMESTAMPTZ DEFAULT now(),
+    PRIMARY KEY (project_id, slide_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_project_slides_project ON project_slides(project_id);
+CREATE INDEX IF NOT EXISTS idx_project_slides_slide ON project_slides(slide_id);
+CREATE INDEX IF NOT EXISTS idx_project_models_project ON project_models(project_id);
+
 -- Track schema version for future migrations
 CREATE TABLE IF NOT EXISTS schema_version (
     version    INTEGER PRIMARY KEY,
@@ -188,6 +208,7 @@ async def init_schema():
     logger.info("Database schema initialized")
     # Run migrations for new columns
     await _migrate_project_columns()
+    await _migrate_project_scoped_tables()
 
 
 async def _migrate_project_columns():
@@ -212,6 +233,86 @@ async def _migrate_project_columns():
         await conn.execute(
             "INSERT INTO schema_version (version) VALUES (2) ON CONFLICT DO NOTHING"
         )
+
+
+async def _migrate_project_scoped_tables():
+    """v3 migration: create project_models and project_slides junction tables
+    and seed initial data for the ovarian-platinum project.
+
+    Safe to run multiple times (idempotent).
+    """
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        # Check if v3 migration already applied
+        v3_done = await conn.fetchval(
+            "SELECT COUNT(*) FROM schema_version WHERE version = 3"
+        )
+        if v3_done:
+            return
+
+        # Tables are already created in SCHEMA_SQL, but ensure they exist
+        # in case this migration runs against an older schema.
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS project_models (
+                project_id  TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+                model_id    TEXT NOT NULL,
+                created_at  TIMESTAMPTZ DEFAULT now(),
+                PRIMARY KEY (project_id, model_id)
+            )
+        """)
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS project_slides (
+                project_id  TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+                slide_id    TEXT NOT NULL REFERENCES slides(slide_id) ON DELETE CASCADE,
+                created_at  TIMESTAMPTZ DEFAULT now(),
+                PRIMARY KEY (project_id, slide_id)
+            )
+        """)
+        await conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_project_slides_project ON project_slides(project_id)"
+        )
+        await conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_project_slides_slide ON project_slides(slide_id)"
+        )
+        await conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_project_models_project ON project_models(project_id)"
+        )
+
+        # Seed: assign ALL existing slides to ovarian-platinum
+        project_exists = await conn.fetchval(
+            "SELECT COUNT(*) FROM projects WHERE id = 'ovarian-platinum'"
+        )
+        if project_exists:
+            await conn.execute("""
+                INSERT INTO project_slides (project_id, slide_id)
+                SELECT 'ovarian-platinum', slide_id FROM slides
+                ON CONFLICT DO NOTHING
+            """)
+            logger.info("Seeded project_slides with all existing slides for ovarian-platinum")
+
+            # Seed: assign all 5 models to ovarian-platinum
+            model_ids = [
+                "platinum_sensitivity",
+                "tumor_grade",
+                "survival_5y",
+                "survival_3y",
+                "survival_1y",
+            ]
+            await conn.executemany(
+                """
+                INSERT INTO project_models (project_id, model_id)
+                VALUES ('ovarian-platinum', $1)
+                ON CONFLICT DO NOTHING
+                """,
+                [(mid,) for mid in model_ids],
+            )
+            logger.info("Seeded project_models with 5 models for ovarian-platinum")
+
+        # Mark migration complete
+        await conn.execute(
+            "INSERT INTO schema_version (version) VALUES (3) ON CONFLICT DO NOTHING"
+        )
+        logger.info("v3 migration complete: project_models and project_slides tables ready")
 
 
 async def populate_projects_from_registry(registry) -> None:
@@ -803,6 +904,105 @@ async def is_populated() -> bool:
     async with pool.acquire() as conn:
         count = await conn.fetchval("SELECT COUNT(*) FROM slides")
     return count > 0
+
+
+# ---------------------------------------------------------------------------
+# Project-scoped slide and model queries
+# ---------------------------------------------------------------------------
+
+
+async def get_project_slides(project_id: str) -> List[str]:
+    """Return slide_ids assigned to a project."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT slide_id FROM project_slides WHERE project_id = $1 ORDER BY slide_id",
+            project_id,
+        )
+    return [r["slide_id"] for r in rows]
+
+
+async def assign_slides_to_project(project_id: str, slide_ids: List[str]) -> int:
+    """Assign slides to project. Returns count added."""
+    if not slide_ids:
+        return 0
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        # Use a single statement with unnest for efficiency
+        result = await conn.execute(
+            """
+            INSERT INTO project_slides (project_id, slide_id)
+            SELECT $1, unnest($2::text[])
+            ON CONFLICT DO NOTHING
+            """,
+            project_id, slide_ids,
+        )
+        # result is like "INSERT 0 N"
+        count = int(result.split()[-1])
+    return count
+
+
+async def unassign_slides_from_project(project_id: str, slide_ids: List[str]) -> int:
+    """Remove slide assignments. Returns count removed."""
+    if not slide_ids:
+        return 0
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        result = await conn.execute(
+            """
+            DELETE FROM project_slides
+            WHERE project_id = $1 AND slide_id = ANY($2::text[])
+            """,
+            project_id, slide_ids,
+        )
+        count = int(result.split()[-1])
+    return count
+
+
+async def get_project_models(project_id: str) -> List[str]:
+    """Return model_ids assigned to a project."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT model_id FROM project_models WHERE project_id = $1 ORDER BY model_id",
+            project_id,
+        )
+    return [r["model_id"] for r in rows]
+
+
+async def assign_models_to_project(project_id: str, model_ids: List[str]) -> int:
+    """Assign models to project. Returns count added."""
+    if not model_ids:
+        return 0
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        result = await conn.execute(
+            """
+            INSERT INTO project_models (project_id, model_id)
+            SELECT $1, unnest($2::text[])
+            ON CONFLICT DO NOTHING
+            """,
+            project_id, model_ids,
+        )
+        count = int(result.split()[-1])
+    return count
+
+
+async def unassign_models_from_project(project_id: str, model_ids: List[str]) -> int:
+    """Remove model assignments. Returns count removed."""
+    if not model_ids:
+        return 0
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        result = await conn.execute(
+            """
+            DELETE FROM project_models
+            WHERE project_id = $1 AND model_id = ANY($2::text[])
+            """,
+            project_id, model_ids,
+        )
+        count = int(result.split()[-1])
+    return count
 
 
 # ---------------------------------------------------------------------------

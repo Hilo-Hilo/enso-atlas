@@ -982,17 +982,26 @@ def create_app(
         return RedirectResponse(url="/api/redoc")
 
     @app.get("/api/slides", response_model=List[SlideInfo])
-    async def list_slides():
+    async def list_slides(project_id: Optional[str] = Query(None, description="Filter slides by project")):
         """List all available slides with patient context.
 
         Uses PostgreSQL when available (< 100ms), falls back to flat-file
         scan (30-60s) if DB is not connected.
+
+        When project_id is provided, only returns slides assigned to that project
+        via the project_slides junction table.
         """
         # ---- Fast path: PostgreSQL ----
         if db_available:
             try:
                 t0 = time.time()
-                rows = await db.get_all_slides()
+                # If project_id given, filter through project_slides
+                if project_id:
+                    allowed_ids = set(await db.get_project_slides(project_id))
+                    all_rows = await db.get_all_slides()
+                    rows = [r for r in all_rows if r["slide_id"] in allowed_ids]
+                else:
+                    rows = await db.get_all_slides()
                 slides = []
                 for r in rows:
                     patient_ctx = None
@@ -4371,7 +4380,7 @@ DISCLAIMER: This is a research tool. All findings must be validated by qualified
     # ====== Multi-Model Analysis Endpoints ======
 
     @app.get("/api/models", response_model=AvailableModelsResponse)
-    async def list_available_models():
+    async def list_available_models(project_id: Optional[str] = Query(None, description="Filter models by project")):
         """
         List all available TransMIL models.
         
@@ -4381,11 +4390,22 @@ DISCLAIMER: This is a research tool. All findings must be validated by qualified
         - Training AUC score (model reliability)
         - Number of training slides
         - Category (ovarian_cancer vs general_pathology)
+
+        When project_id is provided, only returns models assigned to that
+        project via the project_models junction table.
         """
         if multi_model_inference is None:
             raise HTTPException(status_code=503, detail="Multi-model inference not initialized")
         
         models = multi_model_inference.get_available_models()
+
+        if project_id:
+            try:
+                allowed_ids = set(await db.get_project_models(project_id))
+                models = [m for m in models if m.get("model_id") in allowed_ids]
+            except Exception as e:
+                logger.warning(f"Failed to filter models by project {project_id}: {e}")
+
         return AvailableModelsResponse(models=models)
 
 
