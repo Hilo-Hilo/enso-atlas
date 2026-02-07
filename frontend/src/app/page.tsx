@@ -597,32 +597,43 @@ function HomePage() {
 
       // If cached results exist, build a MultiModelResponse from them
       if (cachedResult && cachedResult.count > 0) {
+        // Known model metadata so cached results display correct AUC and labels
+        const MODEL_META: Record<string, {
+          name: string; category: "ovarian_cancer" | "general_pathology";
+          auc: number; posLabel: string; negLabel: string; desc: string;
+        }> = {
+          platinum_sensitivity: { name: "Platinum Sensitivity", category: "ovarian_cancer", auc: 0.907, posLabel: "Sensitive", negLabel: "Resistant", desc: "Predicts response to platinum-based chemotherapy" },
+          tumor_grade: { name: "Tumor Grade", category: "general_pathology", auc: 0.752, posLabel: "High Grade", negLabel: "Low Grade", desc: "Predicts tumor differentiation grade" },
+          survival_5y: { name: "5-Year Survival", category: "ovarian_cancer", auc: 0.697, posLabel: "Favorable", negLabel: "Poor", desc: "Predicts 5-year overall survival" },
+          survival_3y: { name: "3-Year Survival", category: "ovarian_cancer", auc: 0.645, posLabel: "Favorable", negLabel: "Poor", desc: "Predicts 3-year overall survival" },
+          survival_1y: { name: "1-Year Survival", category: "ovarian_cancer", auc: 0.639, posLabel: "Favorable", negLabel: "Poor", desc: "Predicts 1-year overall survival" },
+        };
+
         const predictions: Record<string, import("@/types").ModelPrediction> = {};
         const ovarianCancer: import("@/types").ModelPrediction[] = [];
         const generalPathology: import("@/types").ModelPrediction[] = [];
         let latestTimestamp: string | null = null;
 
         for (const r of cachedResult.results) {
-          // Determine category from known model configs
-          const isOvarian = ["platinum_sensitivity", "survival_1y", "survival_3y", "survival_5y"].includes(r.model_id);
-          const category = isOvarian ? "ovarian_cancer" as const : "general_pathology" as const;
+          const meta = MODEL_META[r.model_id];
+          const category = meta?.category ?? "general_pathology";
 
           const pred: import("@/types").ModelPrediction = {
             modelId: r.model_id,
-            modelName: r.model_id.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()),
+            modelName: meta?.name ?? r.model_id.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()),
             category,
             score: r.score,
             label: r.label,
-            positiveLabel: "Positive",
-            negativeLabel: "Negative",
+            positiveLabel: meta?.posLabel ?? "Positive",
+            negativeLabel: meta?.negLabel ?? "Negative",
             confidence: r.confidence,
-            auc: 0,
+            auc: meta?.auc ?? 0,
             nTrainingSlides: 0,
-            description: "",
+            description: meta?.desc ?? "",
           };
 
           predictions[r.model_id] = pred;
-          if (isOvarian) {
+          if (category === "ovarian_cancer") {
             ovarianCancer.push(pred);
           } else {
             generalPathology.push(pred);

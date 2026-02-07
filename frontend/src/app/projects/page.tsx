@@ -737,6 +737,23 @@ export default function ProjectsPage() {
   const [statuses, setStatuses] = useState<Record<string, ProjectStatus>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isConnected, setIsConnected] = useState(false);
+
+  // Check backend connectivity
+  useEffect(() => {
+    let cancelled = false;
+    const check = async () => {
+      try {
+        const res = await fetch("/api/health", { signal: AbortSignal.timeout(5000) });
+        if (!cancelled) setIsConnected(res.ok);
+      } catch {
+        if (!cancelled) setIsConnected(false);
+      }
+    };
+    check();
+    const interval = setInterval(check, 15000);
+    return () => { cancelled = true; clearInterval(interval); };
+  }, []);
 
   // Modal state
   const [showCreate, setShowCreate] = useState(false);
@@ -822,7 +839,7 @@ export default function ProjectsPage() {
 
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-b from-gray-50 to-gray-100">
-      <Header />
+      <Header isConnected={isConnected} />
 
       <main className="flex-1 max-w-6xl mx-auto w-full px-4 sm:px-6 py-6">
         {/* Breadcrumb */}
