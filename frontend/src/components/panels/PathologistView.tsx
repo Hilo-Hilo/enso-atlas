@@ -31,7 +31,7 @@ import { cn } from "@/lib/utils";
 import type { AnalysisResponse, EvidencePatch, Annotation } from "@/types";
 
 interface PathologistViewProps {
-  analysisResult: AnalysisResponse;
+  analysisResult?: AnalysisResponse | null;
   annotations: Annotation[];
   onAddAnnotation: (annotation: Omit<Annotation, "id" | "createdAt">) => void;
   onDeleteAnnotation: (id: string) => void;
@@ -167,10 +167,10 @@ export function PathologistView({
         category: ann.category,
         createdAt: ann.createdAt,
       })),
-      analysisResult: {
+      analysisResult: analysisResult ? {
         prediction: analysisResult.prediction,
         topEvidenceCount: analysisResult.evidencePatches.length,
-      },
+      } : null,
     };
 
     const blob = new Blob([JSON.stringify(reportData, null, 2)], {
@@ -186,11 +186,12 @@ export function PathologistView({
 
   // Get morphology descriptions for patches
   const patchesWithMorphology = useMemo(() => {
+    if (!analysisResult) return [];
     return analysisResult.evidencePatches.map((patch, idx) => ({
       ...patch,
       morphologyDescription: patch.morphologyDescription || generateMockMorphology(patch, idx),
     }));
-  }, [analysisResult.evidencePatches]);
+  }, [analysisResult]);
 
   return (
     <div className="h-full flex flex-col gap-4 overflow-y-auto">
@@ -501,6 +502,11 @@ export function PathologistView({
 
         {expandedSections.morphology && (
           <div className="space-y-3 max-h-96 overflow-y-auto">
+            {patchesWithMorphology.length === 0 && (
+              <p className="text-sm text-gray-500 text-center py-4">
+                Run analysis to see patch morphology descriptions.
+              </p>
+            )}
             {patchesWithMorphology.slice(0, 8).map((patch, idx) => (
               <div
                 key={patch.id}

@@ -1839,7 +1839,7 @@ function HomePage() {
         >
           {rightSidebarOpen && (
             <>
-              {userViewMode === "pathologist" && selectedSlide && analysisResult ? (
+              {userViewMode === "pathologist" && selectedSlide ? (
                 <PathologistView
                   analysisResult={analysisResult}
                   annotations={annotations}
@@ -1877,7 +1877,7 @@ function HomePage() {
             mobilePanelTab === "results" ? "flex-1 p-3 sm:p-4" : "hidden"
           )}
         >
-          {userViewMode === "pathologist" && selectedSlide && analysisResult ? (
+          {userViewMode === "pathologist" && selectedSlide ? (
             <PathologistView
               analysisResult={analysisResult}
               annotations={annotations}
