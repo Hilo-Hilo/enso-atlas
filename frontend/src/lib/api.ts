@@ -436,22 +436,28 @@ export async function analyzeSlide(
       confidence: backend.confidence,
       calibrationNote: "Model probability requires external validation.",
     },
-    evidencePatches: backend.top_evidence.map(e => ({
-      id: `patch_${e.patch_index}`,
-      patchId: `patch_${e.patch_index}`,
-      coordinates: {
-        x: e.coordinates?.[0] ?? 0,
-        y: e.coordinates?.[1] ?? 0,
-        width: 224,
-        height: 224,
-        level: 0,
-      },
-      attentionWeight: e.attention_weight,
-      thumbnailUrl: "",
-      rank: e.rank,
-      tissueType: e.tissue_type as import("@/types").TissueType | undefined,
-      tissueConfidence: e.tissue_confidence,
-    })),
+    evidencePatches: (() => {
+      // Normalize attention weights: raw softmax values are tiny (e.g. 0.00025)
+      // because they sum to 1 over all patches (often thousands).
+      // Rescale so the highest-attention patch in top_evidence maps to ~1.0.
+      const maxAttn = Math.max(...backend.top_evidence.map(e => e.attention_weight), 1e-12);
+      return backend.top_evidence.map(e => ({
+        id: `patch_${e.patch_index}`,
+        patchId: `patch_${e.patch_index}`,
+        coordinates: {
+          x: e.coordinates?.[0] ?? 0,
+          y: e.coordinates?.[1] ?? 0,
+          width: 224,
+          height: 224,
+          level: 0,
+        },
+        attentionWeight: e.attention_weight / maxAttn,
+        thumbnailUrl: "",
+        rank: e.rank,
+        tissueType: e.tissue_type as import("@/types").TissueType | undefined,
+        tissueConfidence: e.tissue_confidence,
+      }));
+    })(),
     similarCases: backend.similar_cases.map(s => ({
       slideId: s.slide_id,
       similarity: s.similarity_score,
@@ -915,13 +921,16 @@ export async function analyzeWithUncertainty(
     patchesAnalyzed: backend.patches_analyzed,
     nSamples: backend.n_samples,
     samples: backend.samples,
-    topEvidence: backend.top_evidence.map((e) => ({
-      rank: e.rank,
-      patchIndex: e.patch_index,
-      attentionWeight: e.attention_weight,
-      attentionUncertainty: e.attention_uncertainty,
-      coordinates: e.coordinates,
-    })),
+    topEvidence: (() => {
+      const maxAttn = Math.max(...backend.top_evidence.map(e => e.attention_weight), 1e-12);
+      return backend.top_evidence.map((e) => ({
+        rank: e.rank,
+        patchIndex: e.patch_index,
+        attentionWeight: e.attention_weight / maxAttn,
+        attentionUncertainty: e.attention_uncertainty,
+        coordinates: e.coordinates,
+      }));
+    })(),
   };
 }
 

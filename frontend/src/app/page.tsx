@@ -297,12 +297,16 @@ function HomePage() {
     
     // Extract evidence from snake_case format
     const rawEvidence = raw.evidence as Array<{ patch_index?: number; attention_weight?: number; coordinates?: [number, number] }> | undefined;
-    const evidence = (rawEvidence || []).map((e, i) => ({
-      patchId: `patch-${e.patch_index ?? i}`,
-      coordsLevel0: (e.coordinates || [0, 0]) as [number, number],
-      morphologyDescription: `Patch ${e.patch_index ?? i} with attention ${((e.attention_weight || 0) * 100).toFixed(1)}%`,
-      whyThisPatchMatters: `High attention region (${((e.attention_weight || 0) * 100).toFixed(1)}% weight)`,
-    }));
+    const maxEvAttn = Math.max(...(rawEvidence || []).map(e => e.attention_weight || 0), 1e-12);
+    const evidence = (rawEvidence || []).map((e, i) => {
+      const normalizedWeight = (e.attention_weight || 0) / maxEvAttn;
+      return {
+        patchId: `patch-${e.patch_index ?? i}`,
+        coordsLevel0: (e.coordinates || [0, 0]) as [number, number],
+        morphologyDescription: `Patch ${e.patch_index ?? i} with attention ${(normalizedWeight * 100).toFixed(1)}%`,
+        whyThisPatchMatters: `High attention region (${(normalizedWeight * 100).toFixed(1)}% weight)`,
+      };
+    });
     
     // Extract similar cases from snake_case format
     const rawSimilar = raw.similar_cases as Array<{ slide_id?: string; similarity_score?: number; label?: string | null }> | undefined;
