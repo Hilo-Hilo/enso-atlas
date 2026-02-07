@@ -25,6 +25,7 @@ import {
   AlertTriangle,
   X,
   Menu,
+  FolderOpen,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useProject } from "@/contexts/ProjectContext";
@@ -337,6 +338,15 @@ export function Header({
           >
             <Layers className="h-4 w-4 text-clinical-400" />
             <span className="text-sm text-gray-300 font-medium">Slides</span>
+          </Link>
+
+          {/* Project Management Link - Desktop */}
+          <Link
+            href="/projects"
+            className="hidden lg:flex items-center gap-2 px-2 sm:px-3 py-1.5 bg-navy-800/50 hover:bg-navy-700/50 rounded-lg border border-navy-700/30 transition-colors"
+          >
+            <FolderOpen className="h-4 w-4 text-clinical-400" />
+            <span className="text-sm text-gray-300 font-medium">Projects</span>
           </Link>
 
           {/* Divider */}
