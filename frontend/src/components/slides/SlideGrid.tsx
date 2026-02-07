@@ -128,9 +128,17 @@ function SlideCard({
               isImageLoaded ? "opacity-100" : "opacity-0"
             )}
             onLoad={() => setIsImageLoaded(true)}
-            onError={() => {
-              setImageError(true);
-              setIsImageLoaded(true);
+            onError={(e) => {
+              // Retry once after 3s (backend may still be starting)
+              const img = e.currentTarget;
+              const retried = img.dataset.retried;
+              if (!retried) {
+                img.dataset.retried = "1";
+                setTimeout(() => { img.src = thumbnailUrl + "?retry=1"; }, 3000);
+              } else {
+                setImageError(true);
+                setIsImageLoaded(true);
+              }
             }}
             loading="lazy"
             decoding="async"
