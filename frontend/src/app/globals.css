@@ -192,19 +192,17 @@
     @apply border-clinical-600 ring-2 ring-clinical-200;
   }
 
-  /* Heatmap legend gradient - viridis colormap (perceptually uniform) */
+  /* Heatmap legend gradient - jet colormap (matches backend heatmap generation) */
   .heatmap-legend {
     background: linear-gradient(
       to right,
-      #440154 0%,
-      #482878 12.5%,
-      #3e4a89 25%,
-      #31688e 37.5%,
-      #26838e 50%,
-      #1f9e89 62.5%,
-      #35b779 75%,
-      #6ece58 87.5%,
-      #fde725 100%
+      #0000bf 0%,
+      #0080ff 20%,
+      #00ffff 35%,
+      #40ff40 50%,
+      #ffff00 65%,
+      #ff8000 80%,
+      #ff0000 100%
     );
     @apply rounded-full;
   }
