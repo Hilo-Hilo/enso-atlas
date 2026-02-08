@@ -4416,7 +4416,7 @@ DISCLAIMER: This is a research tool. All findings must be validated by qualified
         - Description of what the model predicts
         - Training AUC score (model reliability)
         - Number of training slides
-        - Category (ovarian_cancer vs general_pathology)
+        - Category (cancer-specific or general_pathology)
 
         When project_id is provided, only returns models assigned to that
         project via the project_models junction table.

@@ -332,22 +332,15 @@ class MultiModelInference:
                     "Contradicts 3-year survival prediction (Deceased). Interpret with caution."
                 )
 
-        # Group by category
-        ovarian_cancer = [
-            predictions[k] for k in predictions 
-            if predictions[k].get("category") == "ovarian_cancer"
-        ]
-        general_pathology = [
-            predictions[k] for k in predictions 
-            if predictions[k].get("category") == "general_pathology"
-        ]
+        # Group by category (dynamic -- any category key from config)
+        by_category: dict = {}
+        for k, pred in predictions.items():
+            cat = pred.get("category", "general_pathology")
+            by_category.setdefault(cat, []).append(pred)
         
         result = {
             "predictions": predictions,
-            "by_category": {
-                "ovarian_cancer": ovarian_cancer,
-                "general_pathology": general_pathology,
-            },
+            "by_category": by_category,
             "n_patches": len(embeddings),
             "embedding_dim": embeddings.shape[1] if len(embeddings.shape) > 1 else 0,
         }
