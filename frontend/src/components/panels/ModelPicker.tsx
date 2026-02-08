@@ -99,6 +99,8 @@ export function ModelPicker({
   const [apiModels, setApiModels] = useState<string[]>([]);
 
   useEffect(() => {
+    // Skip fetch until a real project is loaded (avoids 404 on "default")
+    if (!currentProject.id || currentProject.id === "default") return;
     const fetchModels = async () => {
       try {
         // Try the new config-driven endpoint first
