@@ -20,6 +20,7 @@ import {
   PathologistView,
   BatchAnalysisPanel,
   AIAssistantPanel,
+  AnalysisControls,
   recordAnalysis,
   getCaseNotes,
 } from "@/components/panels";
@@ -1434,6 +1435,25 @@ function HomePage() {
         onResolutionChange={setResolutionLevel}
         forceReembed={forceReembed}
         onForceReembedChange={setForceReembed}
+        isGeneratingEmbeddings={isGeneratingEmbeddings}
+        embeddingProgress={embeddingProgress}
+        embeddingStatus={embeddingStatus}
+      />
+
+      {/* Analysis Controls - separate from case selection */}
+      <AnalysisControls
+        selectedSlideId={selectedSlide?.id ?? null}
+        selectedSlideHasLevel0={selectedSlide?.hasLevel0Embeddings ?? false}
+        selectedModels={selectedModels}
+        onModelsChange={setSelectedModels}
+        resolutionLevel={resolutionLevel}
+        onResolutionChange={setResolutionLevel}
+        forceReembed={forceReembed}
+        onForceReembedChange={setForceReembed}
+        onAnalyze={handleAnalyze}
+        onGenerateEmbeddings={handleGenerateEmbeddings}
+        isAnalyzing={isAnalyzing}
+        analysisStep={analysisStep}
         isGeneratingEmbeddings={isGeneratingEmbeddings}
         embeddingProgress={embeddingProgress}
         embeddingStatus={embeddingStatus}
