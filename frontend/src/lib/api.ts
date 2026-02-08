@@ -2443,6 +2443,16 @@ export function convertAsyncBatchResults(
       requiresReview: r.requires_review,
       uncertaintyLevel: r.uncertainty_level as BatchAnalysisResult["uncertaintyLevel"],
       error: r.error,
+      modelResults: r.model_results?.map((mr) => ({
+        modelId: mr.model_id,
+        modelName: mr.model_name,
+        prediction: mr.prediction,
+        score: mr.score,
+        confidence: mr.confidence,
+        positiveLabel: mr.positive_label,
+        negativeLabel: mr.negative_label,
+        error: mr.error,
+      })),
     })),
     summary: {
       total: asyncStatus.summary.total,
