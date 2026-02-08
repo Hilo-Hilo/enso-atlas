@@ -1,36 +1,35 @@
 # Reproduce on NVIDIA DGX Spark (Docker)
 
-## Prerequisites (on the DGX)
+## Prerequisites
+
+- NVIDIA DGX Spark (ARM64, 128GB unified memory) or equivalent GPU server
+- Docker with NVIDIA Container Toolkit
+- Node.js 18+ (for frontend)
 
 ```bash
-# Sanity checks
+# Verify GPU and Docker setup
 nvidia-smi
 docker --version
 docker compose version
-```
 
-Verify the NVIDIA Container Toolkit is working (GPU visible inside containers):
-
-```bash
+# Verify NVIDIA Container Toolkit
 docker run --rm --gpus all nvidia/cuda:12.2.0-base-ubuntu22.04 nvidia-smi
 ```
 
 ## Build
 
-From the repo root:
+From the repository root:
 
 ```bash
-make docker-build
+docker compose -f docker/docker-compose.yaml build
 ```
 
-(Equivalent: `docker compose -f docker/docker-compose.yaml build`.)
+## Download Models (Required for Offline Mode)
 
-## Download models (required for offline mode)
-
-The default Compose config runs in offline mode (`TRANSFORMERS_OFFLINE=1`, `HF_HUB_OFFLINE=1`). Populate the model volume once, then run offline.
+The default Compose configuration runs in offline mode (`TRANSFORMERS_OFFLINE=1`, `HF_HUB_OFFLINE=1`). Populate the model volume once, then run offline.
 
 ```bash
-# If needed for gated models
+# Set Hugging Face token for gated model access
 export HF_TOKEN="YOUR_HUGGINGFACE_TOKEN"
 
 docker compose -f docker/docker-compose.yaml run --rm \
@@ -40,33 +39,65 @@ docker compose -f docker/docker-compose.yaml run --rm \
   enso-atlas python /app/scripts/download_models.py --cache-dir /app/models --models all
 ```
 
-## Run
+## Run the Backend
 
 ```bash
-make docker-up
+docker compose -f docker/docker-compose.yaml up -d
 ```
 
-Check status / logs:
+This starts two services:
+
+| Service | Description | Port |
+|---------|-------------|------|
+| enso-atlas | FastAPI backend + ML models | 8003 (host) -> 8000 (container) |
+| atlas-db | PostgreSQL database | 5433 |
+
+The backend takes approximately 3.5 minutes to fully start due to MedGemma model loading.
+
+Check status and logs:
 
 ```bash
 docker compose -f docker/docker-compose.yaml ps
 docker logs -f enso-atlas
 ```
 
-## Verify GPU access
+## Verify GPU Access
 
 ```bash
 docker exec -it enso-atlas python -c "import torch; print('cuda:', torch.cuda.is_available()); print('gpus:', torch.cuda.device_count())"
 ```
 
+## Run the Frontend
+
+The frontend runs separately outside Docker:
+
+```bash
+cd frontend
+npm install
+npm run build
+npx next start -p 3002
+```
+
 ## Open the UI
 
-- `http://<DGX_HOSTNAME_OR_IP>:7860`
+- Frontend: `http://<DGX_HOSTNAME_OR_IP>:3002`
+- Backend API docs: `http://<DGX_HOSTNAME_OR_IP>:8003/api/docs`
+
+## Data Layout
+
+```
+data/
+  tcga_full/slides/          # 208 TCGA ovarian cancer WSIs (.svs)
+  embeddings/level0/         # Path Foundation 384-dim patch embeddings
+config/
+  projects.yaml              # Project definitions (writable for CRUD)
+models/                      # Trained TransMIL weights (5 models)
+```
 
 ## Stop
 
 ```bash
-make docker-down
+docker compose -f docker/docker-compose.yaml down
 ```
 
 ## Troubleshooting
@@ -85,12 +116,18 @@ make docker-down
 
 ### Model download fails
 
-- Ensure HF_TOKEN is set and the account has accepted model terms
+- Ensure HF_TOKEN is set and the account has accepted model terms for MedGemma and Path Foundation
 - Check network connectivity
-- Try downloading outside Docker first to verify token works
+- Try downloading outside Docker first to verify the token works
 
-### Build fails on Python/faiss-gpu
+### Backend startup is slow
 
-The Dockerfile uses Python 3.10 (jammy default). If you see wheel issues:
-- Consider using `faiss-cpu` instead of `faiss-gpu`
-- Or switch to a PyTorch base image (see Dockerfile comments)
+The backend takes ~3.5 minutes to start because MedGemma 1.5 4B must be loaded into GPU memory. Monitor with `docker logs -f enso-atlas` and wait for the "Application startup complete" message.
+
+### Path Foundation running on CPU
+
+Path Foundation uses TensorFlow, which has a known incompatibility with Blackwell GPUs. It runs on CPU by design. This affects embedding generation speed but not inference (embeddings are precomputed and cached).
+
+### Build fails on ARM64
+
+The Docker images are built for ARM64 (DGX Spark). If building on x86_64, verify that base images support your architecture or use `--platform linux/arm64` with emulation.

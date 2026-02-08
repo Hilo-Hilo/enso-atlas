@@ -4,39 +4,19 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 
-**On-Prem Pathology Evidence Engine for Treatment-Response Insight**
+**On-Premise Pathology Evidence Engine for Treatment-Response Prediction**
 
-Enso Atlas is an on-premise pathology evidence engine that analyzes whole-slide images (WSIs) to predict treatment response and provides interpretable, auditable evidence for clinical decision support.
-
----
-
-## Important Disclaimer: Demo vs Production
-
-**This is a demonstration prototype, not a production-ready clinical tool.**
-
-The current implementation has the following limitations:
-
-- **No trained classification model**: The CLAM MIL head uses randomly initialized or minimally trained weights. It is not trained on real treatment response labels.
-- **Fallback embeddings**: Uses DINOv2 embeddings instead of Path Foundation (which requires gated access).
-- **Uniform predictions**: The model currently predicts all cases as NON-RESPONDER due to lack of training on labeled data.
-- **Infrastructure demonstration only**: This prototype demonstrates the end-to-end pipeline architecture (WSI processing, embedding, attention visualization, similar case retrieval, report generation) but does not provide clinically meaningful predictions.
-
-**For production use**, the CLAM head would need to be:
-1. Trained on a labeled cohort with known treatment outcomes
-2. Validated on a held-out test set
-3. Calibrated for probability outputs
-4. Externally validated before clinical deployment
-
-This software is for research and demonstration purposes only. It has not been validated as a medical device.
+Enso Atlas is an on-premise pathology evidence engine that analyzes whole-slide images (WSIs) using TransMIL attention-based classification, Path Foundation embeddings, and MedGemma clinical reporting to predict treatment response with interpretable, auditable evidence.
 
 ---
 
 ## Highlights
 
 - **Local-first**: Runs entirely on-premise; no PHI leaves the hospital network
-- **Evidence-based**: Heatmaps + patch retrieval + structured reports provide auditable evidence
-- **Foundation-model agnostic**: Swap embedding models without changing the architecture
-- **Production-ready**: FastAPI backend + Next.js frontend with OpenSeadragon WSI viewer
+- **Evidence-based**: Attention heatmaps, evidence patches, semantic search, and structured reports provide auditable clinical evidence
+- **Trained models**: 5 TransMIL classifiers trained on 208 TCGA ovarian cancer slides with best AUC of 0.907 (platinum sensitivity)
+- **Foundation-model powered**: Path Foundation embeddings, MedGemma report generation, MedSigLIP semantic search
+- **Production-ready**: FastAPI backend + Next.js frontend + PostgreSQL with Docker Compose deployment
 
 ---
 
@@ -52,13 +32,13 @@ This software is for research and demonstration purposes only. It has not been v
 
 ![Analysis Results](docs/screenshots/analysis-results.png)
 
-*Complete analysis showing NON-RESPONDER prediction with high confidence (100%), response probability bar, and evidence patches grid.*
+*Complete analysis showing prediction results with confidence scores, response probability, and evidence patches.*
 
 ### WSI Viewer with Heatmap Overlay
 
 ![WSI Viewer](docs/screenshots/wsi-viewer.png)
 
-*OpenSeadragon-based whole-slide image viewer with attention heatmap overlay toggle, zoom controls, and minimap navigation.*
+*OpenSeadragon-based whole-slide image viewer with TransMIL attention heatmap overlay, zoom controls, and minimap navigation.*
 
 ### Similar Cases Panel
 
@@ -70,26 +50,37 @@ This software is for research and demonstration purposes only. It has not been v
 
 ![Prediction Panel](docs/screenshots/prediction-panel.png)
 
-*Detailed view showing the prediction results (confidence score, response probability threshold), evidence patches ranked by attention weight, and calibration notes.*
+*Detailed prediction results with confidence score, response probability threshold, and evidence patches ranked by attention weight.*
 
 ---
 
 ## Quick Start
 
-### Prerequisites
-
-- Python 3.10+
-- Node.js 18+ (for frontend)
-- NVIDIA GPU with CUDA support (recommended)
-- OpenSlide library installed
-
-### Installation
+### Docker Deployment (Recommended)
 
 ```bash
 # Clone the repository
 git clone https://github.com/Hilo-Hilo/med-gemma-hackathon.git
 cd med-gemma-hackathon
 
+# Build and start backend + database
+docker compose -f docker/docker-compose.yaml build
+docker compose -f docker/docker-compose.yaml up -d
+
+# Backend API available at http://localhost:8003 (~3.5 min startup for MedGemma loading)
+
+# Build and start frontend
+cd frontend
+npm install
+npm run build
+npx next start -p 3002
+
+# Frontend available at http://localhost:3002
+```
+
+### Local Development
+
+```bash
 # Create virtual environment
 python -m venv .venv
 source .venv/bin/activate
@@ -97,27 +88,14 @@ source .venv/bin/activate
 # Install dependencies
 pip install -e .
 
-# Generate demo data
-python scripts/generate_demo_data.py --train-model
-
-# Start the API server
+# Start the API server (port 8000 locally, 8003 via Docker)
 python -m uvicorn enso_atlas.api.main:app --reload --host 0.0.0.0 --port 8000
-```
 
-### Frontend Setup
-
-```bash
+# In a separate terminal
 cd frontend
 npm install
 npm run dev
-# Frontend runs at http://localhost:3000
-```
-
-### Gradio Demo
-
-```bash
-python -m enso_atlas.ui.demo_app
-# Demo runs at http://localhost:7860
+# Frontend runs at http://localhost:3000 (dev) or http://localhost:3002 (production)
 ```
 
 ---
@@ -128,23 +106,23 @@ python -m enso_atlas.ui.demo_app
                            Enso Atlas Architecture
 
     +------------------+     +------------------+     +------------------+
-    |   WSI Input      |     |   FastAPI        |     |   Next.js        |
-    |   (.svs, .ndpi)  |---->|   Backend        |<----|   Frontend       |
+    |   WSI Input      |     |   FastAPI        |     |   Next.js 14     |
+    |   (.svs, .ndpi)  |---->|   Backend :8003  |<----|   Frontend :3002 |
     +------------------+     +------------------+     +------------------+
                                     |
-           +------------------------+------------------------+
-           |                        |                        |
-           v                        v                        v
-    +-------------+          +-------------+          +-------------+
-    |   Path      |          |   CLAM      |          |   FAISS     |
-    |   Foundation|          |   MIL Head  |          |   Index     |
-    +-------------+          +-------------+          +-------------+
+           +------------+-----------+-----------+------------+
+           |            |           |           |            |
+           v            v           v           v            v
+    +----------+  +-----------+  +-------+  +----------+  +--------+
+    |   Path   |  | TransMIL  |  | FAISS |  | MedGemma |  |MedSig- |
+    |Foundation|  | Classifier|  | Index |  | Reporter |  |  LIP   |
+    |  (CPU)   |  |  (GPU)    |  |       |  |  (GPU)   |  | (GPU)  |
+    +----------+  +-----------+  +-------+  +----------+  +--------+
                                     |
-                                    v
-                          +------------------+
-                          |   MedGemma       |
-                          |   Reporter       |
-                          +------------------+
+                             +-------------+
+                             | PostgreSQL  |
+                             |    :5433    |
+                             +-------------+
 ```
 
 ### Core Components
@@ -152,12 +130,24 @@ python -m enso_atlas.ui.demo_app
 | Component | Description |
 |-----------|-------------|
 | **WSI Processing** | OpenSlide-based processing with tissue detection |
-| **Path Foundation** | 384-dim embeddings from Google's foundation model |
-| **MedSigLIP** | Text-to-patch semantic search (e.g., "tumor cells", "lymphocytes") |
-| **CLAM Classifier** | Attention-based MIL for slide-level prediction |
-| **Evidence Heatmaps** | Attention visualization overlaid on thumbnails |
+| **Path Foundation** | 384-dim patch embeddings from Google's foundation model (CPU) |
+| **TransMIL** | Transformer-based MIL for slide-level classification |
+| **MedSigLIP** | Text-to-patch semantic search (GPU) |
 | **FAISS Retrieval** | Similar case search from reference cohort |
-| **MedGemma Reports** | Structured JSON reports with safety guardrails |
+| **MedGemma 1.5 4B** | Structured clinical report generation (GPU, ~20s/report) |
+| **PostgreSQL** | Slide metadata, analysis results, and result caching |
+
+### Model Performance
+
+| Model | Task | AUC |
+|-------|------|-----|
+| platinum_sensitivity | Platinum treatment response | 0.907 |
+| tumor_grade | Tumor grade classification | 0.752 |
+| survival_5y | 5-year survival prediction | 0.697 |
+| survival_3y | 3-year survival prediction | 0.645 |
+| survival_1y | 1-year survival prediction | 0.639 |
+
+Best single model AUC on full dataset: 0.879 with optimal threshold 0.917 (Youden's J index).
 
 ### Tech Stack
 
@@ -165,61 +155,77 @@ python -m enso_atlas.ui.demo_app
 |-------|------------|
 | WSI I/O | OpenSlide |
 | Embeddings | Path Foundation (ViT-S, 384-dim) |
-| Semantic Search | MedSigLIP/SigLIP (text-to-patch retrieval) |
-| Classification | CLAM (Gated Attention MIL) |
+| Semantic Search | MedSigLIP (text-to-patch retrieval) |
+| Classification | TransMIL (Transformer-based MIL) |
 | Retrieval | FAISS |
 | Reporting | MedGemma 1.5 4B |
-| Backend | FastAPI + Python 3.10+ |
-| Frontend | Next.js 14 + TypeScript + Tailwind CSS |
+| Backend | FastAPI + Python 3.10+ + asyncpg |
+| Frontend | Next.js 14.2 + TypeScript + Tailwind CSS |
 | Viewer | OpenSeadragon |
+| Database | PostgreSQL |
+| Deployment | Docker Compose on NVIDIA DGX Spark (ARM64) |
 
 ---
 
 ## API Reference
 
-### Health Check
+All endpoints are served at `http://localhost:8003` (Docker) or `http://localhost:8000` (local).
+
+### Core Endpoints
 
 ```bash
-curl http://localhost:8000/health
-```
+# Health check
+curl http://localhost:8003/api/health
 
-### Analyze Slide
+# List slides (optionally filtered by project)
+curl http://localhost:8003/api/slides?project_id=1
 
-```bash
-curl -X POST http://localhost:8000/api/analyze \
+# Analyze a slide
+curl -X POST http://localhost:8003/api/analyze \
   -H "Content-Type: application/json" \
-  -d '{"slide_id": "slide_001"}'
-```
+  -d '{"slide_id": "TCGA-XX-XXXX", "model_id": "platinum_sensitivity"}'
 
-### Generate Report
-
-```bash
-curl -X POST http://localhost:8000/api/report \
+# Batch analysis
+curl -X POST http://localhost:8003/api/analyze/batch \
   -H "Content-Type: application/json" \
-  -d '{"slide_id": "slide_001", "include_evidence": true}'
-```
+  -d '{"slide_ids": ["slide_1", "slide_2"], "model_id": "platinum_sensitivity"}'
 
-### Semantic Search (MedSigLIP)
-
-Search for patches matching a text description using MedSigLIP embeddings:
-
-```bash
-curl -X POST http://localhost:8000/api/semantic-search \
+# Generate clinical report
+curl -X POST http://localhost:8003/api/report \
   -H "Content-Type: application/json" \
-  -d '{"slide_id": "slide_001", "query": "tumor infiltrating lymphocytes", "top_k": 10}'
+  -d '{"slide_id": "TCGA-XX-XXXX"}'
+
+# Semantic search via MedSigLIP
+curl -X POST http://localhost:8003/api/semantic-search \
+  -H "Content-Type: application/json" \
+  -d '{"slide_id": "TCGA-XX-XXXX", "query": "tumor infiltrating lymphocytes", "top_k": 10}'
 ```
 
-Example queries:
-- `"tumor cells"` - Find regions with dense tumor cells
-- `"lymphocytes"` - Immune cell infiltration
-- `"necrosis"` - Areas of tissue death
-- `"stroma"` - Stromal/connective tissue regions
-- `"mitotic figures"` - Cell division activity
+### Full Endpoint List
 
-### Full API Documentation
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | /api/health | Health check |
+| GET | /api/slides | List slides (with ?project_id= filtering) |
+| GET | /api/slides/{id}/dzi | DZI metadata for OpenSeadragon |
+| GET | /api/slides/{id}/thumbnail | Slide thumbnail |
+| GET | /api/slides/{id}/cached-results | Cached analysis results |
+| POST | /api/analyze | Single slide analysis |
+| POST | /api/analyze/batch | Multi-slide batch analysis |
+| POST | /api/analyze/multi-model | Multi-model ensemble analysis |
+| GET | /api/models | List models (with ?project_id= filtering) |
+| GET/POST/PUT/DELETE | /api/projects | Project CRUD |
+| GET/POST/DELETE | /api/projects/{id}/slides | Assign/unassign slides |
+| GET/POST/DELETE | /api/projects/{id}/models | Assign/unassign models |
+| POST | /api/semantic-search | MedSigLIP text-to-patch search |
+| GET | /api/heatmap/{slide_id}/{model_id} | TransMIL attention heatmap |
+| POST | /api/report | Generate MedGemma clinical report |
+| GET | /api/slides/{id}/report/pdf | Export report as PDF |
 
-- Swagger UI: [http://localhost:8000/api/docs](http://localhost:8000/api/docs)
-- ReDoc: [http://localhost:8000/api/redoc](http://localhost:8000/api/redoc)
+### Interactive Documentation
+
+- Swagger UI: [http://localhost:8003/api/docs](http://localhost:8003/api/docs)
+- ReDoc: [http://localhost:8003/api/redoc](http://localhost:8003/api/redoc)
 
 ---
 
@@ -231,16 +237,18 @@ med-gemma-hackathon/
 |   |-- api/           # FastAPI endpoints
 |   |-- embedding/     # Path Foundation embedder
 |   |-- evidence/      # Heatmaps and FAISS retrieval
-|   |-- mil/           # CLAM attention classifier
+|   |-- mil/           # TransMIL attention classifier
 |   |-- reporting/     # MedGemma report generation
 |   |-- wsi/           # WSI processing
-|   |-- ui/            # Gradio interfaces
-|-- frontend/          # Next.js application
-|-- scripts/           # Utility scripts
-|-- config/            # Configuration files
-|-- data/              # Demo data and embeddings
-|-- models/            # Model weights
+|-- frontend/          # Next.js 14.2 application
+|-- docker/            # Docker Compose configuration
+|-- config/            # projects.yaml and configuration
+|-- data/
+|   |-- tcga_full/slides/    # TCGA ovarian cancer WSIs
+|   |-- embeddings/level0/   # Path Foundation embeddings
+|-- models/            # Trained TransMIL weights
 |-- tests/             # Unit tests
+|-- docs/              # Documentation and screenshots
 ```
 
 ---
@@ -252,16 +260,32 @@ med-gemma-hackathon/
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `CUDA_VISIBLE_DEVICES` | GPU selection | All GPUs |
-| `ENSO_ATLAS_PORT` | API server port | 8000 |
-| `NEXT_PUBLIC_API_URL` | Frontend API URL | http://localhost:8000 |
+| `NEXT_PUBLIC_API_URL` | Frontend API URL | http://localhost:8003 |
 
-### Configuration Files
+### Project Configuration
 
-See `config/default.yaml` for full configuration options including:
-- WSI processing parameters
-- Embedding model settings
-- MIL classifier hyperparameters
-- MedGemma generation settings
+Projects are managed via `config/projects.yaml` and the `/api/projects` CRUD endpoints. Each project scopes slides and models via PostgreSQL junction tables (project_slides, project_models), enabling multi-cancer support from a single deployment.
+
+---
+
+## Dataset
+
+The system is trained and evaluated on **208 TCGA ovarian cancer whole-slide images** with level 0 (full resolution) Path Foundation embeddings. Classification targets include platinum sensitivity, tumor grade, and survival at 1, 3, and 5 year horizons.
+
+---
+
+## Docker Deployment
+
+Services are defined in `docker/docker-compose.yaml`:
+
+| Service | Description | Port |
+|---------|-------------|------|
+| enso-atlas | FastAPI backend + ML models | 8003 (host) -> 8000 (container) |
+| atlas-db | PostgreSQL database | 5433 |
+
+The backend takes approximately 3.5 minutes to fully start due to MedGemma model loading. The frontend runs separately outside Docker.
+
+See [docs/reproduce.md](docs/reproduce.md) for detailed deployment instructions.
 
 ---
 
@@ -271,41 +295,27 @@ See `config/default.yaml` for full configuration options including:
 
 ```bash
 pytest tests/
-pytest --cov=src tests/  # With coverage
+pytest --cov=src tests/
 ```
 
 ### Code Quality
 
 ```bash
-# Linting
 ruff check src/
 black src/ --check
-
-# Type checking
 mypy src/
 
-# Frontend
 cd frontend && npm run lint
 ```
 
 ---
 
-## Dataset
-
-The prototype uses the **Ovarian Bevacizumab Response Dataset**:
-
-> 288 de-identified H&E WSIs from 78 patients with treatment response labels
-
-Reference: [Nature Scientific Data](https://www.nature.com/articles/s41597-022-01127-6)
-
----
-
 ## Acknowledgments
 
-- **Google Health AI** for Path Foundation and MedGemma
+- **Google Health AI** for Path Foundation, MedGemma, and MedSigLIP
 - **NVIDIA** for DGX Spark compute resources
-- Authors of the Ovarian Bevacizumab Response Dataset
-- [CLAM](https://github.com/mahmoodlab/CLAM) for the MIL architecture reference
+- **TCGA** for the ovarian cancer whole-slide image dataset
+- [TransMIL](https://github.com/szc19990412/TransMIL) for the Transformer-based MIL architecture
 
 ---
 
@@ -317,7 +327,7 @@ MIT License - See [LICENSE](LICENSE) for details.
 
 ## References
 
-1. Lu et al., "Data-efficient and weakly supervised computational pathology on whole-slide images," *Nature Biomedical Engineering*, 2021.
+1. Shao et al., "TransMIL: Transformer based Correlated Multiple Instance Learning for Whole Slide Image Classification," *NeurIPS*, 2021.
 2. Google Health AI, [Path Foundation](https://developers.google.com/health-ai-developer-foundations/path-foundation)
 3. Google, [MedGemma](https://developers.google.com/health-ai-developer-foundations/medgemma)
-4. Google Health AI, [MedSigLIP](https://developers.google.com/health-ai-developer-foundations/medsiglip) - Text-to-image retrieval for medical images
+4. Google Health AI, [MedSigLIP](https://developers.google.com/health-ai-developer-foundations/medsiglip)

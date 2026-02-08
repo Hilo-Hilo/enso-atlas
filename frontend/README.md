@@ -1,31 +1,27 @@
 # Enso Atlas Frontend
 
-Professional React/Next.js frontend for the Enso Atlas pathology evidence engine.
+Next.js 14.2 frontend for the Enso Atlas pathology evidence engine.
 
 ## Overview
 
-This frontend provides a clinical-grade user interface for:
-- Whole-slide image (WSI) viewing with OpenSeadragon
-- AI prediction results display with confidence scores
-- Evidence patch visualization with attention-based heatmaps
-- Similar case retrieval from FAISS embeddings
-- Structured clinical report generation powered by MedGemma
+The frontend provides a clinical-grade interface for whole-slide image analysis, treatment-response prediction, and evidence-based clinical reporting. It connects to the FastAPI backend (port 8003) and PostgreSQL database for slide management, model execution, and result caching.
 
 ## Technology Stack
 
-- **Framework**: Next.js 14+ with App Router
+- **Framework**: Next.js 14.2 with App Router
 - **Language**: TypeScript
 - **Styling**: Tailwind CSS
-- **WSI Viewer**: OpenSeadragon
-- **UI Components**: Custom professional medical UI components
+- **WSI Viewer**: OpenSeadragon with heatmap overlays
+- **Layout**: react-resizable-panels v4
+- **UI Components**: Custom clinical-grade components with dark mode support
 
 ## Getting Started
 
 ### Prerequisites
 
 - Node.js 18+
-- npm or yarn
-- Backend API running at localhost:8000 (or configure NEXT_PUBLIC_API_URL)
+- npm
+- Backend API running at localhost:8003
 
 ### Installation
 
@@ -38,128 +34,82 @@ npm install
 
 ```bash
 npm run dev
+# Available at http://localhost:3000
 ```
-
-The application will be available at http://localhost:3000
 
 ### Production Build
 
 ```bash
 npm run build
-npm start
+npx next start -p 3002
+# Available at http://localhost:3002
 ```
 
-## Project Structure
+## Features
 
-```
-frontend/
-  src/
-    app/                    # Next.js App Router pages
-      layout.tsx            # Root layout with metadata
-      page.tsx              # Main application page
-      globals.css           # Global styles and Tailwind directives
-    components/
-      ui/                   # Reusable UI components
-        Button.tsx          # Clinical button variants
-        Card.tsx            # Card and panel components
-        Badge.tsx           # Status badges
-        Slider.tsx          # Range sliders
-        Toggle.tsx          # Toggle switches
-        Spinner.tsx         # Loading indicators
-      viewer/
-        WSIViewer.tsx       # OpenSeadragon WSI viewer with heatmap overlay
-      panels/
-        PredictionPanel.tsx # Model prediction display
-        EvidencePanel.tsx   # Evidence patch gallery
-        SimilarCasesPanel.tsx # FAISS similarity results
-        ReportPanel.tsx     # Structured clinical report
-        SlideSelector.tsx   # Slide selection interface
-      layout/
-        Header.tsx          # Application header
-        Footer.tsx          # Application footer with disclaimers
-    hooks/
-      useAnalysis.ts        # Analysis workflow state management
-      useViewer.ts          # OpenSeadragon viewer state
-    lib/
-      api.ts                # Backend API client
-      utils.ts              # Utility functions
-      mock-data.ts          # Development mock data
-    types/
-      index.ts              # TypeScript type definitions
-```
+### 3-Panel Layout
+- **Case Selection** (left): Slide browser with thumbnails, filtering, embedding status chips (Level 0/1), and model picker filtered by project
+- **WSI Viewer** (center): OpenSeadragon deep-zoom viewer with TransMIL attention heatmap overlays (jet colormap), minimap, annotation tools
+- **Analysis Results** (right): Prediction scores, evidence patches with normalized attention weights, similar cases, clinical reports
+
+### View Modes
+- **Oncologist**: Treatment-focused view with prediction summary and clinical report
+- **Pathologist**: Detailed evidence view with annotation tools (always visible), attention heatmaps, and patch-level analysis
+- **Batch**: Multi-slide batch processing with parallel execution
+
+### Pages
+- **/** - Main analysis workspace (3-panel layout)
+- **/slides** - Slide Manager with thumbnails, filtering, and pagination
+- **/projects** - Project Management with CRUD operations and slide upload
+
+### Analysis Capabilities
+- Unified "Run Analysis" button with result caching in PostgreSQL
+- Multi-model ensemble analysis
+- MedGemma clinical report generation with PDF export
+- Semantic search via MedSigLIP (text-to-patch retrieval)
+- Similar case retrieval via FAISS
+- AI Assistant with 7-step agentic workflow
+- Batch processing with parallel execution
 
 ## Backend API Requirements
 
-The frontend expects the following API endpoints:
+The frontend expects the backend at `NEXT_PUBLIC_API_URL` (default: `http://localhost:8003`).
+
+### Key Endpoints
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | GET | /api/health | Health check |
-| GET | /api/slides | List available slides |
-| GET | /api/slides/:id | Get slide details |
-| GET | /api/slides/:id/dzi | Get DZI metadata for OpenSeadragon |
-| GET | /api/slides/:id/thumbnail | Get slide thumbnail |
-| GET | /api/slides/:id/heatmap | Get attention heatmap |
-| POST | /api/analyze | Run analysis on a slide |
-| POST | /api/report | Generate structured report |
-| GET | /api/slides/:id/report/pdf | Export report as PDF |
-
-## Features
-
-### WSI Viewer
-- Deep zoom navigation with OpenSeadragon
-- Mini-map navigator
-- Attention heatmap overlay with adjustable opacity
-- Click-to-navigate to evidence regions
-- Fullscreen mode
-
-### Prediction Panel
-- Model prediction with probability score
-- Confidence level indicator (high/moderate/low)
-- Visual probability bar with threshold marker
-- Calibration notes
-
-### Evidence Gallery
-- Top-K patches by attention weight
-- Grid and list view modes
-- Click to navigate to patch location
-- Morphology descriptions
-
-### Similar Cases
-- Reference cohort matches
-- Distance-based similarity scores
-- Case labels (responder/non-responder)
-- Expandable case details
-
-### Clinical Report
-- Structured JSON output
-- Human-readable summary
-- Evidence citations
-- Limitations and next steps
-- Safety statement
-- PDF and JSON export
-
-## Design Principles
-
-1. **Clinical-grade UI**: Professional, clean design suitable for medical settings
-2. **Evidence-first**: All AI predictions include supporting evidence
-3. **Safety-conscious**: Clear disclaimers and limitations displayed
-4. **Offline-capable**: Designed for on-premise deployment
-5. **Accessibility**: Focus states and keyboard navigation
+| GET | /api/slides | List slides (with ?project_id= filtering) |
+| GET | /api/slides/{id}/dzi | DZI metadata for OpenSeadragon |
+| GET | /api/slides/{id}/thumbnail | Slide thumbnail |
+| GET | /api/slides/{id}/cached-results | Cached analysis results |
+| POST | /api/analyze | Single slide analysis |
+| POST | /api/analyze/batch | Multi-slide batch analysis |
+| POST | /api/analyze/multi-model | Multi-model ensemble |
+| GET | /api/models | List models (with ?project_id= filtering) |
+| GET/POST/PUT/DELETE | /api/projects | Project CRUD |
+| GET/POST/DELETE | /api/projects/{id}/slides | Assign/unassign slides |
+| GET/POST/DELETE | /api/projects/{id}/models | Assign/unassign models |
+| POST | /api/semantic-search | MedSigLIP text-to-patch search |
+| GET | /api/heatmap/{slide_id}/{model_id} | Attention heatmap tiles |
+| POST | /api/report | Generate MedGemma clinical report |
+| GET | /api/slides/{id}/report/pdf | Export report as PDF |
 
 ## Environment Variables
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| NEXT_PUBLIC_API_URL | Backend API base URL | http://localhost:8000 |
+| NEXT_PUBLIC_API_URL | Backend API base URL | http://localhost:8003 |
 
-## Development Notes
+## Design Principles
 
-- No emojis in code or documentation (clinical standard)
-- All components use TypeScript with strict typing
-- Tailwind classes follow a clinical color palette
-- Components are designed for reuse and extension
+1. **Clinical-grade UI**: Professional design suitable for medical settings
+2. **Evidence-first**: All AI predictions include supporting evidence and attention maps
+3. **Safety-conscious**: Clear disclaimers and limitations displayed throughout
+4. **Offline-capable**: Designed for on-premise deployment with no external dependencies
+5. **Accessible**: Dark mode, keyboard navigation, focus states
 
 ## License
 
-Proprietary - Enso Labs
+MIT License

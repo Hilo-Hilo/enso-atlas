@@ -35,6 +35,8 @@
 
 Enso Atlas is an on-premise pathology evidence engine that predicts treatment response from whole-slide histopathology images (WSIs) using Google's HAI-DEF foundation models. The system is designed for deployment within hospital networks, ensuring that Protected Health Information (PHI) never leaves the premises. It combines three Google foundation models -- Path Foundation, MedGemma 4B, and MedSigLIP -- with a Transformer-based Multiple Instance Learning (TransMIL) classifier to deliver interpretable, evidence-grounded predictions.
 
+The system manages five specialized TransMIL models through a project-scoped architecture backed by PostgreSQL with junction tables (project_models, project_slides) for flexible many-to-many relationships between projects, slides, and models.
+
 The platform addresses a critical gap in precision oncology: determining which patients will respond to specific chemotherapy regimens before treatment begins. Currently, treatment response can only be assessed after multiple cycles of therapy, exposing non-responding patients to unnecessary toxicity and delays in receiving effective alternatives. Enso Atlas provides early, morphology-based predictions from standard H&E-stained tissue slides that are already collected during routine clinical care.
 
 ### Mission Statement
@@ -83,7 +85,7 @@ Enso Atlas differentiates from existing computational pathology platforms in sev
 ```mermaid
 graph TB
     subgraph "Frontend (Next.js 14)"
-        UI[React UI - Port 3000]
+        UI[React UI - Port 3002]
         OSD[OpenSeadragon WSI Viewer]
         API_CLIENT[API Client - api.ts]
     end
@@ -220,7 +222,7 @@ The system deploys via Docker Compose with two services:
 +-----------------------------------+
 |  Frontend (Next.js)               |
 |  - Next.js 14 Dev Server          |
-|  - Port 3000                      |
+|  - Port 3002                      |
 |  - Proxy /api/* -> :8003          |
 +-----------------------------------+
 ```
@@ -232,7 +234,7 @@ The system deploys via Docker Compose with two services:
 | enso-atlas | 8000 | 8003 | FastAPI REST API |
 | enso-atlas | 7860 | 7862 | Gradio UI (legacy) |
 | atlas-db | 5432 | 5433 | PostgreSQL |
-| frontend | 3000 | 3000 | Next.js development server |
+| frontend | 3002 | 3002 | Next.js development server |
 
 ## 2.5 Network Architecture
 
@@ -258,9 +260,9 @@ This eliminates CORS issues in production and creates a unified origin for the b
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*",
-        "http://localhost:3000",
+        "http://localhost:3002",
         "http://localhost:3001",
-        "http://100.111.126.23:3000",
+        "http://100.111.126.23:3002",
         "http://100.111.126.23:8003",
     ],
     allow_credentials=False,
@@ -1110,17 +1112,61 @@ List all configured projects.
 }
 ```
 
+### POST /api/projects
+
+Create a new project.
+
+### PUT /api/projects/{project\_id}
+
+Update an existing project configuration.
+
+### DELETE /api/projects/{project\_id}
+
+Delete a project and its junction table associations.
+
 ### GET /api/projects/{project\_id}
 
 Get full project configuration including dataset paths, model config, and threshold.
 
 ### GET /api/projects/{project\_id}/slides
 
-List slides associated with a specific project.
+List slides assigned to a specific project (via project_slides junction table).
+
+### POST /api/projects/{project\_id}/slides
+
+Assign slides to a project. Body: `{"slide_ids": ["slide1", "slide2"]}`.
+
+### DELETE /api/projects/{project\_id}/slides
+
+Unassign slides from a project. Body: `{"slide_ids": ["slide1"]}`.
+
+### GET /api/projects/{project\_id}/models
+
+List models assigned to a specific project (via project_models junction table).
+
+### POST /api/projects/{project\_id}/models
+
+Assign models to a project. Body: `{"model_ids": ["model1"]}`.
+
+### DELETE /api/projects/{project\_id}/models
+
+Unassign models from a project.
+
+### POST /api/projects/{project\_id}/upload
+
+Upload a slide file to a project. Multipart form data with the slide file.
 
 ### GET /api/projects/{project\_id}/status
 
 Check project readiness (slides directory, embeddings, model checkpoint, labels file).
+
+### GET /api/slides?project\_id=X
+
+List slides with optional project filtering. When `project_id` is provided, returns only slides assigned to that project via the project_slides junction table.
+
+### GET /api/models?project\_id=X
+
+List models with optional project filtering. When `project_id` is provided, returns only models assigned to that project via the project_models junction table.
 
 ## 5.5 Agent Workflow Endpoints
 
@@ -1365,7 +1411,7 @@ Each step is wrapped in try/except with graceful degradation:
 
 ## 7.1 PostgreSQL Tables
 
-The database schema is defined in `src/enso_atlas/api/database.py` and consists of seven tables:
+The database schema is defined in `src/enso_atlas/api/database.py` and consists of nine tables:
 
 ### ER Diagram
 
@@ -1375,6 +1421,9 @@ erDiagram
     slides ||--o{ slide_metadata : "has"
     slides ||--o{ analysis_results : "has"
     slides ||--o{ embedding_tasks : "has"
+    projects ||--o{ project_slides : "has"
+    slides ||--o{ project_slides : "assigned to"
+    projects ||--o{ project_models : "has"
 
     patients {
         text patient_id PK
@@ -1453,6 +1502,18 @@ erDiagram
         timestamptz updated_at
     }
 
+    project_slides {
+        text project_id PK,FK
+        text slide_id PK,FK
+        timestamptz created_at
+    }
+
+    project_models {
+        text project_id PK,FK
+        text model_id PK
+        timestamptz created_at
+    }
+
     schema_version {
         integer version PK
         timestamptz applied_at
@@ -1527,6 +1588,20 @@ CREATE TABLE IF NOT EXISTS embedding_tasks (
     created_at    TIMESTAMPTZ DEFAULT now(),
     completed_at  TIMESTAMPTZ,
     error         TEXT
+);
+
+CREATE TABLE IF NOT EXISTS project_slides (
+    project_id  TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    slide_id    TEXT NOT NULL REFERENCES slides(slide_id) ON DELETE CASCADE,
+    created_at  TIMESTAMPTZ DEFAULT now(),
+    PRIMARY KEY (project_id, slide_id)
+);
+
+CREATE TABLE IF NOT EXISTS project_models (
+    project_id  TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    model_id    TEXT NOT NULL,
+    created_at  TIMESTAMPTZ DEFAULT now(),
+    PRIMARY KEY (project_id, model_id)
 );
 ```
 
