@@ -293,7 +293,7 @@ export function BatchAnalysisPanel({
     });
 
     return filtered;
-  }, [results, filterMode, sortField, sortOrder]);
+  }, [results, filterMode, sortField, sortOrder, positiveLabel, negativeLabel]);
 
   // Selection state
   const selectionState = useMemo(() => {

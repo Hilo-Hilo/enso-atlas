@@ -618,17 +618,21 @@ function HomePage() {
 
       // If cached results exist, build a MultiModelResponse from them
       if (cachedResult && cachedResult.count > 0) {
-        // Known model metadata so cached results display correct AUC and labels
+        // Build model metadata lookup from AVAILABLE_MODELS (dynamic, not hardcoded)
         const MODEL_META: Record<string, {
           name: string; category: string;
           auc: number; posLabel: string; negLabel: string; desc: string;
-        }> = {
-          platinum_sensitivity: { name: "Platinum Sensitivity", category: "ovarian_cancer", auc: 0.907, posLabel: "Sensitive", negLabel: "Resistant", desc: "Predicts response to platinum-based chemotherapy" },
-          tumor_grade: { name: "Tumor Grade", category: "general_pathology", auc: 0.752, posLabel: "High Grade", negLabel: "Low Grade", desc: "Predicts tumor differentiation grade" },
-          survival_5y: { name: "5-Year Survival", category: "ovarian_cancer", auc: 0.697, posLabel: "Favorable", negLabel: "Poor", desc: "Predicts 5-year overall survival" },
-          survival_3y: { name: "3-Year Survival", category: "ovarian_cancer", auc: 0.645, posLabel: "Favorable", negLabel: "Poor", desc: "Predicts 3-year overall survival" },
-          survival_1y: { name: "1-Year Survival", category: "ovarian_cancer", auc: 0.639, posLabel: "Favorable", negLabel: "Poor", desc: "Predicts 1-year overall survival" },
-        };
+        }> = {};
+        for (const m of AVAILABLE_MODELS) {
+          MODEL_META[m.id] = {
+            name: m.displayName,
+            category: m.category,
+            auc: m.auc ?? 0,
+            posLabel: m.positiveLabel ?? "Positive",
+            negLabel: m.negativeLabel ?? "Negative",
+            desc: m.description ?? "",
+          };
+        }
 
         const predictions: Record<string, import("@/types").ModelPrediction> = {};
         const cancerSpecific: import("@/types").ModelPrediction[] = [];

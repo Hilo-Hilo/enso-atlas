@@ -15,6 +15,8 @@ export interface ModelConfig {
   description: string;
   auc: number;
   category: string;
+  positiveLabel?: string;
+  negativeLabel?: string;
 }
 
 // Default models -- used as fallback when project context is not available
@@ -25,6 +27,8 @@ export const AVAILABLE_MODELS: ModelConfig[] = [
     description: "Response to platinum-based chemotherapy",
     auc: 0.907,
     category: "ovarian_cancer",
+    positiveLabel: "Sensitive",
+    negativeLabel: "Resistant",
   },
   {
     id: "tumor_grade",
@@ -32,6 +36,8 @@ export const AVAILABLE_MODELS: ModelConfig[] = [
     description: "High vs low grade classification",
     auc: 0.752,
     category: "general_pathology",
+    positiveLabel: "High Grade",
+    negativeLabel: "Low Grade",
   },
   {
     id: "survival_5y",
@@ -39,6 +45,8 @@ export const AVAILABLE_MODELS: ModelConfig[] = [
     description: "5-year overall survival probability",
     auc: 0.697,
     category: "ovarian_cancer",
+    positiveLabel: "Favorable",
+    negativeLabel: "Poor",
   },
   {
     id: "survival_3y",
@@ -46,6 +54,8 @@ export const AVAILABLE_MODELS: ModelConfig[] = [
     description: "3-year overall survival probability",
     auc: 0.645,
     category: "ovarian_cancer",
+    positiveLabel: "Favorable",
+    negativeLabel: "Poor",
   },
   {
     id: "survival_1y",
@@ -53,6 +63,8 @@ export const AVAILABLE_MODELS: ModelConfig[] = [
     description: "1-year overall survival probability",
     auc: 0.639,
     category: "ovarian_cancer",
+    positiveLabel: "Favorable",
+    negativeLabel: "Poor",
   },
 ];
 
@@ -157,6 +169,8 @@ export function ModelPicker({
         description: d.description,
         auc: d.auc,
         category: d.category,
+        positiveLabel: d.positiveLabel,
+        negativeLabel: d.negativeLabel,
       }));
     } else if (apiModels.length > 0) {
       result = AVAILABLE_MODELS.filter((m) => apiModels.includes(m.id));
