@@ -1629,6 +1629,10 @@ On first startup, the database is automatically populated from existing flat fil
 
 All inserts use `ON CONFLICT DO UPDATE` for idempotency. The population process runs only on first startup (checked via `is_populated()` which counts existing rows).
 
+### v3 Migration
+
+The v3 schema migration creates the `project_slides` and `project_models` junction tables and seeds initial data by assigning all existing slides and the five TransMIL models to the default project.
+
 ## 7.4 Connection Pool
 
 ```python
@@ -1674,8 +1678,9 @@ async def get_pool():
 | Next.js | 14 | React framework with SSR, routing, API proxying |
 | React | 18 | UI component library |
 | TypeScript | 5.x | Type-safe frontend development |
-| Tailwind CSS | 3.x | Utility-first CSS framework |
+| Tailwind CSS | 3.x | Utility-first CSS framework with dark mode support |
 | OpenSeadragon | 4.1 | Tile-based whole-slide image viewer |
+| react-resizable-panels | 4.x | Resizable and collapsible layout panels |
 | Lucide React | - | Icon library |
 
 ## 8.2 Component Hierarchy
@@ -1718,11 +1723,28 @@ App (layout.tsx)
 
 Slides Page (/slides/page.tsx)
   +-- SlideManager
-      +-- GridView / TableView
+      +-- GridView / TableView (with thumbnails)
       +-- FilterSidebar
       +-- BulkActions
       +-- Pagination
+
+Projects Page (/projects/page.tsx)
+  +-- ProjectManager
+      +-- ProjectList (CRUD)
+      +-- SlideUpload (drag-and-drop)
+      +-- ModelAssignment
+      +-- SlideAssignment
 ```
+
+### Key UI Patterns
+
+- **Resizable panels:** All major layout panels use react-resizable-panels v4 for user-adjustable, collapsible splits
+- **Dark mode:** Full dark mode support via Tailwind CSS dark variant, toggled globally
+- **Unified "Run Analysis" button:** Single action triggers TransMIL inference with PostgreSQL result caching (cached results return in ~0.8ms)
+- **Project-scoped slide list:** SlideSelector filters slides by `currentProject.id` via the project_slides junction table
+- **Project-scoped model picker:** Model selection is filtered by `currentProject.id` via the project_models junction table
+- **Annotation toolbar:** Always visible in pathologist view, not gated on analysis results
+- **Normalized attention weights:** Evidence patches display attention weights normalized to [0, 1] for interpretability
 
 ## 8.3 State Management
 
@@ -2022,9 +2044,21 @@ class ProjectConfig:
     threshold_config: Optional[str]
 ```
 
-## 9.3 Frontend ProjectContext
+## 9.3 Project-Scoped Models and Slides
 
-The `ProjectContext` (`frontend/src/contexts/ProjectContext.tsx`, 106 lines) fetches projects from the backend and provides a `switchProject` function. The selected project is persisted to `localStorage`:
+Projects use PostgreSQL junction tables (`project_models`, `project_slides`) for many-to-many relationships:
+
+- **Assigning slides:** `POST /api/projects/{id}/slides` with `{"slide_ids": [...]}`
+- **Unassigning slides:** `DELETE /api/projects/{id}/slides` with `{"slide_ids": [...]}`
+- **Assigning models:** `POST /api/projects/{id}/models` with `{"model_ids": [...]}`
+- **Unassigning models:** `DELETE /api/projects/{id}/models` with `{"model_ids": [...]}`
+- **Filtering:** `GET /api/slides?project_id=X` and `GET /api/models?project_id=X`
+
+The v3 migration seeds initial assignments so existing slides and all five TransMIL models are associated with the default project.
+
+## 9.4 Frontend ProjectContext
+
+The `ProjectContext` (`frontend/src/contexts/ProjectContext.tsx`) fetches projects from the backend and provides a `switchProject` function. The selected project is persisted to `localStorage`. When the current project changes, the slide list and model picker automatically re-fetch filtered by `currentProject.id`:
 
 ```typescript
 const DEFAULT_PROJECT: Project = {
@@ -2044,7 +2078,7 @@ const DEFAULT_PROJECT: Project = {
 };
 ```
 
-## 9.4 Adding a New Cancer Type
+## 9.5 Adding a New Cancer Type
 
 To add support for a new cancer type (e.g., lung adenocarcinoma EGFR mutation):
 
@@ -2185,7 +2219,7 @@ The target deployment platform is the NVIDIA DGX Spark with Blackwell GPU:
 | Variable | Default | Description |
 |---|---|---|
 | `DATABASE_URL` | `postgresql://enso:enso_atlas_2024@atlas-db:5432/enso_atlas` | PostgreSQL connection string |
-| `MIL_ARCHITECTURE` | `clam` | MIL model type (transmil, clam, abmil) |
+| `MIL_ARCHITECTURE` | `transmil` | MIL model type (transmil, clam, abmil) |
 | `MIL_THRESHOLD` | (from config) | Override classification threshold |
 | `MIL_THRESHOLD_CONFIG` | `models/threshold_config.json` | Threshold configuration file |
 | `MIL_MODEL_PATH` | (auto-detected) | Override model checkpoint path |
@@ -2424,8 +2458,8 @@ The threshold (0.9229) was optimized on a specific dataset and may not generaliz
 | TransMIL Model Loading | 2.1s | 5 model checkpoints from disk |
 | Evidence Generator Setup | 0.1s | |
 | Path Foundation Embedder Init | 0.1s | Lazy loaded |
-| MedGemma Model Loading | 28.4s | 4B params, bfloat16 |
-| MedGemma Warmup | 62.3s | CUDA kernel compilation |
+| MedGemma Model Loading | ~120s | 4B params, bfloat16 |
+| MedGemma Warmup | ~60s | CUDA kernel compilation |
 | MedSigLIP Loading | 9.7s | SigLIP-so400m |
 | FAISS Index Construction | 3.2s | 152 slides, ~900K patches |
 | Slide-Mean FAISS Index | 0.8s | 152 slide means |
@@ -2433,7 +2467,7 @@ The threshold (0.9229) was optimized on a specific dataset and may not generaliz
 | PostgreSQL Init | 4.8s | Schema + population (first run) |
 | Project Registry | 0.1s | YAML parsing |
 | Agent Workflow Init | 0.1s | |
-| **Total** | **~112s** | |
+| **Total** | **~210s (~3.5 min)** | Dominated by MedGemma loading |
 
 ## 13.2 Per-Slide Analysis Latency
 
@@ -2447,7 +2481,7 @@ The threshold (0.9229) was optimized on a specific dataset and may not generaliz
 | FAISS similar case search | 2-5ms | Slide-mean index |
 | Heatmap generation (512px) | 50-100ms | CPU, scipy blur |
 | Semantic search (5 queries) | 100-300ms | MedSigLIP GPU |
-| MedGemma report generation | 10-120s | GPU inference |
+| MedGemma report generation | ~20s | GPU inference (was 5-10 min on CPU) |
 | **Full analysis (no report)** | **~200ms** | |
 | **Full analysis (with report)** | **10-120s** | Dominated by MedGemma |
 
@@ -2472,7 +2506,15 @@ The threshold (0.9229) was optimized on a specific dataset and may not generaliz
 | Count slides | <1ms | PostgreSQL |
 | Repopulate database | 5-60s | Depends on SVS count |
 
-## 13.5 Concurrent Request Handling
+## 13.5 TransMIL Model Performance
+
+| Metric | Value | Notes |
+|---|---|---|
+| Best single-model AUC | 0.879 | Full dataset, platinum sensitivity |
+| Mean 5-fold CV AUC | 0.707 | Cross-validated estimate |
+| Cached result lookup | 0.8ms | PostgreSQL analysis_results table |
+
+## 13.6 Concurrent Request Handling
 
 FastAPI runs with uvicorn workers and async request handling:
 
@@ -2502,13 +2544,17 @@ The primary training dataset contains 139 non-responders and 13 responders (10.7
 - Focal loss for hard example mining
 - Multi-institutional data collection
 
-### TensorFlow/Blackwell Incompatibility
+### Path Foundation CPU-Only (TensorFlow/Blackwell)
 
-TensorFlow does not support NVIDIA Blackwell GPUs (compute capability sm_121). Path Foundation runs on CPU, which is acceptable for pre-computed embeddings but limits on-demand embedding performance.
+TensorFlow does not support NVIDIA Blackwell GPUs (compute capability sm_121). Path Foundation runs on CPU only, which is acceptable for pre-computed embeddings but limits on-demand embedding performance.
 
 **Workaround:** Embeddings are pre-computed offline. On-demand embedding falls back to CPU inference.
 
 **Future resolution:** Wait for TensorFlow sm_121 support or port Path Foundation to PyTorch.
+
+### Semantic Search Cold Start
+
+Semantic search (MedSigLIP text-to-patch) is slow on first run (~12-14 minutes for 6,680 patches) due to initial embedding computation. Results are cached after the first run, making subsequent queries fast.
 
 ### Single Cancer Type
 
@@ -2613,7 +2659,7 @@ The system relies solely on H&E morphology. Integration with IHC, genomic, and m
 | Variable | Required | Default | Description |
 |---|---|---|---|
 | `DATABASE_URL` | No | `postgresql://enso:enso_atlas_2024@atlas-db:5432/enso_atlas` | PostgreSQL connection |
-| `MIL_ARCHITECTURE` | No | `clam` | MIL model type |
+| `MIL_ARCHITECTURE` | No | `transmil` | MIL model type |
 | `MIL_THRESHOLD` | No | (from config) | Classification threshold |
 | `MIL_THRESHOLD_CONFIG` | No | `models/threshold_config.json` | Threshold config path |
 | `MIL_MODEL_PATH` | No | (auto) | Model checkpoint path |
@@ -2675,7 +2721,7 @@ med-gemma-hackathon/
 |   +-- transmil.py                            (236 lines)
 |   +-- transmil_best.pt                       (TransMIL checkpoint)
 |   +-- threshold_config.json                  (Youden J threshold)
-|   +-- clam_attention.pt                      (CLAM checkpoint)
+|   +-- transmil_best.pt                       (TransMIL checkpoint)
 +-- scripts/
 |   +-- train_transmil.py                      (training)
 |   +-- train_transmil_finetune.py             (fine-tuning)
