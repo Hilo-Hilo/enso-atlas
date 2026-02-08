@@ -275,7 +275,7 @@ export function WSIViewer({
     if (heatmapTiledImageRef.current) {
       try {
         viewer.world.removeItem(heatmapTiledImageRef.current);
-      } catch {
+      } catch (err) {
         // Ignore
       }
       heatmapTiledImageRef.current = null;
@@ -317,7 +317,7 @@ export function WSIViewer({
       if (heatmapTiledImageRef.current && viewerRef.current) {
         try {
           viewerRef.current.world.removeItem(heatmapTiledImageRef.current);
-        } catch {
+        } catch (err) {
           // Ignore
         }
         heatmapTiledImageRef.current = null;

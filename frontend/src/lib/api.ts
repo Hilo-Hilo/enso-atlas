@@ -164,7 +164,7 @@ async function fetchApi<T>(
         let errorData: ApiError;
         try {
           errorData = await response.json();
-        } catch {
+        } catch (err) {
           errorData = {
             code: `HTTP_${response.status}`,
             message: `HTTP ${response.status}: ${response.statusText}`,
@@ -1434,7 +1434,7 @@ export async function getSlideCachedResults(slideId: string): Promise<CachedResu
     return await fetchApi<CachedResultsResponse>(
       `/api/slides/${encodeURIComponent(slideId)}/cached-results`
     );
-  } catch {
+  } catch (err) {
     // Cache is optional - return empty on failure
     return { slide_id: slideId, results: [], count: 0, cached: false };
   }

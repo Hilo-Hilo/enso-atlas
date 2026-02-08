@@ -169,8 +169,9 @@ export default function SlidesPage() {
       try {
         await healthCheck();
         setIsConnected(true);
-      } catch {
+      } catch (err) {
         setIsConnected(false);
+        console.warn("Slides health check failed:", err);
       }
     };
     checkConnection();

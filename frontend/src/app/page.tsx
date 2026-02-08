@@ -254,6 +254,8 @@ function HomePage() {
 
   // Slide list state for keyboard navigation
   const [slideList, setSlideList] = useState<SlideInfo[]>([]);
+  const [slideListLoading, setSlideListLoading] = useState(true);
+  const [slideListError, setSlideListError] = useState<string | null>(null);
   const [slideIndex, setSlideIndex] = useState<number>(-1);
 
   // Refs for panel focusing
@@ -412,17 +414,25 @@ function HomePage() {
   }, [selectedSlide, selectedModels]);
 
   // Load slide list for keyboard navigation and batch mode
-  useEffect(() => {
-    const loadSlideList = async () => {
-      try {
-        const response = await getSlides({ projectId: currentProject.id });
-        setSlideList(response.slides);
-      } catch (err) {
-        console.error("Failed to load slide list:", err);
-      }
-    };
-    loadSlideList();
+  const fetchSlideList = useCallback(async () => {
+    setSlideListLoading(true);
+    setSlideListError(null);
+    try {
+      const response = await getSlides({ projectId: currentProject.id });
+      setSlideList(response.slides);
+    } catch (err) {
+      console.error("Failed to load slide list:", err);
+      const isNetworkError = err instanceof TypeError || (err instanceof Error && (err.message.includes("fetch") || err.message.includes("network") || err.message.includes("timeout")));
+      const message = err instanceof Error ? err.message : "Failed to load slides";
+      setSlideListError(isNetworkError ? `${message} -- Backend may be restarting (~3.5 min warmup)` : message);
+    } finally {
+      setSlideListLoading(false);
+    }
   }, [currentProject.id]);
+
+  useEffect(() => {
+    fetchSlideList();
+  }, [fetchSlideList]);
 
   // Auto-select slide from URL query params (e.g. /?slide=TCGA-... from Slide Manager)
   useEffect(() => {
@@ -552,7 +562,8 @@ function HomePage() {
       try {
         await healthCheck();
         setIsConnected(true);
-      } catch {
+      } catch (err) {
+        console.warn("Health check failed:", err);
         setIsConnected(false);
       }
     };
@@ -567,7 +578,8 @@ function HomePage() {
     try {
       await healthCheck();
       setIsConnected(true);
-    } catch {
+    } catch (err) {
+      console.warn("Reconnect attempt failed:", err);
       setIsConnected(false);
     }
   }, []);

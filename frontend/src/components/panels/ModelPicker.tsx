@@ -97,6 +97,7 @@ export function ModelPicker({
   // Fetch full model configs from the project available-models API
   const [apiModelDetails, setApiModelDetails] = useState<AvailableModelDetail[]>([]);
   const [apiModels, setApiModels] = useState<string[]>([]);
+  const [usingCachedModels, setUsingCachedModels] = useState(false);
 
   useEffect(() => {
     // Skip fetch until a real project is loaded (avoids 404 on "default")
@@ -110,15 +111,17 @@ export function ModelPicker({
           setApiModels(details.map((m) => m.id));
           return;
         }
-      } catch {
-        // ignore, fall through
+      } catch (err) {
+        console.warn("Failed to fetch available models config:", err);
       }
       try {
         // Fallback to the older model IDs endpoint
         const modelIds = await getProjectModelsApi(currentProject.id);
         setApiModels(modelIds);
-      } catch {
+      } catch (err) {
+        console.warn("Failed to fetch project models, using cached defaults:", err);
         setApiModels(AVAILABLE_MODELS.map((m) => m.id));
+        setUsingCachedModels(true);
       }
     };
     fetchModels();
@@ -136,7 +139,8 @@ export function ModelPicker({
       try {
         const status = await getSlideEmbeddingStatus(selectedSlideId);
         setPreviouslyRanModels(new Set(status.cached_model_ids));
-      } catch {
+      } catch (err) {
+        console.warn("Failed to fetch slide embedding status:", err);
         setPreviouslyRanModels(new Set());
       }
     };
@@ -219,6 +223,11 @@ export function ModelPicker({
           <Badge variant="default" size="sm">
             {selectedModels.length}/{models.length}
           </Badge>
+          {usingCachedModels && (
+            <Badge variant="default" size="sm" className="text-amber-600 bg-amber-50 border-amber-200">
+              cached
+            </Badge>
+          )}
         </div>
         {isExpanded ? (
           <ChevronUp className="h-4 w-4 text-gray-400" />

@@ -319,9 +319,19 @@ export function SlideSelector({
       <CardContent className="flex-1 flex flex-col min-h-0 space-y-4 pt-0">
         {/* Error State */}
         {error && (
-          <div className="p-3 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2 animate-fade-in">
-            <AlertCircle className="h-4 w-4 text-red-500 shrink-0" />
-            <span className="text-sm text-red-700">{error}</span>
+          <div className="p-3 bg-red-50 border border-red-200 rounded-lg animate-fade-in">
+            <div className="flex items-start gap-2">
+              <AlertCircle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <span className="text-sm text-red-700 block">{error}</span>
+                <button
+                  onClick={loadSlides}
+                  className="mt-2 text-xs font-medium text-red-700 hover:text-red-900 underline"
+                >
+                  Retry
+                </button>
+              </div>
+            </div>
           </div>
         )}
 

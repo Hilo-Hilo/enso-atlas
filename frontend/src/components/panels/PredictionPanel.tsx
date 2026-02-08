@@ -208,7 +208,7 @@ export function PredictionPanel({
                     const hr = Math.floor(min / 60);
                     if (hr < 24) return `${hr}h ago`;
                     return `${Math.floor(hr / 24)}d ago`;
-                  } catch { return ""; }
+                  } catch (err) { console.warn("Date parse error:", err); return ""; }
                 })()}
               </span>
             )}

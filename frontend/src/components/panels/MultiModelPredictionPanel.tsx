@@ -589,7 +589,7 @@ export function MultiModelPredictionPanel({
       if (diffHr < 24) return `${diffHr}h ago`;
       const diffDay = Math.floor(diffHr / 24);
       return `${diffDay}d ago`;
-    } catch {
+    } catch (err) {
       return "";
     }
   };

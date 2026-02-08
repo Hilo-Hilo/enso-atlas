@@ -746,7 +746,7 @@ export default function ProjectsPage() {
       try {
         const res = await fetch("/api/health", { signal: AbortSignal.timeout(5000) });
         if (!cancelled) setIsConnected(res.ok);
-      } catch {
+      } catch (err) {
         if (!cancelled) setIsConnected(false);
       }
     };
@@ -775,8 +775,9 @@ export default function ProjectsPage() {
         list.map(async (p) => {
           try {
             statusMap[p.id] = await fetchProjectStatus(p.id);
-          } catch {
+          } catch (err) {
             // Status fetch failed - skip
+            console.warn("Status fetch failed for project:", err);
           }
         })
       );

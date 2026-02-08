@@ -75,7 +75,7 @@ export function SystemStatusModal({ isOpen, onClose, isConnected }: SystemStatus
           const minutes = Math.floor((uptimeSec % 3600) / 60);
           uptimeStr = `${hours}h ${minutes}m`;
         }
-      } catch {
+      } catch (err) {
         // Ignore JSON parse errors
       }
       
@@ -90,7 +90,7 @@ export function SystemStatusModal({ isOpen, onClose, isConnected }: SystemStatus
         ],
         lastChecked: new Date(),
       });
-    } catch {
+    } catch (err) {
       setMetrics((prev) => ({
         ...prev,
         services: prev.services.map((s) => ({ ...s, status: "offline" as const })),
