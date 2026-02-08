@@ -27,7 +27,7 @@ import { cn } from "@/lib/utils";
 import type { StructuredReport } from "@/types";
 
 // API base URL
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://100.111.126.23:8003";
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
 
 // Types for agent workflow
 interface AgentStepData {

@@ -32,7 +32,7 @@ import type {
   SimilarCase,
 } from "@/types";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://100.111.126.23:8003";
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "";
 
 // Configuration for retry behavior
 const RETRY_CONFIG = {
