@@ -58,6 +58,11 @@
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
     transition: background-color var(--transition-slow) var(--ease-in-out-smooth),
                 color var(--transition-slow) var(--ease-in-out-smooth);
+    transform: scale(0.85);
+    transform-origin: top left;
+    width: calc(100vw / 0.85);
+    height: calc(100vh / 0.85);
+    overflow-x: hidden;
   }
 
   /* High-contrast accessible focus states */
