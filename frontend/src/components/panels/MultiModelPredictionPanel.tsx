@@ -31,6 +31,7 @@ import {
 } from "lucide-react";
 import type { ModelPrediction, MultiModelResponse, AvailableModel } from "@/types";
 import { useProject } from "@/contexts/ProjectContext";
+import { AVAILABLE_MODELS } from "./ModelPicker";
 
 // Skeleton Loading Component for Multi-Model Panel
 function ModelCardSkeleton() {
@@ -547,23 +548,18 @@ export function MultiModelPredictionPanel({
             </p>
           </div>
 
-          {/* Example placeholder predictions */}
+          {/* Available models from project configuration */}
           <div className="space-y-2">
             <p className="text-2xs font-semibold text-gray-400 uppercase tracking-wide px-1">
               Available Models Preview
             </p>
-            <PlaceholderModelCard
-              modelName={currentProject.prediction_target || "Treatment Response"}
-              description="Treatment response prediction"
-            />
-            <PlaceholderModelCard
-              modelName="Chemosensitivity"
-              description="Chemotherapy sensitivity"
-            />
-            <PlaceholderModelCard
-              modelName="BRCA Status"
-              description="Genomic biomarker prediction"
-            />
+            {AVAILABLE_MODELS.map((model) => (
+              <PlaceholderModelCard
+                key={model.id}
+                modelName={model.displayName}
+                description={model.description}
+              />
+            ))}
           </div>
 
           {/* Info footer - analysis is triggered from the left sidebar */}
