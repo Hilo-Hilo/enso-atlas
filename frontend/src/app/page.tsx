@@ -265,11 +265,16 @@ function HomePage() {
   const evidencePanelRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
+  // Current viewer zoom level (synced from WSIViewer)
+  const [viewerZoom, setViewerZoom] = useState(1);
+
   // Viewer control refs
   const viewerControlsRef = useRef<{
     zoomIn: () => void;
     zoomOut: () => void;
     resetZoom: () => void;
+    zoomTo: (level: number) => void;
+    getZoom: () => number;
     toggleHeatmap: () => void;
     toggleFullscreen: () => void;
     toggleHeatmapOnly: () => void;
@@ -1836,6 +1841,7 @@ function HomePage() {
                 onHeatmapModelChange={setHeatmapModel}
                 availableModels={AVAILABLE_MODELS.length > 0 ? AVAILABLE_MODELS.map(m => ({ id: m.id, name: m.displayName })) : DEFAULT_HEATMAP_MODELS}
                 onControlsReady={(controls) => { viewerControlsRef.current = controls; }}
+                onZoomChange={setViewerZoom}
               />
             ) : (
               <div className="h-full flex items-center justify-center bg-gray-100 dark:bg-slate-800 rounded-lg border-2 border-dashed border-gray-300 dark:border-slate-600 p-4">
@@ -1909,6 +1915,10 @@ function HomePage() {
                   onSwitchToOncologistView={() => setUserViewMode("oncologist")}
                   selectedPatchId={selectedPatchId}
                   slideId={selectedSlide.id}
+                  viewerZoom={viewerZoom}
+                  onZoomTo={(level) => viewerControlsRef.current?.zoomTo(level)}
+                  onExportPdf={handleExportPdf}
+                  report={report}
                 />
               ) : (
                 renderRightSidebarContent()
@@ -1947,6 +1957,10 @@ function HomePage() {
               onSwitchToOncologistView={() => setUserViewMode("oncologist")}
               selectedPatchId={selectedPatchId}
               slideId={selectedSlide.id}
+              viewerZoom={viewerZoom}
+              onZoomTo={(level) => viewerControlsRef.current?.zoomTo(level)}
+              onExportPdf={handleExportPdf}
+              report={report}
             />
           ) : (
             renderRightSidebarContent()

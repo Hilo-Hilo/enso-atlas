@@ -2313,6 +2313,16 @@ export interface AsyncBatchTaskStatus {
     requires_review: boolean;
     uncertainty_level: string;
     error?: string;
+    model_results?: Array<{
+      model_id: string;
+      model_name: string;
+      prediction: string;
+      score: number;
+      confidence: number;
+      positive_label: string;
+      negative_label: string;
+      error?: string;
+    }> | null;
   }>;
   summary?: {
     total: number;
@@ -2332,7 +2342,12 @@ export interface AsyncBatchTaskStatus {
  */
 export async function startBatchAnalysisAsync(
   slideIds: string[],
-  concurrency: number = 4
+  concurrency: number = 4,
+  options?: {
+    modelIds?: string[];
+    level?: number;
+    forceReembed?: boolean;
+  }
 ): Promise<{ task_id: string; status: string; total_slides: number; message: string }> {
   return fetchApi<{ task_id: string; status: string; total_slides: number; message: string }>(
     "/api/analyze-batch/async",
@@ -2341,6 +2356,9 @@ export async function startBatchAnalysisAsync(
       body: JSON.stringify({
         slide_ids: slideIds,
         concurrency,
+        model_ids: options?.modelIds ?? null,
+        level: options?.level ?? 1,
+        force_reembed: options?.forceReembed ?? false,
       }),
     }
   );

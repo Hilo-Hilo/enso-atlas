@@ -1595,6 +1595,20 @@ def create_app(
             le=10,
             description="Number of slides to process in parallel (1-10)"
         )
+        model_ids: Optional[List[str]] = Field(
+            default=None,
+            description="Model IDs to run. If None, uses default classifier."
+        )
+        level: int = Field(
+            default=1,
+            ge=0,
+            le=1,
+            description="Embedding resolution level (0=full, 1=downsampled)"
+        )
+        force_reembed: bool = Field(
+            default=False,
+            description="Force re-computation of embeddings even if cached"
+        )
 
     class AsyncBatchResponse(BaseModel):
         """Response from async batch analysis start."""
@@ -1629,6 +1643,9 @@ def create_app(
                 task.task_id,
                 request.slide_ids,
                 request.concurrency,
+                model_ids=request.model_ids,
+                level=request.level,
+                force_reembed=request.force_reembed,
             )
 
         background_tasks.add_task(run_batch_analysis)
@@ -1644,10 +1661,14 @@ def create_app(
         task_id: str,
         slide_ids: List[str],
         concurrency: int = 4,
+        model_ids: Optional[List[str]] = None,
+        level: int = 1,
+        force_reembed: bool = False,
     ):
         """Background task to run batch analysis with progress tracking."""
         import time
         import concurrent.futures
+        from .batch_tasks import BatchModelResult
 
         task = batch_task_manager.get_task(task_id)
         if not task:
@@ -1659,19 +1680,104 @@ def create_app(
             message="Starting batch analysis..."
         )
 
+        use_multi_model = model_ids is not None and multi_model_inference is not None
+
+        def _resolve_emb_path(slide_id: str):
+            """Resolve embedding path based on requested level."""
+            if level == 0:
+                p = embeddings_dir / f"{slide_id}.npy"
+                if p.exists():
+                    return p
+                p = embeddings_dir / "level0" / f"{slide_id}.npy"
+                return p if p.exists() else None
+            else:
+                p = embeddings_dir / f"{slide_id}.npy"
+                if p.exists():
+                    return p
+                p = embeddings_dir / "level1" / f"{slide_id}.npy"
+                return p if p.exists() else None
+
         def analyze_single_slide(slide_id: str) -> BatchSlideResult:
             """Analyze a single slide and return result."""
-            emb_path = embeddings_dir / f"{slide_id}.npy"
+            emb_path = _resolve_emb_path(slide_id)
 
-            if not emb_path.exists():
+            if emb_path is None or not emb_path.exists():
                 return BatchSlideResult(
                     slide_id=slide_id,
                     prediction="ERROR",
-                    error=f"Slide {slide_id} not found",
+                    error=f"Slide {slide_id} embeddings not found (level {level})",
                 )
 
             try:
                 embeddings = np.load(emb_path)
+
+                # Multi-model path
+                if use_multi_model:
+                    model_results_list = []
+                    primary_score = 0.0
+                    primary_label = "UNKNOWN"
+                    primary_conf = 0.0
+
+                    for i, mid in enumerate(model_ids):
+                        try:
+                            model_obj = multi_model_inference.models.get(mid)
+                            if model_obj is None:
+                                model_results_list.append(BatchModelResult(
+                                    model_id=mid,
+                                    model_name=mid,
+                                    error=f"Model {mid} not found",
+                                ))
+                                continue
+                            cfg = MODEL_CONFIGS.get(mid, {})
+                            s, _ = model_obj.predict(embeddings)
+                            s = float(s)
+                            c = abs(s - 0.5) * 2
+                            pos_label = cfg.get("positive_label", "Positive")
+                            neg_label = cfg.get("negative_label", "Negative")
+                            lbl = pos_label if s > 0.5 else neg_label
+                            model_results_list.append(BatchModelResult(
+                                model_id=mid,
+                                model_name=cfg.get("display_name", mid),
+                                prediction=lbl,
+                                score=s,
+                                confidence=c,
+                                positive_label=pos_label,
+                                negative_label=neg_label,
+                            ))
+                            # Use first model as primary result
+                            if i == 0:
+                                primary_score = s
+                                primary_label = lbl
+                                primary_conf = c
+                        except Exception as me:
+                            model_results_list.append(BatchModelResult(
+                                model_id=mid,
+                                model_name=mid,
+                                error=str(me),
+                            ))
+
+                    if primary_conf < 0.3:
+                        uncertainty_level = "high"
+                        requires_review = True
+                    elif primary_conf < 0.6:
+                        uncertainty_level = "moderate"
+                        requires_review = True
+                    else:
+                        uncertainty_level = "low"
+                        requires_review = False
+
+                    return BatchSlideResult(
+                        slide_id=slide_id,
+                        prediction=primary_label,
+                        score=primary_score,
+                        confidence=primary_conf,
+                        patches_analyzed=len(embeddings),
+                        requires_review=requires_review,
+                        uncertainty_level=uncertainty_level,
+                        model_results=model_results_list,
+                    )
+
+                # Single classifier path (legacy)
                 score, attention = classifier.predict(embeddings)
                 label = "RESPONDER" if score > 0.5 else "NON-RESPONDER"
                 confidence = abs(score - 0.5) * 2

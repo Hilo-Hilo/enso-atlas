@@ -24,6 +24,19 @@ class BatchTaskStatus(Enum):
 
 
 @dataclass
+class BatchModelResult:
+    """Result for a single model prediction on a slide."""
+    model_id: str
+    model_name: str
+    prediction: str = ""
+    score: float = 0.0
+    confidence: float = 0.0
+    positive_label: str = "Positive"
+    negative_label: str = "Negative"
+    error: Optional[str] = None
+
+
+@dataclass
 class BatchSlideResult:
     """Result for a single slide in batch analysis."""
     slide_id: str
@@ -34,6 +47,7 @@ class BatchSlideResult:
     requires_review: bool = False
     uncertainty_level: str = "unknown"
     error: Optional[str] = None
+    model_results: Optional[List[BatchModelResult]] = None
 
 
 @dataclass
@@ -97,6 +111,19 @@ class BatchTask:
                 "requires_review": r.requires_review,
                 "uncertainty_level": r.uncertainty_level,
                 "error": r.error,
+                "model_results": [
+                    {
+                        "model_id": mr.model_id,
+                        "model_name": mr.model_name,
+                        "prediction": mr.prediction,
+                        "score": mr.score,
+                        "confidence": mr.confidence,
+                        "positive_label": mr.positive_label,
+                        "negative_label": mr.negative_label,
+                        "error": mr.error,
+                    }
+                    for mr in (r.model_results or [])
+                ] if r.model_results else None,
             }
             for r in self.results
         ]

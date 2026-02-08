@@ -50,6 +50,8 @@ export interface WSIViewerControls {
   zoomIn: () => void;
   zoomOut: () => void;
   resetZoom: () => void;
+  zoomTo: (level: number) => void;
+  getZoom: () => number;
   toggleHeatmap: () => void;
   toggleHeatmapOnly: () => void;
   toggleFullscreen: () => void;
@@ -71,6 +73,7 @@ interface WSIViewerProps {
   heatmapLevel?: number; // 0-4, default 2
   onHeatmapLevelChange?: (level: number) => void;
   onControlsReady?: (controls: WSIViewerControls) => void;
+  onZoomChange?: (zoom: number) => void;
 }
 
 export function WSIViewer({
@@ -87,6 +90,7 @@ export function WSIViewer({
   heatmapLevel = 2,
   onHeatmapLevelChange,
   onControlsReady,
+  onZoomChange,
 }: WSIViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<OpenSeadragon.Viewer | null>(null);
@@ -204,6 +208,7 @@ export function WSIViewer({
     viewer.addHandler("zoom", (event: OpenSeadragon.ZoomEvent) => {
       if (event.zoom) {
         setZoom(event.zoom);
+        onZoomChange?.(event.zoom);
       }
     });
 
@@ -347,6 +352,8 @@ export function WSIViewer({
   const handleZoomIn = () => viewerRef.current?.viewport.zoomBy(1.5);
   const handleZoomOut = () => viewerRef.current?.viewport.zoomBy(0.67);
   const handleReset = () => viewerRef.current?.viewport.goHome();
+  const handleZoomTo = (level: number) => viewerRef.current?.viewport.zoomTo(level);
+  const handleGetZoom = () => viewerRef.current?.viewport.getZoom() ?? 1;
   const handleFullscreen = () => {
     if (containerRef.current) {
       if (document.fullscreenElement) {
@@ -364,6 +371,8 @@ export function WSIViewer({
         zoomIn: handleZoomIn,
         zoomOut: handleZoomOut,
         resetZoom: handleReset,
+        zoomTo: handleZoomTo,
+        getZoom: handleGetZoom,
         toggleHeatmap: () => setShowHeatmap((prev) => !prev),
         toggleHeatmapOnly: () => {
           setHeatmapOnly((prev) => {

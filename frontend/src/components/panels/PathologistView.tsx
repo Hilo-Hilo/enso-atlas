@@ -1,10 +1,9 @@
 "use client";
 
-import React, { useState, useCallback, useMemo } from "react";
+import React, { useState, useCallback, useMemo, useEffect } from "react";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
-import { Slider } from "@/components/ui/Slider";
 import {
   Crosshair,
   Ruler,
@@ -15,6 +14,7 @@ import {
   Trash2,
   Save,
   Download,
+  FileText,
   Microscope,
   Target,
   AlertTriangle,
@@ -28,7 +28,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { AnalysisResponse, EvidencePatch, Annotation } from "@/types";
+import type { AnalysisResponse, EvidencePatch, Annotation, StructuredReport } from "@/types";
 
 interface PathologistViewProps {
   analysisResult?: AnalysisResponse | null;
@@ -39,16 +39,20 @@ interface PathologistViewProps {
   onSwitchToOncologistView: () => void;
   selectedPatchId?: string;
   slideId: string;
+  viewerZoom?: number;
+  onZoomTo?: (level: number) => void;
+  onExportPdf?: () => void;
+  report?: StructuredReport | null;
 }
 
 type AnnotationTool = "pointer" | "circle" | "rectangle" | "freehand" | "measure" | "note";
 
 const MAGNIFICATION_OPTIONS = [
-  { value: 5, label: "5x" },
-  { value: 10, label: "10x" },
-  { value: 20, label: "20x" },
-  { value: 40, label: "40x" },
-  { value: 100, label: "100x" },
+  { value: 0.5, label: "5x", viewerZoom: 0.125 },
+  { value: 1, label: "10x", viewerZoom: 0.25 },
+  { value: 2, label: "20x", viewerZoom: 0.5 },
+  { value: 4, label: "40x", viewerZoom: 1 },
+  { value: 10, label: "100x", viewerZoom: 2.5 },
 ];
 
 const TUMOR_GRADES = [
@@ -57,6 +61,9 @@ const TUMOR_GRADES = [
   { grade: 3, label: "Grade 3 - Poorly Differentiated", description: "Cells highly abnormal" },
   { grade: 4, label: "Grade 4 - Undifferentiated", description: "Cells bear little resemblance to normal" },
 ];
+
+// localStorage key prefix for annotations
+const ANNOTATION_STORAGE_KEY = "pathologist-annotations-";
 
 export function PathologistView({
   analysisResult,
@@ -67,9 +74,12 @@ export function PathologistView({
   onSwitchToOncologistView,
   selectedPatchId,
   slideId,
+  viewerZoom = 1,
+  onZoomTo,
+  onExportPdf,
+  report,
 }: PathologistViewProps) {
   const [activeTool, setActiveTool] = useState<AnnotationTool>("pointer");
-  const [selectedMagnification, setSelectedMagnification] = useState(20);
   const [showAnnotations, setShowAnnotations] = useState(true);
   const [noteText, setNoteText] = useState("");
   const [selectedGrade, setSelectedGrade] = useState<number | null>(null);
@@ -88,9 +98,64 @@ export function PathologistView({
   const [mitoticCount, setMitoticCount] = useState(0);
   const [mitoticFields, setMitoticFields] = useState(0);
 
+  // Derive current magnification label from viewer zoom
+  const currentMagnification = useMemo(() => {
+    // Find closest magnification option to current viewer zoom
+    let closest = MAGNIFICATION_OPTIONS[0];
+    let minDist = Infinity;
+    for (const opt of MAGNIFICATION_OPTIONS) {
+      const dist = Math.abs(viewerZoom - opt.viewerZoom);
+      if (dist < minDist) {
+        minDist = dist;
+        closest = opt;
+      }
+    }
+    return closest;
+  }, [viewerZoom]);
+
   const toggleSection = (section: keyof typeof expandedSections) => {
     setExpandedSections(prev => ({ ...prev, [section]: !prev[section] }));
   };
+
+  const handleMagnificationClick = useCallback((opt: typeof MAGNIFICATION_OPTIONS[number]) => {
+    if (onZoomTo) {
+      onZoomTo(opt.viewerZoom);
+    }
+  }, [onZoomTo]);
+
+  // When an annotation tool is selected (not pointer/note), clicking adds an annotation
+  const handleToolAnnotation = useCallback((tool: AnnotationTool) => {
+    if (tool === "pointer" || tool === "note") return;
+
+    const toolLabels: Record<string, string> = {
+      circle: "Circle annotation",
+      rectangle: "Rectangle annotation",
+      freehand: "Freehand annotation",
+      measure: "Measurement",
+    };
+
+    const toolColors: Record<string, string> = {
+      circle: "#8b5cf6",
+      rectangle: "#3b82f6",
+      freehand: "#10b981",
+      measure: "#f59e0b",
+    };
+
+    const typeMap: Record<string, Annotation["type"]> = {
+      circle: "circle",
+      rectangle: "rectangle",
+      freehand: "freehand",
+      measure: "measurement",
+    };
+    onAddAnnotation({
+      slideId,
+      type: typeMap[tool] || "note",
+      coordinates: { x: 0, y: 0, width: 0, height: 0 },
+      text: `${toolLabels[tool] || tool} at ${currentMagnification.label} (viewer ${viewerZoom.toFixed(2)}x)`,
+      color: toolColors[tool] || "#3b82f6",
+      category: tool,
+    });
+  }, [slideId, onAddAnnotation, currentMagnification, viewerZoom]);
 
   const handleAddNote = useCallback(() => {
     if (!noteText.trim()) return;
@@ -119,7 +184,6 @@ export function PathologistView({
 
   const handleNewField = useCallback(() => {
     if (mitoticFields > 0) {
-      // Save previous field count
       onAddAnnotation({
         slideId,
         type: "note",
@@ -133,53 +197,100 @@ export function PathologistView({
     setMitoticCount(0);
   }, [slideId, mitoticCount, mitoticFields, onAddAnnotation]);
 
-  // Handle save annotations - shows confirmation (annotations auto-save via API)
+  // Save annotations to localStorage
   const handleSaveAnnotations = useCallback(() => {
     setSaveStatus("saving");
-    // Annotations are already saved via the API when added
-    // This just provides visual feedback
-    setTimeout(() => {
+    try {
+      const key = ANNOTATION_STORAGE_KEY + slideId;
+      const data = {
+        savedAt: new Date().toISOString(),
+        slideId,
+        selectedGrade,
+        mitoticCount,
+        mitoticFields,
+        annotations: annotations.map(ann => ({
+          id: ann.id,
+          type: ann.type,
+          text: ann.text,
+          category: ann.category,
+          color: ann.color,
+          coordinates: ann.coordinates,
+          createdAt: ann.createdAt,
+        })),
+      };
+      localStorage.setItem(key, JSON.stringify(data));
       setSaveStatus("saved");
       setTimeout(() => setSaveStatus("idle"), 2000);
-    }, 500);
-  }, []);
+    } catch {
+      setSaveStatus("idle");
+    }
+  }, [slideId, annotations, selectedGrade, mitoticCount, mitoticFields]);
 
-  // Handle export pathologist review data
-  const handleExportReport = useCallback(() => {
+  // Load saved grade/mitotic state from localStorage on mount
+  useEffect(() => {
+    try {
+      const key = ANNOTATION_STORAGE_KEY + slideId;
+      const raw = localStorage.getItem(key);
+      if (raw) {
+        const data = JSON.parse(raw);
+        if (data.selectedGrade != null) setSelectedGrade(data.selectedGrade);
+        if (data.mitoticCount != null) setMitoticCount(data.mitoticCount);
+        if (data.mitoticFields != null) setMitoticFields(data.mitoticFields);
+      }
+    } catch {
+      // ignore parse errors
+    }
+  }, [slideId]);
+
+  // Handle export - formatted text report or PDF
+  const handleExportTextReport = useCallback(() => {
     const selectedGradeInfo = TUMOR_GRADES.find(g => g.grade === selectedGrade);
-    
-    const reportData = {
-      slideId,
-      exportedAt: new Date().toISOString(),
-      tumorGrade: selectedGradeInfo ? {
-        grade: selectedGradeInfo.grade,
-        label: selectedGradeInfo.label,
-        description: selectedGradeInfo.description,
-      } : null,
-      mitoticAssessment: {
-        totalFields: mitoticFields,
-        currentFieldCount: mitoticCount,
-      },
-      annotations: annotations.map(ann => ({
-        id: ann.id,
-        type: ann.type,
-        text: ann.text,
-        category: ann.category,
-        createdAt: ann.createdAt,
-      })),
-      analysisResult: analysisResult ? {
-        prediction: analysisResult.prediction,
-        topEvidenceCount: analysisResult.evidencePatches.length,
-      } : null,
-    };
+    const now = new Date();
 
-    const blob = new Blob([JSON.stringify(reportData, null, 2)], {
-      type: "application/json",
-    });
+    const lines: string[] = [
+      "=".repeat(60),
+      "PATHOLOGIST REVIEW REPORT",
+      "=".repeat(60),
+      "",
+      `Slide ID: ${slideId}`,
+      `Date: ${now.toLocaleDateString()} ${now.toLocaleTimeString()}`,
+      "",
+      "--- TUMOR GRADING ---",
+      selectedGradeInfo
+        ? `Grade: ${selectedGradeInfo.label}`
+        : "Grade: Not assessed",
+      "",
+      "--- MITOTIC ASSESSMENT ---",
+      `Fields counted: ${mitoticFields}`,
+      `Current field count: ${mitoticCount}`,
+      "",
+      "--- ANNOTATIONS ---",
+      `Total: ${annotations.length}`,
+    ];
+
+    for (const ann of annotations) {
+      lines.push(`  [${ann.type}] ${ann.text || "(no text)"} (${ann.createdAt})`);
+    }
+
+    if (analysisResult) {
+      lines.push("");
+      lines.push("--- AI ANALYSIS SUMMARY ---");
+      lines.push(`Prediction: ${analysisResult.prediction?.label ?? "N/A"}`);
+      lines.push(`Confidence: ${analysisResult.prediction?.confidence != null ? (analysisResult.prediction.confidence * 100).toFixed(1) + "%" : "N/A"}`);
+      lines.push(`Evidence patches: ${analysisResult.evidencePatches?.length ?? 0}`);
+    }
+
+    lines.push("");
+    lines.push("--- DISCLAIMER ---");
+    lines.push("This report is for research and decision support only.");
+    lines.push("Not a substitute for professional medical judgment.");
+    lines.push("=".repeat(60));
+
+    const blob = new Blob([lines.join("\n")], { type: "text/plain" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `pathologist-review-${slideId}.json`;
+    a.download = `pathologist-review-${slideId}.txt`;
     a.click();
     URL.revokeObjectURL(url);
   }, [slideId, selectedGrade, mitoticFields, mitoticCount, annotations, analysisResult]);
@@ -190,27 +301,28 @@ export function PathologistView({
     return analysisResult.evidencePatches.map((patch, idx) => ({
       ...patch,
       morphologyDescription: patch.morphologyDescription || generateMockMorphology(patch, idx),
+      isGenerated: !patch.morphologyDescription,
     }));
   }, [analysisResult]);
 
   return (
     <div className="h-full flex flex-col gap-4 overflow-y-auto">
       {/* Header with mode indicator */}
-      <div className="flex items-center justify-between bg-violet-50 border border-violet-200 rounded-lg px-4 py-3">
+      <div className="flex items-center justify-between bg-violet-50 dark:bg-violet-900/30 border border-violet-200 dark:border-violet-700 rounded-lg px-4 py-3">
         <div className="flex items-center gap-3">
-          <div className="p-2 bg-violet-600 rounded-lg">
+          <div className="p-2 bg-violet-600 dark:bg-violet-500 rounded-lg">
             <Microscope className="h-5 w-5 text-white" />
           </div>
           <div>
-            <h2 className="font-semibold text-violet-900">Pathologist Review Mode</h2>
-            <p className="text-sm text-violet-600">Full WSI analysis with annotation tools</p>
+            <h2 className="font-semibold text-violet-900 dark:text-violet-100">Pathologist Review Mode</h2>
+            <p className="text-sm text-violet-600 dark:text-violet-300">Full WSI analysis with annotation tools</p>
           </div>
         </div>
         <Button
           variant="secondary"
           size="sm"
           onClick={onSwitchToOncologistView}
-          className="border-violet-300 text-violet-700 hover:bg-violet-100"
+          className="border-violet-300 dark:border-violet-600 text-violet-700 dark:text-violet-200 hover:bg-violet-100 dark:hover:bg-violet-800"
         >
           Switch to Oncologist View
         </Button>
@@ -222,14 +334,14 @@ export function PathologistView({
           onClick={() => toggleSection("navigation")}
           className="flex items-center justify-between w-full mb-3"
         >
-          <h3 className="font-medium text-gray-900 flex items-center gap-2">
-            <Target className="h-4 w-4 text-violet-600" />
-            Navigation & Magnification
+          <h3 className="font-medium text-gray-900 dark:text-gray-100 flex items-center gap-2">
+            <Target className="h-4 w-4 text-violet-600 dark:text-violet-400" />
+            Navigation &amp; Magnification
           </h3>
           {expandedSections.navigation ? (
-            <ChevronUp className="h-4 w-4 text-gray-400" />
+            <ChevronUp className="h-4 w-4 text-gray-400 dark:text-gray-500" />
           ) : (
-            <ChevronDown className="h-4 w-4 text-gray-400" />
+            <ChevronDown className="h-4 w-4 text-gray-400 dark:text-gray-500" />
           )}
         </button>
         
@@ -238,22 +350,25 @@ export function PathologistView({
             <div className="flex flex-wrap gap-2">
               {MAGNIFICATION_OPTIONS.map((opt) => (
                 <button
-                  key={opt.value}
-                  onClick={() => setSelectedMagnification(opt.value)}
+                  key={opt.label}
+                  onClick={() => handleMagnificationClick(opt)}
                   className={cn(
                     "px-3 py-1.5 rounded-md text-sm font-medium transition-all",
-                    selectedMagnification === opt.value
-                      ? "bg-violet-600 text-white"
-                      : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                    currentMagnification.label === opt.label
+                      ? "bg-violet-600 dark:bg-violet-500 text-white"
+                      : "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
                   )}
                 >
                   {opt.label}
                 </button>
               ))}
             </div>
-            <div className="text-xs text-gray-500 flex items-center gap-2">
+            <div className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-2">
               <Info className="h-3 w-3" />
-              Higher magnification for detailed cellular analysis
+              <span>
+                Viewer zoom: {viewerZoom < 1 ? viewerZoom.toFixed(2) : viewerZoom.toFixed(1)}x
+                {" | "}Approx. {currentMagnification.label} magnification
+              </span>
             </div>
           </div>
         )}
@@ -265,14 +380,14 @@ export function PathologistView({
           onClick={() => toggleSection("annotations")}
           className="flex items-center justify-between w-full mb-3"
         >
-          <h3 className="font-medium text-gray-900 flex items-center gap-2">
-            <PenTool className="h-4 w-4 text-violet-600" />
+          <h3 className="font-medium text-gray-900 dark:text-gray-100 flex items-center gap-2">
+            <PenTool className="h-4 w-4 text-violet-600 dark:text-violet-400" />
             Annotation Tools
           </h3>
           {expandedSections.annotations ? (
-            <ChevronUp className="h-4 w-4 text-gray-400" />
+            <ChevronUp className="h-4 w-4 text-gray-400 dark:text-gray-500" />
           ) : (
-            <ChevronDown className="h-4 w-4 text-gray-400" />
+            <ChevronDown className="h-4 w-4 text-gray-400 dark:text-gray-500" />
           )}
         </button>
 
@@ -290,25 +405,37 @@ export function PathologistView({
                 icon={<Circle className="h-4 w-4" />}
                 label="Circle"
                 active={activeTool === "circle"}
-                onClick={() => setActiveTool("circle")}
+                onClick={() => {
+                  setActiveTool("circle");
+                  handleToolAnnotation("circle");
+                }}
               />
               <ToolButton
                 icon={<Square className="h-4 w-4" />}
                 label="Rectangle"
                 active={activeTool === "rectangle"}
-                onClick={() => setActiveTool("rectangle")}
+                onClick={() => {
+                  setActiveTool("rectangle");
+                  handleToolAnnotation("rectangle");
+                }}
               />
               <ToolButton
                 icon={<PenTool className="h-4 w-4" />}
                 label="Freehand"
                 active={activeTool === "freehand"}
-                onClick={() => setActiveTool("freehand")}
+                onClick={() => {
+                  setActiveTool("freehand");
+                  handleToolAnnotation("freehand");
+                }}
               />
               <ToolButton
                 icon={<Ruler className="h-4 w-4" />}
                 label="Measure"
                 active={activeTool === "measure"}
-                onClick={() => setActiveTool("measure")}
+                onClick={() => {
+                  setActiveTool("measure");
+                  handleToolAnnotation("measure");
+                }}
               />
               <ToolButton
                 icon={<MessageSquare className="h-4 w-4" />}
@@ -318,6 +445,13 @@ export function PathologistView({
               />
             </div>
 
+            {/* Active tool indicator */}
+            {activeTool !== "pointer" && activeTool !== "note" && (
+              <div className="text-xs text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-900/30 px-3 py-2 rounded-md">
+                Tool active: {activeTool}. Click the tool again to add another annotation at the current view.
+              </div>
+            )}
+
             {/* Note input */}
             {activeTool === "note" && (
               <div className="flex gap-2">
@@ -326,7 +460,7 @@ export function PathologistView({
                   value={noteText}
                   onChange={(e) => setNoteText(e.target.value)}
                   placeholder="Add a note..."
-                  className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500"
+                  className="flex-1 px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500"
                   onKeyDown={(e) => {
                     if (e.key === "Enter") handleAddNote();
                   }}
@@ -339,12 +473,12 @@ export function PathologistView({
 
             {/* Annotations list */}
             <div className="flex items-center justify-between">
-              <span className="text-sm text-gray-600">
+              <span className="text-sm text-gray-600 dark:text-gray-400">
                 {annotations.length} annotation{annotations.length !== 1 ? "s" : ""}
               </span>
               <button
                 onClick={() => setShowAnnotations(!showAnnotations)}
-                className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700"
+                className="flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
               >
                 {showAnnotations ? (
                   <>
@@ -363,12 +497,12 @@ export function PathologistView({
                 {annotations.map((ann) => (
                   <div
                     key={ann.id}
-                    className="flex items-center justify-between py-1 px-2 bg-gray-50 rounded text-sm"
+                    className="flex items-center justify-between py-1 px-2 bg-gray-50 dark:bg-gray-700/50 rounded text-sm"
                   >
-                    <span className="truncate flex-1">{ann.text || ann.type}</span>
+                    <span className="truncate flex-1 text-gray-800 dark:text-gray-200">{ann.text || ann.type}</span>
                     <button
                       onClick={() => onDeleteAnnotation(ann.id)}
-                      className="p-1 text-red-500 hover:text-red-700"
+                      className="p-1 text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
                     >
                       <Trash2 className="h-3 w-3" />
                     </button>
@@ -386,14 +520,14 @@ export function PathologistView({
           onClick={() => toggleSection("grading")}
           className="flex items-center justify-between w-full mb-3"
         >
-          <h3 className="font-medium text-gray-900 flex items-center gap-2">
-            <Layers className="h-4 w-4 text-violet-600" />
+          <h3 className="font-medium text-gray-900 dark:text-gray-100 flex items-center gap-2">
+            <Layers className="h-4 w-4 text-violet-600 dark:text-violet-400" />
             Tumor Grading Assistant
           </h3>
           {expandedSections.grading ? (
-            <ChevronUp className="h-4 w-4 text-gray-400" />
+            <ChevronUp className="h-4 w-4 text-gray-400 dark:text-gray-500" />
           ) : (
-            <ChevronDown className="h-4 w-4 text-gray-400" />
+            <ChevronDown className="h-4 w-4 text-gray-400 dark:text-gray-500" />
           )}
         </button>
 
@@ -406,17 +540,17 @@ export function PathologistView({
                 className={cn(
                   "w-full text-left p-3 rounded-lg border transition-all",
                   selectedGrade === grade.grade
-                    ? "border-violet-500 bg-violet-50"
-                    : "border-gray-200 hover:border-gray-300"
+                    ? "border-violet-500 dark:border-violet-400 bg-violet-50 dark:bg-violet-900/30"
+                    : "border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500"
                 )}
               >
                 <div className="flex items-center justify-between">
-                  <span className="font-medium text-sm">{grade.label}</span>
+                  <span className="font-medium text-sm text-gray-900 dark:text-gray-100">{grade.label}</span>
                   {selectedGrade === grade.grade && (
-                    <CheckCircle className="h-4 w-4 text-violet-600" />
+                    <CheckCircle className="h-4 w-4 text-violet-600 dark:text-violet-400" />
                   )}
                 </div>
-                <p className="text-xs text-gray-500 mt-1">{grade.description}</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{grade.description}</p>
               </button>
             ))}
           </div>
@@ -429,27 +563,27 @@ export function PathologistView({
           onClick={() => toggleSection("mitotic")}
           className="flex items-center justify-between w-full mb-3"
         >
-          <h3 className="font-medium text-gray-900 flex items-center gap-2">
-            <Target className="h-4 w-4 text-violet-600" />
+          <h3 className="font-medium text-gray-900 dark:text-gray-100 flex items-center gap-2">
+            <Target className="h-4 w-4 text-violet-600 dark:text-violet-400" />
             Mitotic Figure Counter
           </h3>
           {expandedSections.mitotic ? (
-            <ChevronUp className="h-4 w-4 text-gray-400" />
+            <ChevronUp className="h-4 w-4 text-gray-400 dark:text-gray-500" />
           ) : (
-            <ChevronDown className="h-4 w-4 text-gray-400" />
+            <ChevronDown className="h-4 w-4 text-gray-400 dark:text-gray-500" />
           )}
         </button>
 
         {expandedSections.mitotic && (
           <div className="space-y-4">
-            <div className="flex items-center justify-center gap-4 p-4 bg-gray-50 rounded-lg">
+            <div className="flex items-center justify-center gap-4 p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
               <div className="text-center">
-                <div className="text-3xl font-bold text-violet-600">{mitoticCount}</div>
-                <div className="text-xs text-gray-500">Current Field</div>
+                <div className="text-3xl font-bold text-violet-600 dark:text-violet-400">{mitoticCount}</div>
+                <div className="text-xs text-gray-500 dark:text-gray-400">Current Field</div>
               </div>
               <div className="text-center">
-                <div className="text-3xl font-bold text-gray-400">{mitoticFields}</div>
-                <div className="text-xs text-gray-500">Fields Counted</div>
+                <div className="text-3xl font-bold text-gray-400 dark:text-gray-500">{mitoticFields}</div>
+                <div className="text-xs text-gray-500 dark:text-gray-400">Fields Counted</div>
               </div>
             </div>
 
@@ -472,8 +606,8 @@ export function PathologistView({
               </Button>
             </div>
 
-            <div className="text-xs text-gray-500 flex items-start gap-2">
-              <AlertTriangle className="h-3 w-3 mt-0.5 text-amber-500" />
+            <div className="text-xs text-gray-500 dark:text-gray-400 flex items-start gap-2">
+              <AlertTriangle className="h-3 w-3 mt-0.5 text-amber-500 dark:text-amber-400" />
               <span>
                 Count mitotic figures in 10 consecutive HPFs (40x) for accurate assessment.
                 Mock counter for demo purposes.
@@ -489,21 +623,21 @@ export function PathologistView({
           onClick={() => toggleSection("morphology")}
           className="flex items-center justify-between w-full mb-3"
         >
-          <h3 className="font-medium text-gray-900 flex items-center gap-2">
-            <Microscope className="h-4 w-4 text-violet-600" />
+          <h3 className="font-medium text-gray-900 dark:text-gray-100 flex items-center gap-2">
+            <Microscope className="h-4 w-4 text-violet-600 dark:text-violet-400" />
             Patch Morphology Analysis
           </h3>
           {expandedSections.morphology ? (
-            <ChevronUp className="h-4 w-4 text-gray-400" />
+            <ChevronUp className="h-4 w-4 text-gray-400 dark:text-gray-500" />
           ) : (
-            <ChevronDown className="h-4 w-4 text-gray-400" />
+            <ChevronDown className="h-4 w-4 text-gray-400 dark:text-gray-500" />
           )}
         </button>
 
         {expandedSections.morphology && (
           <div className="space-y-3 max-h-96 overflow-y-auto">
             {patchesWithMorphology.length === 0 && (
-              <p className="text-sm text-gray-500 text-center py-4">
+              <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">
                 Run analysis to see patch morphology descriptions.
               </p>
             )}
@@ -514,15 +648,15 @@ export function PathologistView({
                 className={cn(
                   "p-3 rounded-lg border cursor-pointer transition-all",
                   selectedPatchId === patch.id
-                    ? "border-violet-500 bg-violet-50"
-                    : "border-gray-200 hover:border-gray-300"
+                    ? "border-violet-500 dark:border-violet-400 bg-violet-50 dark:bg-violet-900/30"
+                    : "border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500"
                 )}
               >
                 <div className="flex items-center justify-between mb-2">
                   <Badge variant="default" size="sm">
                     Patch {idx + 1}
                   </Badge>
-                  <span className="text-xs text-gray-500">
+                  <span className="text-xs text-gray-500 dark:text-gray-400">
                     Attention: {(patch.attentionWeight * 100).toFixed(1)}%
                   </span>
                 </div>
@@ -542,9 +676,14 @@ export function PathologistView({
                     {patch.tissueConfidence && ` (${(patch.tissueConfidence * 100).toFixed(0)}%)`}
                   </Badge>
                 )}
-                <p className="text-sm text-gray-600 leading-relaxed">
+                <p className="text-sm text-gray-600 dark:text-gray-300 leading-relaxed">
                   {patch.morphologyDescription}
                 </p>
+                {patch.isGenerated && (
+                  <p className="text-2xs text-gray-400 dark:text-gray-500 mt-1 italic">
+                    AI-generated description (fallback)
+                  </p>
+                )}
               </div>
             ))}
           </div>
@@ -552,40 +691,58 @@ export function PathologistView({
       </Card>
 
       {/* Export Actions */}
-      <div className="flex gap-2 mt-2">
-        <Button 
-          variant="secondary" 
-          size="sm" 
-          className="flex-1"
-          onClick={handleSaveAnnotations}
-          disabled={saveStatus === "saving"}
-        >
-          {saveStatus === "saving" ? (
-            <>
-              <RefreshCw className="h-4 w-4 mr-1 animate-spin" />
-              Saving...
-            </>
-          ) : saveStatus === "saved" ? (
-            <>
-              <CheckCircle className="h-4 w-4 mr-1 text-green-600" />
-              Saved!
-            </>
-          ) : (
-            <>
-              <Save className="h-4 w-4 mr-1" />
-              Save Annotations
-            </>
+      <div className="flex flex-col gap-2 mt-2">
+        <div className="flex gap-2">
+          <Button 
+            variant="secondary" 
+            size="sm" 
+            className="flex-1"
+            onClick={handleSaveAnnotations}
+            disabled={saveStatus === "saving"}
+          >
+            {saveStatus === "saving" ? (
+              <>
+                <RefreshCw className="h-4 w-4 mr-1 animate-spin" />
+                Saving...
+              </>
+            ) : saveStatus === "saved" ? (
+              <>
+                <CheckCircle className="h-4 w-4 mr-1 text-green-600 dark:text-green-400" />
+                Saved to browser
+              </>
+            ) : (
+              <>
+                <Save className="h-4 w-4 mr-1" />
+                Save Annotations
+              </>
+            )}
+          </Button>
+        </div>
+        <div className="flex gap-2">
+          {onExportPdf && report && (
+            <Button 
+              variant="secondary" 
+              size="sm" 
+              className="flex-1"
+              onClick={onExportPdf}
+            >
+              <FileText className="h-4 w-4 mr-1" />
+              Export PDF
+            </Button>
           )}
-        </Button>
-        <Button 
-          variant="secondary" 
-          size="sm" 
-          className="flex-1"
-          onClick={handleExportReport}
-        >
-          <Download className="h-4 w-4 mr-1" />
-          Export Report
-        </Button>
+          <Button 
+            variant="secondary" 
+            size="sm" 
+            className="flex-1"
+            onClick={handleExportTextReport}
+          >
+            <Download className="h-4 w-4 mr-1" />
+            Export Text Report
+          </Button>
+        </div>
+        <p className="text-2xs text-gray-400 dark:text-gray-500 text-center">
+          Annotations saved to browser localStorage
+        </p>
       </div>
     </div>
   );
@@ -609,8 +766,8 @@ function ToolButton({
       className={cn(
         "flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-all",
         active
-          ? "bg-violet-600 text-white"
-          : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+          ? "bg-violet-600 dark:bg-violet-500 text-white"
+          : "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
       )}
       title={label}
     >
@@ -620,7 +777,7 @@ function ToolButton({
   );
 }
 
-// Mock morphology description generator
+// Mock morphology description generator (fallback when real data unavailable)
 function generateMockMorphology(patch: EvidencePatch, idx: number): string {
   const descriptions = [
     "Displays atypical cellular proliferation with enlarged nuclei and irregular chromatin distribution. Increased nuclear-to-cytoplasmic ratio suggests high-grade features.",
