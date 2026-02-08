@@ -320,7 +320,7 @@ export function ModelPicker({
             </button>
           </div>
 
-          <div className="space-y-3 max-h-[50vh] overflow-y-auto pr-1 scrollbar-thin">
+          <div className="space-y-3">
             {/* Cancer-Specific Models */}
             <div>
               <div className="flex items-center gap-1.5 mb-2">
