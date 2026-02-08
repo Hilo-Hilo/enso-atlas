@@ -166,7 +166,7 @@ function ModelCard({ prediction, isExpanded, onToggle }: ModelCardProps) {
     >
       {/* Header - always visible */}
       <button
-        className="w-full p-3 flex items-center justify-between hover:bg-white/50 transition-colors"
+        className="w-full p-3 flex items-center justify-between hover:bg-white dark:bg-slate-800/50 transition-colors"
         onClick={onToggle}
       >
         <div className="flex items-center gap-3">
@@ -205,7 +205,7 @@ function ModelCard({ prediction, isExpanded, onToggle }: ModelCardProps) {
 
       {/* Expanded details */}
       {isExpanded && (
-        <div className="px-3 pb-3 space-y-3 border-t border-gray-100 bg-white/30">
+        <div className="px-3 pb-3 space-y-3 border-t border-gray-100 bg-white dark:bg-slate-800/30">
           {/* Probability Bar with confidence interval visualization */}
           <div className="pt-3">
             <div className="flex justify-between text-2xs text-gray-500 mb-1">
@@ -531,7 +531,7 @@ export function MultiModelPredictionPanel({
           <div className="text-center py-4">
             <div className="relative w-20 h-20 mx-auto mb-4">
               <div className="absolute inset-0 rounded-full bg-gradient-to-br from-clinical-100 via-violet-100 to-blue-100 animate-pulse" />
-              <div className="absolute inset-2 rounded-full bg-white flex items-center justify-center">
+              <div className="absolute inset-2 rounded-full bg-white dark:bg-slate-800 flex items-center justify-center">
                 <Brain className="h-8 w-8 text-clinical-500" />
               </div>
               {/* Decorative orbiting dots */}

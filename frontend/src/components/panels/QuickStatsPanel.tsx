@@ -349,7 +349,7 @@ export function QuickStatsPanel({ onRefresh }: QuickStatsPanelProps) {
               {stats.recentAnalyses.slice(0, 5).map((analysis, idx) => (
                 <div
                   key={`${analysis.slideId}-${idx}`}
-                  className="flex items-center justify-between p-2 bg-white border border-gray-100 rounded-lg text-xs"
+                  className="flex items-center justify-between p-2 bg-white dark:bg-slate-800 border border-gray-100 rounded-lg text-xs"
                 >
                   <div className="flex items-center gap-2 min-w-0">
                     <span

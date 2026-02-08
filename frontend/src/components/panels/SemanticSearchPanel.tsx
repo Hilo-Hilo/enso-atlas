@@ -286,7 +286,7 @@ function SearchResultItem({
         "focus:outline-none focus:ring-2 focus:ring-clinical-500",
         isSelected
           ? "border-clinical-600 bg-clinical-50 ring-1 ring-clinical-200"
-          : "border-gray-200 bg-white"
+          : "border-gray-200 bg-white dark:bg-slate-800"
       )}
     >
       {/* Thumbnail */}

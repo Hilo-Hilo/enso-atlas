@@ -278,7 +278,7 @@ export function ReportPanel({
 
   return (
     <Card className="print:shadow-none print:border-gray-300">
-      <CardHeader className="print:bg-white">
+      <CardHeader className="print:bg-white dark:bg-slate-800">
         <div className="flex items-center justify-between">
           <CardTitle className="flex items-center gap-2">
             <ClipboardList className="h-4 w-4 text-clinical-600" />
@@ -421,7 +421,7 @@ export function ReportPanel({
                       </span>
                       {/* Tissue Type Badge */}
                       <span className={cn(
-                        "inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-white border",
+                        "inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-white dark:bg-slate-800 border",
                         tissueInfo.color
                       )}>
                         <Circle className="h-2 w-2 fill-current" />
@@ -596,7 +596,7 @@ function ReportSection({
   priority = "normal",
 }: ReportSectionProps) {
   const variantStyles = {
-    default: "bg-white border-gray-200",
+    default: "bg-white dark:bg-slate-800 border-gray-200",
     warning: "bg-amber-50 border-amber-200",
     info: "bg-blue-50 border-blue-200",
   };
@@ -733,7 +733,7 @@ function DecisionSupportSection({
 
       {/* Expanded Content */}
       {isExpanded && (
-        <div className="p-4 bg-white border-t border-gray-100 space-y-4 animate-fade-in">
+        <div className="p-4 bg-white dark:bg-slate-800 border-t border-gray-100 space-y-4 animate-fade-in">
           
           {/* Uncertainty Warning - Prominent when confidence is low */}
           {isLowConfidence && (

@@ -387,7 +387,7 @@ function NoteItem({
   }
 
   return (
-    <div className="p-3 bg-white border border-gray-200 rounded-lg hover:border-gray-300 transition-colors group">
+    <div className="p-3 bg-white dark:bg-slate-800 border border-gray-200 rounded-lg hover:border-gray-300 transition-colors group">
       <div className="flex items-start justify-between gap-2 mb-2">
         <div className="flex items-center gap-2 flex-wrap">
           {note.category && (

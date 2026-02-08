@@ -278,7 +278,7 @@ function WorkflowStep({
         <div className="px-3 pb-3 pt-1 border-t border-gray-200/50 space-y-3">
           {/* Reasoning */}
           {step.reasoning && (
-            <div className="text-xs text-gray-600 whitespace-pre-wrap font-mono bg-white/50 rounded p-2">
+            <div className="text-xs text-gray-600 whitespace-pre-wrap font-mono bg-white dark:bg-slate-800/50 rounded p-2">
               {step.reasoning}
             </div>
           )}
@@ -318,7 +318,7 @@ function WorkflowStep({
                 const isPos = pred.label === "responder" || pred.label === "positive" ||
                   pred.label === "sensitive" || pred.label.toLowerCase().includes("sensitive");
                 return (
-                  <div key={id} className="bg-white rounded p-2 border">
+                  <div key={id} className="bg-white dark:bg-slate-800 rounded p-2 border">
                     <div className="font-medium text-xs truncate">{pred.model_name}</div>
                     <div className={cn(
                       "text-sm font-semibold",
@@ -382,7 +382,7 @@ function WorkflowStep({
                           onHighlightRegion(coords[0], coords[1], score);
                         }
                       }}
-                      className="flex items-center justify-between w-full text-xs text-gray-600 hover:bg-white/60 rounded px-1 py-0.5"
+                      className="flex items-center justify-between w-full text-xs text-gray-600 hover:bg-white dark:bg-slate-800/60 rounded px-1 py-0.5"
                     >
                       <span className="capitalize">{query}</span>
                       <span className={cn("font-medium", color)}>
@@ -829,7 +829,7 @@ export function AIAssistantPanel({
   }, [steps, topEvidence]);
 
   return (
-    <div className={cn("flex flex-col h-full bg-white rounded-lg shadow-sm", className)}>
+    <div className={cn("flex flex-col h-full bg-white dark:bg-slate-800 rounded-lg shadow-sm", className)}>
       {/* Header */}
       <div className="flex items-center justify-between p-4 border-b">
         <div className="flex items-center gap-2">
@@ -1046,7 +1046,7 @@ export function AIAssistantPanel({
               }
               disabled={isFollowupLoading}
               className={cn(
-                "flex-1 px-4 py-2 border rounded-lg text-sm bg-white",
+                "flex-1 px-4 py-2 border rounded-lg text-sm bg-white dark:bg-slate-800",
                 "focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent",
                 isFollowupLoading && "bg-gray-100"
               )}
