@@ -320,7 +320,7 @@ export function ModelPicker({
             </button>
           </div>
 
-          <div className="space-y-3 max-h-[35vh] overflow-y-auto pr-1">
+          <div className="space-y-3 max-h-[50vh] overflow-y-auto pr-1 scrollbar-thin">
             {/* Cancer-Specific Models */}
             <div>
               <div className="flex items-center gap-1.5 mb-2">
@@ -400,12 +400,16 @@ function ModelCheckbox({
         className="h-4 w-4 rounded border-gray-300 text-clinical-600 focus:ring-clinical-500"
       />
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-medium text-gray-900">{model.displayName}</span>
-          {isPrimary && (
-            <Badge variant="info" size="sm">Primary</Badge>
-          )}
-          <span className="text-xs text-gray-400 font-mono">AUC {model.auc.toFixed(2)}</span>
+        <div className="flex items-center justify-between gap-1">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <span className="text-sm font-medium text-gray-900 truncate">{model.displayName}</span>
+            {isPrimary && (
+              <Badge variant="info" size="sm">Primary</Badge>
+            )}
+          </div>
+          <span className="text-xs text-gray-400 font-mono shrink-0">
+            {model.auc.toFixed(2)}
+          </span>
         </div>
         <p className="text-xs text-gray-500 truncate">{model.description}</p>
       </div>
