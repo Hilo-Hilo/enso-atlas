@@ -15,6 +15,12 @@ The frontend provides a clinical-grade interface for whole-slide image analysis,
 - **Layout**: react-resizable-panels v4
 - **UI Components**: Custom clinical-grade components with dark mode support
 
+## Screenshots
+
+See the [main README](../README.md#screenshots) for full application screenshots, including the 3-panel dashboard, oncologist and pathologist views, batch analysis, slide manager, and project management interfaces.
+
+---
+
 ## Getting Started
 
 ### Prerequisites

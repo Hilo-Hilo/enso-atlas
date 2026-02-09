@@ -22,35 +22,41 @@ Enso Atlas is an on-premise pathology evidence engine that analyzes whole-slide 
 
 ## Screenshots
 
-### Main Application View
+### Main Dashboard
 
-![Main View](docs/screenshots/main-view.png)
+![Main Dashboard](docs/screenshots/01-main-dashboard.png)
 
-*Enso Atlas main interface showing the case selection panel, WSI viewer, and analysis panels.*
+*3-panel layout with case selection sidebar (208 cases), WSI viewer, and analysis results. Resizable panels adapt to clinical workflow.*
 
-### Analysis Results with Prediction Panel
+### Oncologist View
 
-![Analysis Results](docs/screenshots/analysis-results.png)
+![Oncologist View](docs/screenshots/02-oncologist-view.png)
 
-*Complete analysis showing prediction results with confidence scores, response probability, and evidence patches.*
+*Treatment-focused view showing cached prediction (SENSITIVE 100%), TransMIL attention heatmap overlay with jet colormap, multi-model analysis results, and scale bar for spatial reference.*
 
-### WSI Viewer with Heatmap Overlay
+### Pathologist View
 
-![WSI Viewer](docs/screenshots/wsi-viewer.png)
+![Pathologist View](docs/screenshots/03-pathologist-view.png)
 
-*OpenSeadragon-based whole-slide image viewer with TransMIL attention heatmap overlay, zoom controls, and minimap navigation.*
+*Annotation tools (Pointer, Circle, Rectangle, Freehand, Measure, Note), tumor grading assistant, magnification presets from 5x to 100x, and mitotic figure counter for detailed slide review.*
 
-### Similar Cases Panel
+### Batch Analysis
 
-![Similar Cases](docs/screenshots/similar-cases.png)
+![Batch Analysis](docs/screenshots/04-batch-view.png)
 
-*FAISS-powered similar case retrieval showing morphologically similar cases from the reference cohort with similarity scores.*
+*Batch processing with model and embedding configuration (L0/L1 resolution selection), 5 TransMIL models grouped by category (Ovarian Cancer, General Pathology), and parallel execution.*
 
-### Prediction and Evidence Panels
+### Slide Manager
 
-![Prediction Panel](docs/screenshots/prediction-panel.png)
+![Slide Manager](docs/screenshots/05-slide-manager.png)
 
-*Detailed prediction results with confidence score, response probability threshold, and evidence patches ranked by attention weight.*
+*Grid view of 208 slides with filtering by labels, embeddings, patch count, date, and favorites. Pagination controls and Sensitive/Resistant classification badges per slide.*
+
+### Project Management
+
+![Project Management](docs/screenshots/06-projects.png)
+
+*Project cards showing readiness status (slides, embeddings, MIL model, labels), CRUD operations for multi-study organization, and slide upload interface.*
 
 ---
 
