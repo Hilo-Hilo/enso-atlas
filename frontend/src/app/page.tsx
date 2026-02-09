@@ -163,6 +163,8 @@ function HomePage() {
 
   // Annotations state (for pathologist mode)
   const [annotations, setAnnotations] = useState<Annotation[]>([]);
+  const [activeAnnotationTool, setActiveAnnotationTool] = useState<"pointer" | "circle" | "rectangle" | "freehand" | "point">("pointer");
+  const [selectedAnnotationId, setSelectedAnnotationId] = useState<string | null>(null);
 
   // Patch zoom modal state
   const [zoomModalOpen, setZoomModalOpen] = useState(false);
@@ -368,6 +370,7 @@ function HomePage() {
           category: annotation.category,
         });
         setAnnotations((prev) => [...prev, newAnnotation]);
+        setSelectedAnnotationId(newAnnotation.id);
       } catch (err) {
         console.error("Failed to save annotation:", err);
         // Fall back to local-only annotation for demo
@@ -377,6 +380,7 @@ function HomePage() {
           createdAt: new Date().toISOString(),
         };
         setAnnotations((prev) => [...prev, localAnnotation]);
+        setSelectedAnnotationId(localAnnotation.id);
       }
     },
     [selectedSlide]
@@ -393,6 +397,7 @@ function HomePage() {
         // Continue with local deletion anyway
       }
       setAnnotations((prev) => prev.filter((a) => a.id !== annotationId));
+      setSelectedAnnotationId((prev) => (prev === annotationId ? null : prev));
     },
     [selectedSlide]
   );
@@ -401,6 +406,8 @@ function HomePage() {
   useEffect(() => {
     if (!selectedSlide) {
       setAnnotations([]);
+      setSelectedAnnotationId(null);
+      setActiveAnnotationTool("pointer");
       return;
     }
 
@@ -408,6 +415,7 @@ function HomePage() {
       try {
         const response = await getAnnotations(selectedSlide.id);
         setAnnotations(response.annotations);
+        setSelectedAnnotationId(null);
       } catch (err) {
         console.error("Failed to load annotations:", err);
         // Annotations are optional, don't block on failure
@@ -1842,6 +1850,21 @@ function HomePage() {
                 availableModels={AVAILABLE_MODELS.length > 0 ? AVAILABLE_MODELS.map(m => ({ id: m.id, name: m.displayName })) : DEFAULT_HEATMAP_MODELS}
                 onControlsReady={(controls) => { viewerControlsRef.current = controls; }}
                 onZoomChange={setViewerZoom}
+                annotations={annotations}
+                activeAnnotationTool={userViewMode === "pathologist" ? activeAnnotationTool : "pointer"}
+                onAnnotationCreate={userViewMode === "pathologist" ? (ann) => {
+                  handleAddAnnotation({
+                    slideId: selectedSlide.id,
+                    type: (ann.type === "point" ? "marker" : ann.type) as Annotation["type"],
+                    coordinates: ann.coordinates,
+                    text: ann.type === "point" ? "Mitotic marker" : `${ann.type} annotation`,
+                    color: ann.type === "point" ? "#ef4444" : "#8b5cf6",
+                    category: ann.type,
+                  });
+                } : undefined}
+                onAnnotationSelect={userViewMode === "pathologist" ? setSelectedAnnotationId : undefined}
+                onAnnotationDelete={userViewMode === "pathologist" ? handleDeleteAnnotation : undefined}
+                selectedAnnotationId={selectedAnnotationId}
               />
             ) : (
               <div className="h-full flex items-center justify-center bg-gray-100 dark:bg-slate-800 rounded-lg border-2 border-dashed border-gray-300 dark:border-slate-600 p-4">
@@ -1917,6 +1940,9 @@ function HomePage() {
                   slideId={selectedSlide.id}
                   viewerZoom={viewerZoom}
                   onZoomTo={(level) => viewerControlsRef.current?.zoomTo(level)}
+                  onAnnotationToolChange={setActiveAnnotationTool}
+                  selectedAnnotationId={selectedAnnotationId}
+                  onSelectAnnotation={setSelectedAnnotationId}
                   onExportPdf={handleExportPdf}
                   report={report}
                 />
@@ -1959,6 +1985,9 @@ function HomePage() {
               slideId={selectedSlide.id}
               viewerZoom={viewerZoom}
               onZoomTo={(level) => viewerControlsRef.current?.zoomTo(level)}
+              onAnnotationToolChange={setActiveAnnotationTool}
+              selectedAnnotationId={selectedAnnotationId}
+              onSelectAnnotation={setSelectedAnnotationId}
               onExportPdf={handleExportPdf}
               report={report}
             />

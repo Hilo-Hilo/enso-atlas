@@ -210,7 +210,7 @@ export interface SemanticSearchResponse {
 export interface Annotation {
   id: string;
   slideId: string;
-  type: "circle" | "rectangle" | "freehand" | "marker" | "note" | "measurement";
+  type: "circle" | "rectangle" | "freehand" | "point" | "marker" | "note" | "measurement";
   coordinates: {
     x: number;
     y: number;
@@ -219,6 +219,8 @@ export interface Annotation {
     points?: Array<{ x: number; y: number }>; // For freehand annotations
   };
   text?: string;
+  label?: string;
+  notes?: string;
   color?: string;
   category?: string;
   createdAt: string;

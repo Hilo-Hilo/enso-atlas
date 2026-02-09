@@ -41,6 +41,9 @@ interface PathologistViewProps {
   slideId: string;
   viewerZoom?: number;
   onZoomTo?: (level: number) => void;
+  onAnnotationToolChange?: (tool: "pointer" | "circle" | "rectangle" | "freehand" | "point") => void;
+  selectedAnnotationId?: string | null;
+  onSelectAnnotation?: (annotationId: string) => void;
   onExportPdf?: () => void;
   report?: StructuredReport | null;
 }
@@ -76,6 +79,9 @@ export function PathologistView({
   slideId,
   viewerZoom = 1,
   onZoomTo,
+  onAnnotationToolChange,
+  selectedAnnotationId,
+  onSelectAnnotation,
   onExportPdf,
   report,
 }: PathologistViewProps) {
@@ -123,39 +129,22 @@ export function PathologistView({
     }
   }, [onZoomTo]);
 
-  // When an annotation tool is selected (not pointer/note), clicking adds an annotation
-  const handleToolAnnotation = useCallback((tool: AnnotationTool) => {
-    if (tool === "pointer" || tool === "note") return;
-
-    const toolLabels: Record<string, string> = {
-      circle: "Circle annotation",
-      rectangle: "Rectangle annotation",
-      freehand: "Freehand annotation",
-      measure: "Measurement",
-    };
-
-    const toolColors: Record<string, string> = {
-      circle: "#8b5cf6",
-      rectangle: "#3b82f6",
-      freehand: "#10b981",
-      measure: "#f59e0b",
-    };
-
-    const typeMap: Record<string, Annotation["type"]> = {
-      circle: "circle",
-      rectangle: "rectangle",
-      freehand: "freehand",
-      measure: "measurement",
-    };
-    onAddAnnotation({
-      slideId,
-      type: typeMap[tool] || "note",
-      coordinates: { x: 0, y: 0, width: 0, height: 0 },
-      text: `${toolLabels[tool] || tool} at ${currentMagnification.label} (viewer ${viewerZoom.toFixed(2)}x)`,
-      color: toolColors[tool] || "#3b82f6",
-      category: tool,
-    });
-  }, [slideId, onAddAnnotation, currentMagnification, viewerZoom]);
+  const handleToolChange = useCallback((tool: AnnotationTool) => {
+    setActiveTool(tool);
+    if (tool === "note") {
+      onAnnotationToolChange?.("pointer");
+      return;
+    }
+    if (tool === "pointer") {
+      onAnnotationToolChange?.("pointer");
+      return;
+    }
+    if (tool === "measure") {
+      onAnnotationToolChange?.("point");
+      return;
+    }
+    onAnnotationToolChange?.(tool);
+  }, [onAnnotationToolChange]);
 
   const handleAddNote = useCallback(() => {
     if (!noteText.trim()) return;
@@ -306,7 +295,7 @@ export function PathologistView({
   }, [analysisResult]);
 
   return (
-    <div className="h-full flex flex-col gap-4 overflow-y-auto">
+    <div className="flex flex-col gap-4 pb-2">
       {/* Header with mode indicator */}
       <div className="flex items-center justify-between bg-violet-50 dark:bg-violet-900/30 border border-violet-200 dark:border-violet-700 rounded-lg px-4 py-3">
         <div className="flex items-center gap-3">
@@ -399,56 +388,44 @@ export function PathologistView({
                 icon={<Crosshair className="h-4 w-4" />}
                 label="Pointer"
                 active={activeTool === "pointer"}
-                onClick={() => setActiveTool("pointer")}
+                onClick={() => handleToolChange("pointer")}
               />
               <ToolButton
                 icon={<Circle className="h-4 w-4" />}
                 label="Circle"
                 active={activeTool === "circle"}
-                onClick={() => {
-                  setActiveTool("circle");
-                  handleToolAnnotation("circle");
-                }}
+                onClick={() => handleToolChange("circle")}
               />
               <ToolButton
                 icon={<Square className="h-4 w-4" />}
                 label="Rectangle"
                 active={activeTool === "rectangle"}
-                onClick={() => {
-                  setActiveTool("rectangle");
-                  handleToolAnnotation("rectangle");
-                }}
+                onClick={() => handleToolChange("rectangle")}
               />
               <ToolButton
                 icon={<PenTool className="h-4 w-4" />}
                 label="Freehand"
                 active={activeTool === "freehand"}
-                onClick={() => {
-                  setActiveTool("freehand");
-                  handleToolAnnotation("freehand");
-                }}
+                onClick={() => handleToolChange("freehand")}
               />
               <ToolButton
                 icon={<Ruler className="h-4 w-4" />}
                 label="Measure"
                 active={activeTool === "measure"}
-                onClick={() => {
-                  setActiveTool("measure");
-                  handleToolAnnotation("measure");
-                }}
+                onClick={() => handleToolChange("measure")}
               />
               <ToolButton
                 icon={<MessageSquare className="h-4 w-4" />}
                 label="Note"
                 active={activeTool === "note"}
-                onClick={() => setActiveTool("note")}
+                onClick={() => handleToolChange("note")}
               />
             </div>
 
             {/* Active tool indicator */}
             {activeTool !== "pointer" && activeTool !== "note" && (
               <div className="text-xs text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-900/30 px-3 py-2 rounded-md">
-                Tool active: {activeTool}. Click the tool again to add another annotation at the current view.
+                Tool active: {activeTool}. Draw directly on the slide to create an annotation.
               </div>
             )}
 
@@ -497,11 +474,20 @@ export function PathologistView({
                 {annotations.map((ann) => (
                   <div
                     key={ann.id}
-                    className="flex items-center justify-between py-1 px-2 bg-gray-50 dark:bg-gray-700/50 rounded text-sm"
+                    className={cn(
+                      "flex items-center justify-between py-1 px-2 rounded text-sm cursor-pointer",
+                      selectedAnnotationId === ann.id
+                        ? "bg-violet-100 dark:bg-violet-900/40 border border-violet-300 dark:border-violet-700"
+                        : "bg-gray-50 dark:bg-gray-700/50"
+                    )}
+                    onClick={() => onSelectAnnotation?.(ann.id)}
                   >
-                    <span className="truncate flex-1 text-gray-800 dark:text-gray-200">{ann.text || ann.type}</span>
+                    <span className="truncate flex-1 text-gray-800 dark:text-gray-200">{ann.text || ann.notes || ann.label || ann.type}</span>
                     <button
-                      onClick={() => onDeleteAnnotation(ann.id)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onDeleteAnnotation(ann.id);
+                      }}
                       className="p-1 text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
                     >
                       <Trash2 className="h-3 w-3" />
@@ -532,7 +518,7 @@ export function PathologistView({
         </button>
 
         {expandedSections.grading && (
-          <div className="space-y-3">
+          <div className="space-y-3 max-h-64 overflow-y-auto pr-1">
             {TUMOR_GRADES.map((grade) => (
               <button
                 key={grade.grade}

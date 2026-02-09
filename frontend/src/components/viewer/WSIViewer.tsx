@@ -34,7 +34,7 @@ import {
   Settings2,
   ImageIcon,
 } from "lucide-react";
-import type { PatchCoordinates, HeatmapData } from "@/types";
+import type { PatchCoordinates, HeatmapData, Annotation } from "@/types";
 
 // Heatmap model options
 const HEATMAP_MODELS = [
@@ -57,6 +57,8 @@ export interface WSIViewerControls {
   toggleFullscreen: () => void;
 }
 
+type AnnotationTool = "pointer" | "circle" | "rectangle" | "freehand" | "point";
+
 interface WSIViewerProps {
   slideId: string;
   dziUrl: string;
@@ -74,6 +76,13 @@ interface WSIViewerProps {
   onHeatmapLevelChange?: (level: number) => void;
   onControlsReady?: (controls: WSIViewerControls) => void;
   onZoomChange?: (zoom: number) => void;
+  // Annotation support
+  annotations?: Annotation[];
+  activeAnnotationTool?: AnnotationTool;
+  onAnnotationCreate?: (annotation: { type: string; coordinates: Annotation["coordinates"] }) => void;
+  onAnnotationSelect?: (annotationId: string) => void;
+  onAnnotationDelete?: (annotationId: string) => void;
+  selectedAnnotationId?: string | null;
 }
 
 export function WSIViewer({
@@ -91,8 +100,15 @@ export function WSIViewer({
   onHeatmapLevelChange,
   onControlsReady,
   onZoomChange,
+  annotations = [],
+  activeAnnotationTool = "pointer",
+  onAnnotationCreate,
+  onAnnotationSelect,
+  onAnnotationDelete,
+  selectedAnnotationId,
 }: WSIViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const viewerShellRef = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<OpenSeadragon.Viewer | null>(null);
   const heatmapOverlayRef = useRef<HTMLElement | null>(null);
   const heatmapTiledImageRef = useRef<any>(null);
@@ -102,6 +118,11 @@ export function WSIViewer({
   useEffect(() => {
     onRegionClickRef.current = onRegionClick;
   }, [onRegionClick]);
+
+  const onZoomChangeRef = useRef(onZoomChange);
+  useEffect(() => {
+    onZoomChangeRef.current = onZoomChange;
+  }, [onZoomChange]);
 
   const [isReady, setIsReady] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -121,6 +142,23 @@ export function WSIViewer({
   useEffect(() => {
     activeToolRef.current = activeTool;
   }, [activeTool]);
+
+  // Annotation drawing state
+  const svgOverlayRef = useRef<SVGSVGElement | null>(null);
+  const [isDrawing, setIsDrawing] = useState(false);
+  const drawStartRef = useRef<{ x: number; y: number } | null>(null);
+  const freehandPointsRef = useRef<Array<{ x: number; y: number }>>([]);
+  const [drawingPreview, setDrawingPreview] = useState<{
+    type: string;
+    x: number; y: number; width: number; height: number;
+    points?: Array<{ x: number; y: number }>;
+  } | null>(null);
+
+  // Store annotation callbacks in refs
+  const onAnnotationCreateRef = useRef(onAnnotationCreate);
+  useEffect(() => { onAnnotationCreateRef.current = onAnnotationCreate; }, [onAnnotationCreate]);
+  const activeAnnotationToolRef = useRef(activeAnnotationTool);
+  useEffect(() => { activeAnnotationToolRef.current = activeAnnotationTool; }, [activeAnnotationTool]);
 
   // Calculate scale bar based on current zoom
   const getScaleBarInfo = useCallback(() => {
@@ -208,7 +246,7 @@ export function WSIViewer({
     viewer.addHandler("zoom", (event: OpenSeadragon.ZoomEvent) => {
       if (event.zoom) {
         setZoom(event.zoom);
-        onZoomChange?.(event.zoom);
+        onZoomChangeRef.current?.(event.zoom);
       }
     });
 
@@ -348,6 +386,292 @@ export function WSIViewer({
       tiledImage.setOpacity(heatmapOnly ? 0 : 1);
     }
   }, [heatmapOnly, isReady]);
+
+  // Helper: convert screen pixel position to image coordinates
+  const screenToImageCoords = useCallback((screenX: number, screenY: number): { x: number; y: number } | null => {
+    const viewer = viewerRef.current;
+    if (!viewer) return null;
+    const tiledImage = viewer.world.getItemAt(0);
+    if (!tiledImage) return null;
+    const containerEl = containerRef.current;
+    if (!containerEl) return null;
+    const rect = containerEl.getBoundingClientRect();
+    const pixelPoint = new OpenSeadragon.Point(screenX - rect.left, screenY - rect.top);
+    const viewportPoint = viewer.viewport.pointFromPixel(pixelPoint);
+    const imagePoint = tiledImage.viewportToImageCoordinates(viewportPoint);
+    return { x: Math.round(imagePoint.x), y: Math.round(imagePoint.y) };
+  }, []);
+
+  // Disable OSD mouse tracking when an annotation tool is active
+  useEffect(() => {
+    const viewer = viewerRef.current;
+    if (!viewer || !isReady) return;
+    const isAnnotating = activeAnnotationTool !== "pointer";
+    viewer.setMouseNavEnabled(!isAnnotating);
+    // Keep scroll zoom working even while annotating
+    if (isAnnotating) {
+      const gestureSettingsMouse = (viewer as any).gestureSettingsMouse;
+      if (gestureSettingsMouse) {
+        gestureSettingsMouse.scrollToZoom = true;
+      }
+    }
+  }, [activeAnnotationTool, isReady]);
+
+  // Annotation mouse handlers attached to the container
+  useEffect(() => {
+    const container = viewerShellRef.current;
+    if (!container || !isReady) return;
+
+    const handleMouseDown = (e: MouseEvent) => {
+      const tool = activeAnnotationToolRef.current;
+      if (tool === "pointer") return;
+      if (e.button !== 0) return; // left click only
+
+      const imgCoords = screenToImageCoords(e.clientX, e.clientY);
+      if (!imgCoords) return;
+
+      if (tool === "point") {
+        // Point is single-click, create immediately
+        onAnnotationCreateRef.current?.({
+          type: "point",
+          coordinates: { x: imgCoords.x, y: imgCoords.y, width: 0, height: 0 },
+        });
+        return;
+      }
+
+      e.preventDefault();
+      e.stopPropagation();
+      setIsDrawing(true);
+      drawStartRef.current = imgCoords;
+      freehandPointsRef.current = [imgCoords];
+
+      if (tool === "freehand") {
+        setDrawingPreview({ type: "freehand", x: 0, y: 0, width: 0, height: 0, points: [imgCoords] });
+      } else {
+        setDrawingPreview({ type: tool, x: imgCoords.x, y: imgCoords.y, width: 0, height: 0 });
+      }
+    };
+
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isDrawing || !drawStartRef.current) return;
+      const tool = activeAnnotationToolRef.current;
+      const imgCoords = screenToImageCoords(e.clientX, e.clientY);
+      if (!imgCoords) return;
+
+      if (tool === "freehand") {
+        freehandPointsRef.current.push(imgCoords);
+        setDrawingPreview({
+          type: "freehand", x: 0, y: 0, width: 0, height: 0,
+          points: [...freehandPointsRef.current],
+        });
+      } else {
+        const start = drawStartRef.current;
+        const x = Math.min(start.x, imgCoords.x);
+        const y = Math.min(start.y, imgCoords.y);
+        const w = Math.abs(imgCoords.x - start.x);
+        const h = Math.abs(imgCoords.y - start.y);
+        setDrawingPreview({ type: tool, x, y, width: w, height: h });
+      }
+    };
+
+    const handleMouseUp = (e: MouseEvent) => {
+      if (!isDrawing || !drawStartRef.current) return;
+      const tool = activeAnnotationToolRef.current;
+      const imgCoords = screenToImageCoords(e.clientX, e.clientY);
+      if (!imgCoords) return;
+
+      setIsDrawing(false);
+      setDrawingPreview(null);
+
+      if (tool === "freehand") {
+        const pts = freehandPointsRef.current;
+        if (pts.length < 2) return;
+        // Compute bounding box
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        for (const p of pts) {
+          if (p.x < minX) minX = p.x;
+          if (p.y < minY) minY = p.y;
+          if (p.x > maxX) maxX = p.x;
+          if (p.y > maxY) maxY = p.y;
+        }
+        onAnnotationCreateRef.current?.({
+          type: "freehand",
+          coordinates: { x: minX, y: minY, width: maxX - minX, height: maxY - minY, points: pts },
+        });
+      } else {
+        const start = drawStartRef.current;
+        const x = Math.min(start.x, imgCoords.x);
+        const y = Math.min(start.y, imgCoords.y);
+        const w = Math.abs(imgCoords.x - start.x);
+        const h = Math.abs(imgCoords.y - start.y);
+        if (w < 5 && h < 5) return; // too small, ignore
+        onAnnotationCreateRef.current?.({
+          type: tool,
+          coordinates: { x, y, width: w, height: h },
+        });
+      }
+
+      drawStartRef.current = null;
+      freehandPointsRef.current = [];
+    };
+
+    container.addEventListener("mousedown", handleMouseDown);
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+
+    return () => {
+      container.removeEventListener("mousedown", handleMouseDown);
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [isReady, isDrawing, screenToImageCoords]);
+
+  // Convert image coordinates to viewport pixel coordinates for SVG rendering
+  const imageToScreenCoords = useCallback((imgX: number, imgY: number): { x: number; y: number } | null => {
+    const viewer = viewerRef.current;
+    if (!viewer) return null;
+    const tiledImage = viewer.world.getItemAt(0);
+    if (!tiledImage) return null;
+    const viewportPoint = tiledImage.imageToViewportCoordinates(new OpenSeadragon.Point(imgX, imgY));
+    const pixelPoint = viewer.viewport.pixelFromPoint(viewportPoint);
+    return { x: pixelPoint.x, y: pixelPoint.y };
+  }, []);
+
+  // Force SVG re-render on zoom/pan
+  const [renderTick, setRenderTick] = useState(0);
+  useEffect(() => {
+    const viewer = viewerRef.current;
+    if (!viewer || !isReady) return;
+    const handler = () => setRenderTick((t) => t + 1);
+    viewer.addHandler("zoom", handler);
+    viewer.addHandler("pan", handler);
+    viewer.addHandler("animation", handler);
+    return () => {
+      viewer.removeHandler("zoom", handler);
+      viewer.removeHandler("pan", handler);
+      viewer.removeHandler("animation", handler);
+    };
+  }, [isReady]);
+
+  // Render an annotation as SVG element
+  const renderAnnotationSVG = useCallback((ann: Annotation, isSelected: boolean) => {
+    const coords = ann.coordinates;
+    const color = ann.color || "#3b82f6";
+    const strokeWidth = isSelected ? 3 : 2;
+    const opacity = isSelected ? 1 : 0.7;
+
+    if (ann.type === "freehand" && coords.points && coords.points.length > 1) {
+      const screenPoints = coords.points.map((p) => imageToScreenCoords(p.x, p.y)).filter(Boolean) as Array<{ x: number; y: number }>;
+      if (screenPoints.length < 2) return null;
+      const pathData = screenPoints.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ");
+      return (
+        <path
+          key={ann.id}
+          d={pathData}
+          fill="none"
+          stroke={color}
+          strokeWidth={strokeWidth}
+          opacity={opacity}
+          strokeLinejoin="round"
+          strokeLinecap="round"
+          style={{ cursor: "pointer", pointerEvents: "stroke" }}
+          onClick={(e) => { e.stopPropagation(); onAnnotationSelect?.(ann.id); }}
+        />
+      );
+    }
+
+    if (ann.type === "point") {
+      const sc = imageToScreenCoords(coords.x, coords.y);
+      if (!sc) return null;
+      return (
+        <g key={ann.id} onClick={(e) => { e.stopPropagation(); onAnnotationSelect?.(ann.id); }} style={{ cursor: "pointer" }}>
+          <circle cx={sc.x} cy={sc.y} r={isSelected ? 8 : 6} fill={color} opacity={opacity} stroke={isSelected ? "#fff" : "none"} strokeWidth={2} />
+          <line x1={sc.x - 10} y1={sc.y} x2={sc.x + 10} y2={sc.y} stroke={color} strokeWidth={1.5} opacity={0.6} />
+          <line x1={sc.x} y1={sc.y - 10} x2={sc.x} y2={sc.y + 10} stroke={color} strokeWidth={1.5} opacity={0.6} />
+        </g>
+      );
+    }
+
+    if (ann.type === "circle") {
+      const cx = coords.x + coords.width / 2;
+      const cy = coords.y + coords.height / 2;
+      const scCenter = imageToScreenCoords(cx, cy);
+      const scEdge = imageToScreenCoords(cx + coords.width / 2, cy);
+      if (!scCenter || !scEdge) return null;
+      const rx = Math.abs(scEdge.x - scCenter.x);
+      const scEdgeY = imageToScreenCoords(cx, cy + coords.height / 2);
+      const ry = scEdgeY ? Math.abs(scEdgeY.y - scCenter.y) : rx;
+      return (
+        <ellipse
+          key={ann.id}
+          cx={scCenter.x} cy={scCenter.y} rx={rx} ry={ry}
+          fill="none" stroke={color} strokeWidth={strokeWidth} opacity={opacity}
+          strokeDasharray={isSelected ? "none" : "6 3"}
+          style={{ cursor: "pointer", pointerEvents: "stroke" }}
+          onClick={(e) => { e.stopPropagation(); onAnnotationSelect?.(ann.id); }}
+        />
+      );
+    }
+
+    // Default: rectangle (also handles marker, note, measurement)
+    const topLeft = imageToScreenCoords(coords.x, coords.y);
+    const bottomRight = imageToScreenCoords(coords.x + coords.width, coords.y + coords.height);
+    if (!topLeft || !bottomRight) return null;
+    const w = bottomRight.x - topLeft.x;
+    const h = bottomRight.y - topLeft.y;
+    if (Math.abs(w) < 1 && Math.abs(h) < 1) return null;
+    return (
+      <rect
+        key={ann.id}
+        x={Math.min(topLeft.x, bottomRight.x)} y={Math.min(topLeft.y, bottomRight.y)}
+        width={Math.abs(w)} height={Math.abs(h)}
+        fill="none" stroke={color} strokeWidth={strokeWidth} opacity={opacity}
+        strokeDasharray={isSelected ? "none" : "6 3"}
+        style={{ cursor: "pointer", pointerEvents: "stroke" }}
+        onClick={(e) => { e.stopPropagation(); onAnnotationSelect?.(ann.id); }}
+      />
+    );
+  }, [imageToScreenCoords, onAnnotationSelect]);
+
+  // Render the drawing preview
+  const renderDrawingPreview = useCallback(() => {
+    if (!drawingPreview) return null;
+    const color = "#f59e0b";
+
+    if (drawingPreview.type === "freehand" && drawingPreview.points) {
+      const screenPoints = drawingPreview.points.map((p) => imageToScreenCoords(p.x, p.y)).filter(Boolean) as Array<{ x: number; y: number }>;
+      if (screenPoints.length < 2) return null;
+      const pathData = screenPoints.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ");
+      return <path d={pathData} fill="none" stroke={color} strokeWidth={2} strokeDasharray="4 2" />;
+    }
+
+    const topLeft = imageToScreenCoords(drawingPreview.x, drawingPreview.y);
+    const bottomRight = imageToScreenCoords(
+      drawingPreview.x + drawingPreview.width,
+      drawingPreview.y + drawingPreview.height
+    );
+    if (!topLeft || !bottomRight) return null;
+    const w = bottomRight.x - topLeft.x;
+    const h = bottomRight.y - topLeft.y;
+
+    if (drawingPreview.type === "circle") {
+      return (
+        <ellipse
+          cx={topLeft.x + w / 2} cy={topLeft.y + h / 2}
+          rx={Math.abs(w / 2)} ry={Math.abs(h / 2)}
+          fill="none" stroke={color} strokeWidth={2} strokeDasharray="4 2"
+        />
+      );
+    }
+
+    return (
+      <rect
+        x={Math.min(topLeft.x, bottomRight.x)} y={Math.min(topLeft.y, bottomRight.y)}
+        width={Math.abs(w)} height={Math.abs(h)}
+        fill="none" stroke={color} strokeWidth={2} strokeDasharray="4 2"
+      />
+    );
+  }, [drawingPreview, imageToScreenCoords]);
 
   const handleZoomIn = () => viewerRef.current?.viewport.zoomBy(1.5);
   const handleZoomOut = () => viewerRef.current?.viewport.zoomBy(0.67);
@@ -527,6 +851,7 @@ export function WSIViewer({
 
   return (
     <div
+      ref={viewerShellRef}
       className={cn(
         "relative bg-navy-900 rounded-xl overflow-hidden shadow-clinical-lg border border-navy-700",
         className
@@ -538,6 +863,21 @@ export function WSIViewer({
         className="w-full h-full min-h-[400px]"
         style={{ background: heatmapOnly ? "#000000" : "#0f172a" }}
       />
+
+      {/* Annotation overlay (SVG rendered in screen coordinates) */}
+      {isReady && (
+        <svg
+          key={renderTick}
+          ref={svgOverlayRef}
+          className="absolute inset-0 w-full h-full"
+          style={{ pointerEvents: "auto" }}
+          viewBox={`0 0 ${containerRef.current?.clientWidth || 1} ${containerRef.current?.clientHeight || 1}`}
+          preserveAspectRatio="none"
+        >
+          {annotations.map((ann) => renderAnnotationSVG(ann, selectedAnnotationId === ann.id))}
+          {renderDrawingPreview()}
+        </svg>
+      )}
 
       {/* Loading Indicator */}
       {!isReady && !loadError && (

@@ -210,6 +210,7 @@ async def init_schema():
     await _migrate_project_columns()
     await _migrate_project_scoped_tables()
     await _migrate_display_name()
+    await _migrate_annotations_table()
 
 
 async def _migrate_project_columns():
@@ -340,6 +341,137 @@ async def _migrate_display_name():
             "INSERT INTO schema_version (version) VALUES (4) ON CONFLICT DO NOTHING"
         )
         logger.info("v4 migration complete: display_name column added")
+
+
+async def _migrate_annotations_table():
+    """v5 migration: create annotations table for pathologist review."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        v5_done = await conn.fetchval(
+            "SELECT COUNT(*) FROM schema_version WHERE version = 5"
+        )
+        if v5_done:
+            return
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS annotations (
+                id TEXT PRIMARY KEY,
+                slide_id TEXT NOT NULL,
+                type TEXT NOT NULL,
+                coordinates JSONB NOT NULL,
+                label TEXT,
+                notes TEXT,
+                color TEXT DEFAULT '#3b82f6',
+                category TEXT,
+                created_at TIMESTAMPTZ DEFAULT now(),
+                updated_at TIMESTAMPTZ DEFAULT now()
+            )
+        """)
+        await conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_annotations_slide ON annotations(slide_id)"
+        )
+        await conn.execute(
+            "INSERT INTO schema_version (version) VALUES (5) ON CONFLICT DO NOTHING"
+        )
+        logger.info("v5 migration complete: annotations table created")
+
+
+# ---------------------------------------------------------------------------
+# Annotation CRUD helpers
+# ---------------------------------------------------------------------------
+
+
+async def create_annotation(
+    annotation_id: str,
+    slide_id: str,
+    ann_type: str,
+    coordinates: dict,
+    label: str | None = None,
+    notes: str | None = None,
+    color: str = "#3b82f6",
+    category: str | None = None,
+) -> dict:
+    """Insert a new annotation and return it."""
+    import json as _json
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """
+            INSERT INTO annotations (id, slide_id, type, coordinates, label, notes, color, category)
+            VALUES ($1, $2, $3, $4::jsonb, $5, $6, $7, $8)
+            RETURNING id, slide_id, type, coordinates, label, notes, color, category, created_at, updated_at
+            """,
+            annotation_id, slide_id, ann_type, _json.dumps(coordinates),
+            label, notes, color, category,
+        )
+    result = dict(row)
+    import json
+    if isinstance(result["coordinates"], str):
+        result["coordinates"] = json.loads(result["coordinates"])
+    return result
+
+
+async def get_annotations(slide_id: str) -> list[dict]:
+    """Get all annotations for a slide."""
+    import json
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT id, slide_id, type, coordinates, label, notes, color, category, created_at, updated_at
+            FROM annotations WHERE slide_id = $1
+            ORDER BY created_at
+            """,
+            slide_id,
+        )
+    results = []
+    for r in rows:
+        d = dict(r)
+        if isinstance(d["coordinates"], str):
+            d["coordinates"] = json.loads(d["coordinates"])
+        results.append(d)
+    return results
+
+
+async def update_annotation(
+    annotation_id: str,
+    label: str | None = None,
+    notes: str | None = None,
+    color: str | None = None,
+    category: str | None = None,
+) -> dict | None:
+    """Update an annotation's label/notes. Returns updated row or None."""
+    import json
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """
+            UPDATE annotations SET
+                label = COALESCE($2, label),
+                notes = COALESCE($3, notes),
+                color = COALESCE($4, color),
+                category = COALESCE($5, category),
+                updated_at = now()
+            WHERE id = $1
+            RETURNING id, slide_id, type, coordinates, label, notes, color, category, created_at, updated_at
+            """,
+            annotation_id, label, notes, color, category,
+        )
+    if not row:
+        return None
+    d = dict(row)
+    if isinstance(d["coordinates"], str):
+        d["coordinates"] = json.loads(d["coordinates"])
+    return d
+
+
+async def delete_annotation(annotation_id: str) -> bool:
+    """Delete an annotation. Returns True if deleted."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        result = await conn.execute(
+            "DELETE FROM annotations WHERE id = $1", annotation_id
+        )
+    return result != "DELETE 0"
 
 
 async def update_slide_display_name(slide_id: str, display_name: str | None) -> bool:

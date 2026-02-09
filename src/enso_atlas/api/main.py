@@ -4354,159 +4354,154 @@ DISCLAIMER: This is a research tool. All findings must be validated by qualified
         }
 
     # ====== Annotations API (for Pathologist Review Mode) ======
-
-    # In-memory storage for annotations (would be persisted to DB in production)
-    slide_annotations: Dict[str, List[Dict[str, Any]]] = {}
-    annotation_counter = {"value": 0}
+    # Persisted to PostgreSQL via database.py
 
     class AnnotationCreate(BaseModel):
-        """Request to create a new annotation (flat format for frontend compatibility)."""
-        x: float = Field(..., description="X coordinate of annotation")
-        y: float = Field(..., description="Y coordinate of annotation")
-        width: float = Field(default=0, description="Width of annotation region")
-        height: float = Field(default=0, description="Height of annotation region")
+        """Request to create a new annotation."""
+        type: str = Field(default="rectangle", description="Annotation type: circle, rectangle, freehand, point, marker, note, measurement")
+        coordinates: Dict[str, Any] = Field(default_factory=lambda: {"x": 0, "y": 0, "width": 0, "height": 0}, description="Coordinates in image space")
+        text: Optional[str] = Field(None, description="Annotation text (mapped to notes)")
         label: Optional[str] = Field(None, description="Label/category for the annotation")
         notes: Optional[str] = Field(None, description="Additional notes or description")
+        color: Optional[str] = Field(None, description="Display color")
+        category: Optional[str] = Field(None, description="Category: mitotic, tumor, stroma, etc.")
 
-    class AnnotationResponse(BaseModel):
-        """Single annotation response (flat format for frontend compatibility)."""
-        id: str
-        slide_id: str
-        x: float
-        y: float
-        width: float
-        height: float
+    class AnnotationUpdate(BaseModel):
+        """Request to update an annotation."""
         label: Optional[str] = None
         notes: Optional[str] = None
-        created_at: str
+        color: Optional[str] = None
+        category: Optional[str] = None
 
-    class AnnotationsListResponse(BaseModel):
-        """Response containing all annotations for a slide."""
-        slide_id: str
-        annotations: List[AnnotationResponse]
-        total: int
+    @app.get("/api/slides/{slide_id}/annotations")
+    async def get_annotations_endpoint(slide_id: str):
+        """Get all annotations for a slide (PostgreSQL-backed)."""
+        try:
+            rows = await db.get_annotations(slide_id)
+        except Exception as e:
+            logger.warning(f"Failed to fetch annotations for {slide_id}: {e}")
+            rows = []
 
-    @app.get("/api/slides/{slide_id}/annotations", response_model=AnnotationsListResponse)
-    async def get_annotations(slide_id: str):
-        """
-        Get all annotations for a slide.
+        annotations = []
+        for r in rows:
+            annotations.append({
+                "id": r["id"],
+                "slide_id": r["slide_id"],
+                "type": r["type"],
+                "coordinates": r["coordinates"],
+                "text": r.get("notes") or r.get("label") or "",
+                "label": r.get("label"),
+                "notes": r.get("notes"),
+                "color": r.get("color", "#3b82f6"),
+                "category": r.get("category"),
+                "created_at": r["created_at"].isoformat() if hasattr(r["created_at"], "isoformat") else str(r["created_at"]),
+                "created_by": None,
+            })
 
-        Returns annotations created in pathologist review mode, including
-        region markings, notes, and labels. Format uses flat x/y/width/height
-        coordinates for frontend compatibility.
-        """
-        annotations = slide_annotations.get(slide_id, [])
-
-        return AnnotationsListResponse(
-            slide_id=slide_id,
-            annotations=[
-                AnnotationResponse(
-                    id=a["id"],
-                    slide_id=a["slide_id"],
-                    x=a["x"],
-                    y=a["y"],
-                    width=a["width"],
-                    height=a["height"],
-                    label=a.get("label"),
-                    notes=a.get("notes"),
-                    created_at=a["created_at"],
-                )
-                for a in annotations
-            ],
-            total=len(annotations),
-        )
-
-    @app.post("/api/slides/{slide_id}/annotations", response_model=AnnotationResponse)
-    async def save_annotation(slide_id: str, annotation: AnnotationCreate):
-        """
-        Save a new annotation for a slide.
-
-        Creates an annotation with flat x/y/width/height coordinates plus
-        optional label and notes fields. This enables the PathologistView
-        "Save Annotations" feature in the frontend.
-        """
-        annotation_counter["value"] += 1
-        annotation_id = f"ann_{slide_id}_{annotation_counter['value']}"
-
-        annotation_data = {
-            "id": annotation_id,
+        return {
             "slide_id": slide_id,
-            "x": annotation.x,
-            "y": annotation.y,
-            "width": annotation.width,
-            "height": annotation.height,
-            "label": annotation.label,
-            "notes": annotation.notes,
-            "created_at": get_timestamp(),
+            "annotations": annotations,
+            "total": len(annotations),
         }
 
-        if slide_id not in slide_annotations:
-            slide_annotations[slide_id] = []
-        slide_annotations[slide_id].append(annotation_data)
+    @app.post("/api/slides/{slide_id}/annotations")
+    async def save_annotation_endpoint(slide_id: str, body: AnnotationCreate):
+        """Create a new annotation (PostgreSQL-backed)."""
+        import uuid
+        annotation_id = f"ann_{uuid.uuid4().hex[:12]}"
+        notes = body.notes or body.text or None
+
+        try:
+            row = await db.create_annotation(
+                annotation_id=annotation_id,
+                slide_id=slide_id,
+                ann_type=body.type,
+                coordinates=body.coordinates,
+                label=body.label,
+                notes=notes,
+                color=body.color or "#3b82f6",
+                category=body.category,
+            )
+        except Exception as e:
+            logger.error(f"Failed to create annotation: {e}")
+            raise HTTPException(status_code=500, detail=str(e))
 
         log_audit_event("annotation_created", slide_id, "pathologist", {
             "annotation_id": annotation_id,
-            "label": annotation.label,
+            "type": body.type,
         })
 
-        logger.info(f"Created annotation {annotation_id} for slide {slide_id}")
+        return {
+            "id": row["id"],
+            "slide_id": row["slide_id"],
+            "type": row["type"],
+            "coordinates": row["coordinates"],
+            "text": row.get("notes") or row.get("label") or "",
+            "label": row.get("label"),
+            "notes": row.get("notes"),
+            "color": row.get("color", "#3b82f6"),
+            "category": row.get("category"),
+            "created_at": row["created_at"].isoformat() if hasattr(row["created_at"], "isoformat") else str(row["created_at"]),
+            "created_by": None,
+        }
 
-        return AnnotationResponse(
-            id=annotation_id,
-            slide_id=slide_id,
-            x=annotation.x,
-            y=annotation.y,
-            width=annotation.width,
-            height=annotation.height,
-            label=annotation.label,
-            notes=annotation.notes,
-            created_at=annotation_data["created_at"],
+    @app.put("/api/slides/{slide_id}/annotations/{annotation_id}")
+    async def update_annotation_endpoint(slide_id: str, annotation_id: str, body: AnnotationUpdate):
+        """Update an annotation's label, notes, color, or category."""
+        row = await db.update_annotation(
+            annotation_id=annotation_id,
+            label=body.label,
+            notes=body.notes,
+            color=body.color,
+            category=body.category,
         )
+        if not row:
+            raise HTTPException(status_code=404, detail=f"Annotation {annotation_id} not found")
+
+        return {
+            "id": row["id"],
+            "slide_id": row["slide_id"],
+            "type": row["type"],
+            "coordinates": row["coordinates"],
+            "text": row.get("notes") or row.get("label") or "",
+            "label": row.get("label"),
+            "notes": row.get("notes"),
+            "color": row.get("color", "#3b82f6"),
+            "category": row.get("category"),
+            "created_at": row["created_at"].isoformat() if hasattr(row["created_at"], "isoformat") else str(row["created_at"]),
+            "created_by": None,
+        }
 
     @app.delete("/api/slides/{slide_id}/annotations/{annotation_id}")
-    async def delete_annotation(slide_id: str, annotation_id: str):
-        """
-        Delete an annotation.
-
-        Removes the annotation from the slide. This action is logged in the audit trail.
-        """
-        if slide_id not in slide_annotations:
-            raise HTTPException(status_code=404, detail=f"No annotations found for slide {slide_id}")
-
-        annotations = slide_annotations[slide_id]
-        original_count = len(annotations)
-        slide_annotations[slide_id] = [a for a in annotations if a["id"] != annotation_id]
-
-        if len(slide_annotations[slide_id]) == original_count:
+    async def delete_annotation_endpoint(slide_id: str, annotation_id: str):
+        """Delete an annotation (PostgreSQL-backed)."""
+        deleted = await db.delete_annotation(annotation_id)
+        if not deleted:
             raise HTTPException(status_code=404, detail=f"Annotation {annotation_id} not found")
 
         log_audit_event("annotation_deleted", slide_id, "pathologist", {
             "annotation_id": annotation_id,
         })
 
-        logger.info(f"Deleted annotation {annotation_id} from slide {slide_id}")
-
         return {"success": True, "message": f"Annotation {annotation_id} deleted"}
 
     @app.get("/api/slides/{slide_id}/annotations/summary")
     async def get_annotations_summary(slide_id: str):
-        """
-        Get a summary of annotations for a slide.
-
-        Returns counts by label, useful for pathologist workflow summary.
-        """
-        annotations = slide_annotations.get(slide_id, [])
+        """Get a summary of annotations for a slide."""
+        try:
+            rows = await db.get_annotations(slide_id)
+        except Exception:
+            rows = []
 
         label_counts: Dict[str, int] = {}
-
-        for ann in annotations:
-            label = ann.get("label")
+        for ann in rows:
+            label = ann.get("label") or ann.get("category")
             if label:
                 label_counts[label] = label_counts.get(label, 0) + 1
 
         return {
             "slide_id": slide_id,
-            "total_annotations": len(annotations),
+            "total_annotations": len(rows),
             "by_label": label_counts,
         }
 
