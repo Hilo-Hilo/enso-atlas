@@ -21,6 +21,7 @@ import {
   AIAssistantPanel,
   AnalysisControls,
   OutlierDetectorPanel,
+  PatchClassifierPanel,
   recordAnalysis,
   getCaseNotes,
 } from "@/components/panels";
@@ -218,6 +219,10 @@ function HomePage() {
   // Outlier detection state
   const [outlierHeatmapData, setOutlierHeatmapData] = useState<Array<{ x: number; y: number; score: number }> | null>(null);
   const [showOutlierHeatmap, setShowOutlierHeatmap] = useState(false);
+
+  // Patch classification state
+  const [classifyResult, setClassifyResult] = useState<import("@/types").PatchClassifyResult | null>(null);
+  const [showClassifyHeatmap, setShowClassifyHeatmap] = useState(false);
 
   // Visual search (image-to-image) state
   const [visualSearchResults, setVisualSearchResults] = useState<SimilarCase[]>([]);
@@ -1648,6 +1653,16 @@ function HomePage() {
           setOutlierHeatmapData(data);
         }}
         onPatchClick={handlePatchClick}
+      />
+
+      {/* Few-Shot Patch Classifier */}
+      <PatchClassifierPanel
+        slideId={selectedSlide?.id ?? null}
+        isAnalyzed={!!analysisResult || !!multiModelResult}
+        totalPatches={selectedSlide?.numPatches}
+        onClassifyResult={setClassifyResult}
+        onShowHeatmap={setShowClassifyHeatmap}
+        showHeatmap={showClassifyHeatmap}
       />
 
       {/* Clinical Report */}

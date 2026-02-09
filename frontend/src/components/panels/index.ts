@@ -14,6 +14,7 @@ export { UncertaintyPanel } from "./UncertaintyPanel";
 export { BatchAnalysisPanel } from "./BatchAnalysisPanel";
 export { AIAssistantPanel } from "./AIAssistantPanel";
 export { AnalysisControls } from "./AnalysisControls";
+export { PatchClassifierPanel } from "./PatchClassifierPanel";
 export { OutlierDetectorPanel } from "./OutlierDetectorPanel";
 export type { CaseNote } from "./CaseNotesPanel";
 export type { AnalysisStats } from "./QuickStatsPanel";
