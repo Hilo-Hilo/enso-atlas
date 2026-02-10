@@ -1452,56 +1452,75 @@ export function WSIViewer({
 
       {/* Overlay Controls (always visible when viewer is ready) */}
       {isReady && (
-        <div className="absolute top-4 right-4 z-20">
-          <div className="viewer-toolbar flex-col items-stretch gap-2 p-3 min-w-[200px]">
-            {heatmap && (
-              <>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Layers className="h-4 w-4 text-gray-600" />
-                    <span className="text-sm font-medium text-gray-700">
-                      Attention Heatmap
-                    </span>
-                    {heatmapLoaded && (
-                      <span className="w-2 h-2 rounded-full bg-green-500" title="Loaded" />
-                    )}
-                    {heatmapError && (
-                      <span className="w-2 h-2 rounded-full bg-red-500" title="Failed to load" />
-                    )}
+        <div className="absolute top-4 right-4 z-20 flex flex-col gap-2">
+          {/* Attention Heatmap Section */}
+          {heatmap && (
+            <div className="viewer-toolbar flex-col items-stretch gap-2 p-3 min-w-[200px]">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Layers className="h-4 w-4 text-gray-600" />
+                  <span className="text-sm font-medium text-gray-700">
+                    Attention Heatmap
+                  </span>
+                  {heatmapLoaded && (
+                    <span className="w-2 h-2 rounded-full bg-green-500" title="Loaded" />
+                  )}
+                  {heatmapError && (
+                    <span className="w-2 h-2 rounded-full bg-red-500" title="Failed to load" />
+                  )}
+                </div>
+                <Toggle
+                  checked={showHeatmap}
+                  onChange={setShowHeatmap}
+                  size="sm"
+                />
+              </div>
+
+              {showHeatmap && (
+                <div className="space-y-2 animate-fade-in">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-gray-500">Heatmap only (J)</span>
+                    <Toggle
+                      checked={heatmapOnly}
+                      onChange={(checked) => {
+                        setHeatmapOnly(checked);
+                        if (checked) setShowHeatmap(true);
+                      }}
+                      size="sm"
+                    />
                   </div>
-                  <button
-                    onClick={() => setShowHeatmapPanel(!showHeatmapPanel)}
-                    className="p-1 rounded hover:bg-gray-100"
-                  >
-                    <Settings2 className="h-3.5 w-3.5 text-gray-400" />
-                  </button>
-                </div>
 
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-gray-500">Show overlay (H)</span>
-                  <Toggle
-                    checked={showHeatmap}
-                    onChange={setShowHeatmap}
-                    size="sm"
+                  <ModelSelector />
+                  <Slider
+                    label="Opacity"
+                    min={0}
+                    max={1}
+                    step={0.05}
+                    value={heatmapOpacity}
+                    onChange={(e) => setHeatmapOpacity(Number(e.target.value))}
+                    formatValue={(v) => `${Math.round(v * 100)}%`}
                   />
+                  <div className="mt-1">
+                    <div className="heatmap-legend h-2.5 rounded" />
+                    <div className="flex justify-between text-2xs text-gray-400 mt-1">
+                      <span>Low attention</span>
+                      <span>High attention</span>
+                    </div>
+                  </div>
                 </div>
+              )}
+            </div>
+          )}
 
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-gray-500">Heatmap only (J)</span>
-                  <Toggle
-                    checked={heatmapOnly}
-                    onChange={(checked) => {
-                      setHeatmapOnly(checked);
-                      if (checked) setShowHeatmap(true);
-                    }}
-                    size="sm"
-                  />
-                </div>
-              </>
-            )}
-
+          {/* Patch Grid Section */}
+          <div className="viewer-toolbar flex-col items-stretch gap-2 p-3 min-w-[200px]">
             <div className="flex items-center justify-between">
-              <span className="text-xs text-gray-500">Patch grid (G)</span>
+              <div className="flex items-center gap-2">
+                <Grid3X3 className="h-4 w-4 text-gray-600" />
+                <span className="text-sm font-medium text-gray-700">
+                  Patch Grid
+                </span>
+              </div>
               <Toggle
                 checked={showGrid}
                 onChange={setShowGrid}
@@ -1510,7 +1529,7 @@ export function WSIViewer({
             </div>
 
             {showGrid && (
-              <div className="pt-1.5 space-y-1.5 animate-fade-in">
+              <div className="space-y-1.5 animate-fade-in">
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-2xs text-gray-400">Opacity</span>
                   <div className="flex items-center gap-1.5 flex-1">
@@ -1537,29 +1556,6 @@ export function WSIViewer({
                         style={{ backgroundColor: c }}
                       />
                     ))}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {heatmap && showHeatmapPanel && showHeatmap && (
-              <div className="pt-2 border-t border-gray-100 animate-fade-in">
-                <ModelSelector />
-                <Slider
-                  label="Opacity"
-                  min={0}
-                  max={1}
-                  step={0.05}
-                  value={heatmapOpacity}
-                  onChange={(e) => setHeatmapOpacity(Number(e.target.value))}
-                  formatValue={(v) => `${Math.round(v * 100)}%`}
-                />
-                <div className="mt-3">
-                  <p className="text-xs text-gray-500 mb-1.5">Color Scale</p>
-                  <div className="heatmap-legend h-3 rounded" />
-                  <div className="flex justify-between text-2xs text-gray-400 mt-1">
-                    <span>Low attention</span>
-                    <span>High attention</span>
                   </div>
                 </div>
               </div>
