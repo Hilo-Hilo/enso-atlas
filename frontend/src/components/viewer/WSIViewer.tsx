@@ -187,13 +187,16 @@ export function WSIViewer({
   const activeAnnotationToolRef = useRef(activeAnnotationTool);
   useEffect(() => { activeAnnotationToolRef.current = activeAnnotationTool; }, [activeAnnotationTool]);
 
-  // Calculate scale bar based on current zoom
-  const getScaleBarInfo = useCallback(() => {
-    const baseMag = 40; // Assuming 40x base magnification
-    const effectiveMag = zoom * baseMag;
+  // Refs for direct DOM manipulation of scale bar (bypasses React render for real-time updates)
+  const scaleTextRef = useRef<HTMLSpanElement>(null);
+  const magTextRef = useRef<HTMLDivElement>(null);
+  const zoomDisplayRef = useRef<HTMLSpanElement>(null);
 
-    const scaleBarPx = 100;
-    const scaleBarMicrons = scaleBarPx * mpp / zoom;
+  // Calculate scale bar info from a zoom value (pure function, no React dependency)
+  const computeScaleBar = useCallback((z: number) => {
+    const baseMag = 40;
+    const effectiveMag = z * baseMag;
+    const scaleBarMicrons = 100 * mpp / z;
 
     let displayValue: number;
     let displayUnit: string;
@@ -203,17 +206,38 @@ export function WSIViewer({
       displayUnit = "mm";
     } else if (scaleBarMicrons >= 100) {
       displayValue = Math.round(scaleBarMicrons / 100) * 100;
-      displayUnit = "µm";
+      displayUnit = "\u00b5m";
     } else if (scaleBarMicrons >= 10) {
       displayValue = Math.round(scaleBarMicrons / 10) * 10;
-      displayUnit = "µm";
+      displayUnit = "\u00b5m";
     } else {
       displayValue = Math.round(scaleBarMicrons);
-      displayUnit = "µm";
+      displayUnit = "\u00b5m";
     }
 
     return { displayValue, displayUnit, effectiveMag };
-  }, [zoom, mpp]);
+  }, [mpp]);
+
+  // Update DOM directly on every OSD animation frame for smooth real-time scale/zoom display
+  const updateScaleDisplay = useCallback((z: number) => {
+    const info = computeScaleBar(z);
+    if (scaleTextRef.current) {
+      scaleTextRef.current.textContent = `${info.displayValue} ${info.displayUnit}`;
+    }
+    if (magTextRef.current) {
+      magTextRef.current.textContent = `${info.effectiveMag.toFixed(1)}x`;
+    }
+    if (zoomDisplayRef.current) {
+      zoomDisplayRef.current.textContent = `${z < 1 ? z.toFixed(2) : z.toFixed(1)}x`;
+    }
+  }, [computeScaleBar]);
+
+  // Ref for updateScaleDisplay to avoid stale closures in OSD handler
+  const updateScaleDisplayRef = useRef(updateScaleDisplay);
+  useEffect(() => { updateScaleDisplayRef.current = updateScaleDisplay; }, [updateScaleDisplay]);
+
+  // Legacy: keep getScaleBarInfo for initial render
+  const getScaleBarInfo = useCallback(() => computeScaleBar(zoom), [zoom, computeScaleBar]);
 
   // Initialize OpenSeadragon viewer
   useEffect(() => {
@@ -274,6 +298,14 @@ export function WSIViewer({
       if (event.zoom) {
         setZoom(event.zoom);
         onZoomChangeRef.current?.(event.zoom);
+      }
+    });
+
+    // Continuous real-time scale/zoom display updates during animation
+    viewer.addHandler("animation", () => {
+      const currentZoom = viewer.viewport.getZoom(true);
+      if (currentZoom && updateScaleDisplayRef.current) {
+        updateScaleDisplayRef.current(currentZoom);
       }
     });
 
@@ -1350,7 +1382,7 @@ export function WSIViewer({
           </button>
           <div className="px-2 min-w-[52px] text-center">
             <span className="text-xs font-mono text-gray-700">
-              {zoom < 1 ? zoom.toFixed(2) : zoom.toFixed(1)}x
+              <span ref={zoomDisplayRef}>{zoom < 1 ? zoom.toFixed(2) : zoom.toFixed(1)}x</span>
             </span>
           </div>
           <button
@@ -1507,11 +1539,11 @@ export function WSIViewer({
               className="scale-bar-line"
               style={{ width: "100px" }}
             />
-            <span>
+            <span ref={scaleTextRef}>
               {scaleInfo.displayValue} {scaleInfo.displayUnit}
             </span>
           </div>
-          <div className="bg-black/70 text-white px-2 py-1 rounded text-xs font-mono whitespace-nowrap">
+          <div ref={magTextRef} className="bg-black/70 text-white px-2 py-1 rounded text-xs font-mono whitespace-nowrap">
             {scaleInfo.effectiveMag.toFixed(1)}x
           </div>
         </div>
