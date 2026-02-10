@@ -924,13 +924,19 @@ export function WSIViewer({
     };
   }, [patchOverlay, isReady]);
 
-  // Handle click for patch selection mode
+  // Handle click for patch selection mode.
+  // Disables OSD panning while active so clicks are not consumed as drag gestures.
+  // Uses canvas-click WITHOUT the event.quick guard so that even slightly slow
+  // clicks (micro-drags on trackpads) still register as patch selections.
   useEffect(() => {
     const viewer = viewerRef.current;
     if (!viewer || !isReady || !patchSelectionMode || !patchCoordinates) return;
 
+    // Disable pan so clicks are not consumed by OSD drag handler
+    (viewer as any).panHorizontal = false;
+    (viewer as any).panVertical = false;
+
     const handler = (event: OpenSeadragon.CanvasClickEvent) => {
-      if (!event.quick) return;
       if (!onPatchSelectedRef.current || !patchCoordinates) return;
 
       const tiledImage = viewer.world.getItemAt(0);
@@ -980,7 +986,6 @@ export function WSIViewer({
           patchCoordinates[bestIdx].x,
           patchCoordinates[bestIdx].y
         );
-        // Prevent OSD default click behavior
         event.preventDefaultAction = true;
       }
     };
@@ -988,6 +993,11 @@ export function WSIViewer({
     viewer.addHandler("canvas-click", handler);
     return () => {
       viewer.removeHandler("canvas-click", handler);
+      // Re-enable panning when selection mode exits
+      if (viewerRef.current) {
+        (viewerRef.current as any).panHorizontal = true;
+        (viewerRef.current as any).panVertical = true;
+      }
     };
   }, [isReady, patchSelectionMode, patchCoordinates]);
 
