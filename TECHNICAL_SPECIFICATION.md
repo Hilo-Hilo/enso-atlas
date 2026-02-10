@@ -23,7 +23,7 @@
 10. [Outlier Detection and Few-Shot Classification](#10-outlier-detection-and-few-shot-classification)
 11. [Annotation System](#11-annotation-system)
 12. [Heatmap and Overlay System](#12-heatmap-and-overlay-system)
-13. [Deployment Guide](#13-deployment-guide)
+13. [Hospital Deployment Guide](#13-hospital-deployment-guide)
 14. [Data Pipeline](#14-data-pipeline)
 15. [Security and Compliance](#15-security-and-compliance)
 16. [Performance Benchmarks](#16-performance-benchmarks)
@@ -45,7 +45,17 @@ The platform addresses a critical gap in precision oncology: determining which p
 
 ### Mission Statement
 
-To build the most transparent, evidence-grounded pathology AI system that gives oncologists, pathologists, and tumor boards the information they need to make better treatment decisions -- while keeping patient data secure and on-premise.
+To build a modular, model-agnostic pathology evidence platform that gives oncologists, pathologists, and tumor boards the information they need to make better treatment decisions -- while keeping patient data secure and on-premise.
+
+### Design Philosophy: Platform, Not a Demo
+
+Enso Atlas is fundamentally a **modular platform**, not a single-purpose tool. The Google HAI-DEF models (Path Foundation, MedGemma, MedSigLIP) are used to demonstrate the platform's capabilities, but every component is designed to be swapped:
+
+- **Foundation models are config-driven.** Replace Path Foundation with UNI, CONCH, Virchow, DINOv2, or any custom embedding model by editing a YAML file. The system only requires a model name and embedding dimension.
+- **Classification models are pluggable.** Any attention-based MIL variant (TransMIL, CLAM, ABMIL) can be registered by dropping in a weights file and adding a config entry. No code changes required.
+- **Cancer types are project-defined.** Add lung, breast, prostate, or any other cancer by creating a new project block in the configuration. Labels, thresholds, model assignments, and feature toggles are all per-project.
+- **Feature toggles are per-project.** Enable or disable MedGemma reports, MedSigLIP semantic search, or similar case retrieval independently for each project.
+- **The UI adapts automatically.** All labels, categories, model lists, and workflow steps derive from the project configuration. No hardcoded cancer types or model IDs exist in the frontend.
 
 ### Key Capabilities
 
@@ -1522,6 +1532,158 @@ curl http://localhost:8003/api/health
 # Database status
 curl http://localhost:8003/api/db/status
 # Expected: {"status": "connected", "slides": 208, "patients": 98}
+```
+
+## 13.6 Hospital Deployment Walkthrough
+
+This section provides a step-by-step guide for hospital IT teams to deploy Enso Atlas on their own infrastructure with their own data and models.
+
+### Step 1: Hardware Selection
+
+| Configuration | RAM | GPU | Use Case |
+|---|---|---|---|
+| Mac mini M2/M4 (minimum) | 16 GB | Integrated (MPS) | Small cohorts (<500 slides), CPU embedding |
+| Mac mini M4 Pro/Max | 32-64 GB | Integrated (MPS) | Medium cohorts, faster MedGemma inference |
+| Linux workstation + A40/L40 | 32+ GB + 48 GB VRAM | NVIDIA CUDA | Full performance, GPU embedding |
+| NVIDIA DGX Spark | 128 GB unified | Blackwell (limited TF support) | Reference deployment |
+
+### Step 2: Install and Start
+
+```bash
+git clone https://github.com/Hilo-Hilo/med-gemma-hackathon.git
+cd med-gemma-hackathon/docker
+docker compose up -d
+```
+
+Wait approximately 3-4 minutes for model loading and warmup. Verify with:
+
+```bash
+curl http://localhost:8003/api/health
+```
+
+### Step 3: Add Your Own Cancer Type
+
+Edit `config/projects.yaml` to add a new project. Example for lung adenocarcinoma:
+
+```yaml
+foundation_models:
+  path_foundation:
+    name: "Path Foundation"
+    embedding_dim: 384
+    description: "Google Health pathology foundation model"
+  # Add your own foundation model:
+  uni_v2:
+    name: "UNI v2"
+    embedding_dim: 1024
+    description: "Mass General Brigham universal pathology encoder"
+
+classification_models:
+  # Add your trained model:
+  egfr_mutation:
+    model_dir: "egfr_transmil_v1"
+    display_name: "EGFR Mutation Prediction"
+    auc: 0.83
+    n_slides: 450
+    category: "lung_cancer"
+    positive_label: "EGFR Mutant"
+    negative_label: "Wild Type"
+    compatible_foundation: "path_foundation"
+    embedding_dim: 384
+
+projects:
+  # Keep existing demo project:
+  ovarian-platinum:
+    # ... (unchanged)
+
+  # Add your new project:
+  lung-egfr:
+    name: "Lung Adenocarcinoma - EGFR Mutation"
+    cancer_type: "Lung Cancer"
+    prediction_target: egfr_mutation
+    classes: ["wild_type", "mutant"]
+    positive_class: mutant
+    foundation_model: path_foundation
+    classification_models:
+      - egfr_mutation
+    features:
+      medgemma_reports: true
+      medsiglip_search: false    # Disable if not needed
+      semantic_search: false
+    threshold: 0.5               # Adjust after validation
+```
+
+### Step 4: Train a Classification Model
+
+```bash
+# 1. Place WSI files in a slides directory
+mkdir -p /data/lung_slides
+
+# 2. Extract patches and generate embeddings
+python scripts/embed_level0_pipelined.py \
+  --slides-dir /data/lung_slides \
+  --output-dir /data/lung_embeddings \
+  --batch-size 512 --threads 32
+
+# 3. Prepare labels CSV (slide_id, label columns)
+# Format: slide_id,egfr_status
+# Example: TCGA-XX-XXXX.svs,mutant
+
+# 4. Train TransMIL
+python scripts/train_transmil.py \
+  --embeddings-dir /data/lung_embeddings \
+  --labels /data/lung_labels.csv \
+  --output-dir models/egfr_transmil_v1 \
+  --target-column egfr_status \
+  --positive-class mutant
+
+# 5. Copy weights to the models directory
+cp models/egfr_transmil_v1/best_model.pt models/egfr_transmil_v1/
+
+# 6. Restart the server
+cd docker && docker compose restart enso-atlas
+```
+
+### Step 5: Swap Foundation Models
+
+To use a different foundation model (e.g., UNI instead of Path Foundation):
+
+1. Register the model in `foundation_models` section of `projects.yaml` with the correct `embedding_dim`
+2. Implement the embedding interface in `src/enso_atlas/embeddings/` (a function that takes image patches and returns vectors)
+3. Update the project's `foundation_model` field to reference the new model
+4. Re-embed slides using the new model (existing embeddings are model-specific)
+5. Re-train classification heads on the new embeddings (embedding dimensions must match)
+
+The classification models specify `compatible_foundation` and `embedding_dim` to prevent mismatched embeddings from being used.
+
+### Step 6: Configure Feature Toggles
+
+Each project independently controls which features are available:
+
+```yaml
+features:
+  medgemma_reports: true    # AI-generated clinical reports (requires MedGemma)
+  medsiglip_search: true    # Semantic text-to-patch search (requires MedSigLIP)
+  semantic_search: true     # Similar case retrieval (requires FAISS index)
+```
+
+Set any feature to `false` to disable it for a specific project. This is useful when:
+- MedGemma or MedSigLIP are not installed (e.g., CPU-only deployment)
+- Certain features are not relevant for the cancer type
+- You want a simplified interface for specific user groups
+
+### Step 7: Network and Security
+
+- **Air-gapped deployment:** The system runs entirely on-premise. No external API calls are made during inference.
+- **Tailscale (optional):** For secure remote access without opening firewall ports: `tailscale funnel 3002`
+- **Reverse proxy:** Place behind nginx or Caddy for TLS termination and authentication integration with hospital SSO (SAML, LDAP)
+- **Database backups:** PostgreSQL data in Docker volume. Schedule `pg_dump` via cron for backup.
+
+```bash
+# Backup database
+docker exec atlas-db pg_dump -U postgres enso_atlas > backup_$(date +%Y%m%d).sql
+
+# Restore
+cat backup_20260210.sql | docker exec -i atlas-db psql -U postgres enso_atlas
 ```
 
 ---
