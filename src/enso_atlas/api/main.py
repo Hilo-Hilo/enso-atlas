@@ -5635,32 +5635,27 @@ DISCLAIMER: This is a research tool. All findings must be validated by qualified
                     slide_dims = (x_max, y_max)
                     logger.info(f"Model heatmap using coords-derived dims: {slide_dims}")
             
-            # Use EvidenceGenerator for consistent heatmap generation
+            # Generate a patch-resolution heatmap: 1 pixel = 1 patch (224x224).
+            # This produces crisp discrete patches when rendered with image-rendering: pixelated.
             coords_list = [tuple(map(int, c)) for c in coords_arr]
-            
-            # Calculate aspect-ratio-preserving thumbnail dimensions
-            # This ensures the heatmap matches the slide geometry for correct overlay alignment
-            base_size = 512
             slide_w, slide_h = slide_dims
-            if slide_w >= slide_h:
-                thumb_w = base_size
-                thumb_h = max(1, int(round(base_size * slide_h / slide_w)))
-            else:
-                thumb_h = base_size
-                thumb_w = max(1, int(round(base_size * slide_w / slide_h)))
             
-            logger.info(f"Model heatmap thumbnail size: {thumb_w}x{thumb_h} (preserving aspect ratio)")
+            # Compute grid dimensions in patch units
+            grid_w = int(np.ceil(slide_w / patch_size))
+            grid_h = int(np.ceil(slide_h / patch_size))
+            
+            logger.info(f"Model heatmap patch-resolution: {grid_w}x{grid_h} (1 pixel per {patch_size}px patch)")
             
             heatmap_rgba = evidence_gen.create_heatmap(
                 attention, 
                 coords_list, 
                 slide_dims, 
-                thumbnail_size=(thumb_w, thumb_h),
-                smooth=True,
-                blur_kernel=31
+                thumbnail_size=(grid_w, grid_h),
+                smooth=False,
+                blur_kernel=1
             )
             
-            # Convert RGBA to RGB for PNG output
+            # Convert RGBA to PNG
             img = Image.fromarray(heatmap_rgba, mode="RGBA")
             
             buf = io.BytesIO()
