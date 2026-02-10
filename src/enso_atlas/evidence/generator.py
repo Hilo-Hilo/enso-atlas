@@ -51,6 +51,7 @@ class EvidenceGenerator:
         thumbnail_size: Tuple[int, int] = (1024, 1024),
         smooth: bool = True,
         blur_kernel: int = 31,
+        alpha_power: float = 0.7,
     ) -> np.ndarray:
         """
         Create an attention heatmap overlay.
@@ -123,13 +124,13 @@ class EvidenceGenerator:
             heatmap = (heatmap - heatmap.min()) / (heatmap.max() - heatmap.min())
 
         # Apply colormap
-        heatmap_colored = self._apply_colormap(heatmap)
+        heatmap_colored = self._apply_colormap(heatmap, alpha_power=alpha_power)
 
-        logger.info(f"Created heatmap: {heatmap_colored.shape}, smooth={smooth}")
+        logger.info(f"Created heatmap: {heatmap_colored.shape}, smooth={smooth}, alpha_power={alpha_power}")
         return heatmap_colored
 
 
-    def _apply_colormap(self, heatmap: np.ndarray) -> np.ndarray:
+    def _apply_colormap(self, heatmap: np.ndarray, alpha_power: float = 0.7) -> np.ndarray:
         """Apply colormap to grayscale heatmap.
 
         We avoid OpenCV colormaps to keep heatmap generation functional on
@@ -146,7 +147,7 @@ class EvidenceGenerator:
         rgb = (np.stack([r, g, b], axis=-1) * 255.0).astype(np.uint8)
 
         # Add alpha channel - stronger alpha where attention is higher
-        alpha = np.power(x, 0.7) * 255.0 * float(self.config.heatmap_alpha)
+        alpha = np.power(x, alpha_power) * 255.0 * float(self.config.heatmap_alpha)
         alpha = alpha.astype(np.uint8)
         heatmap_rgba = np.dstack([rgb, alpha])
 

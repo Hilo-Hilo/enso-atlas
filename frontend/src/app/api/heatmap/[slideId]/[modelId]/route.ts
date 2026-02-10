@@ -11,13 +11,15 @@ export async function GET(
 ) {
   const { slideId, modelId } = await params;
   const { searchParams } = new URL(request.url);
-  const level = searchParams.get("level");
   
   try {
-    let backendUrl = `${BACKEND_URL}/api/heatmap/${encodeURIComponent(slideId)}/${encodeURIComponent(modelId)}`;
-    if (level) {
-      backendUrl += `?level=${level}`;
-    }
+    const backendParams = new URLSearchParams();
+    const level = searchParams.get("level");
+    const alphaPower = searchParams.get("alpha_power");
+    if (level) backendParams.set("level", level);
+    if (alphaPower) backendParams.set("alpha_power", alphaPower);
+    const qs = backendParams.toString() ? `?${backendParams.toString()}` : "";
+    let backendUrl = `${BACKEND_URL}/api/heatmap/${encodeURIComponent(slideId)}/${encodeURIComponent(modelId)}${qs}`;
     
     const response = await fetch(backendUrl, {
       method: "GET",
@@ -33,13 +35,18 @@ export async function GET(
     const imageBuffer = await response.arrayBuffer();
     const contentType = response.headers.get("Content-Type") || "image/png";
     
-    return new NextResponse(imageBuffer, {
-      status: 200,
-      headers: {
-        "Content-Type": contentType,
-        "Cache-Control": "public, max-age=3600",
-      },
-    });
+    const headers: Record<string, string> = {
+      "Content-Type": contentType,
+      "Cache-Control": alphaPower ? "no-cache" : "public, max-age=3600",
+    };
+    // Forward coverage headers for heatmap alignment
+    for (const h of ["X-Model-Id", "X-Model-Name", "X-Slide-Width", "X-Slide-Height", "X-Coverage-Width", "X-Coverage-Height"]) {
+      const val = response.headers.get(h);
+      if (val) headers[h] = val;
+    }
+    headers["Access-Control-Expose-Headers"] = "X-Model-Id, X-Model-Name, X-Slide-Width, X-Slide-Height, X-Coverage-Width, X-Coverage-Height";
+    
+    return new NextResponse(imageBuffer, { status: 200, headers });
   } catch (error) {
     console.error(`[Heatmap Proxy] Error fetching heatmap for ${slideId}/${modelId}:`, error);
     return NextResponse.json(

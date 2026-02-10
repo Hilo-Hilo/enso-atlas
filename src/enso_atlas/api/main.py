@@ -5537,7 +5537,7 @@ DISCLAIMER: This is a research tool. All findings must be validated by qualified
 
 
     @app.get("/api/heatmap/{slide_id}/{model_id}")
-    async def get_model_heatmap(slide_id: str, model_id: str):
+    async def get_model_heatmap(slide_id: str, model_id: str, alpha_power: float = 0.7):
         """Get the attention heatmap for a specific TransMIL model.
         
         Available models:
@@ -5558,12 +5558,13 @@ DISCLAIMER: This is a research tool. All findings must be validated by qualified
                 detail=f"Unknown model: {model_id}. Available: {list(MODEL_CONFIGS.keys())}"
             )
         
-        # Check disk cache first
+        # Check disk cache first (only for default alpha_power)
         cache_dir = embeddings_dir / "heatmap_cache"
         cache_dir.mkdir(exist_ok=True)
+        is_default_alpha = abs(alpha_power - 0.7) < 0.01
         cache_path = cache_dir / f"{slide_id}_{model_id}.png"
         
-        if cache_path.exists():
+        if is_default_alpha and cache_path.exists():
             # Serve cached heatmap — still need slide dims for headers
             slide_path = resolve_slide_path(slide_id)
             _slide_dims = None
@@ -5691,7 +5692,8 @@ DISCLAIMER: This is a research tool. All findings must be validated by qualified
                 slide_dims, 
                 thumbnail_size=(grid_w, grid_h),
                 smooth=False,
-                blur_kernel=1
+                blur_kernel=1,
+                alpha_power=alpha_power,
             )
             
             # Convert RGBA to PNG
@@ -5701,13 +5703,14 @@ DISCLAIMER: This is a research tool. All findings must be validated by qualified
             img.save(buf, format="PNG")
             buf.seek(0)
             
-            # Save to disk cache for subsequent requests
-            try:
-                with open(cache_path, "wb") as f:
-                    f.write(buf.getvalue())
-                logger.info(f"Cached heatmap to {cache_path}")
-            except Exception as cache_err:
-                logger.warning(f"Failed to cache heatmap: {cache_err}")
+            # Save to disk cache for subsequent requests (only default alpha)
+            if is_default_alpha:
+                try:
+                    with open(cache_path, "wb") as f:
+                        f.write(buf.getvalue())
+                    logger.info(f"Cached heatmap to {cache_path}")
+                except Exception as cache_err:
+                    logger.warning(f"Failed to cache heatmap: {cache_err}")
             
             return StreamingResponse(
                 buf, 

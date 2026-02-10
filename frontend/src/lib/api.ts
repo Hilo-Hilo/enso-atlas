@@ -693,12 +693,17 @@ export function getDziUrl(slideId: string): string {
  * 
  * Uses local Next.js API proxy to avoid CORS issues.
  */
-export function getHeatmapUrl(slideId: string, modelId?: string, level?: number): string {
-  const levelParam = level !== undefined ? `?level=${level}` : '';
-  if (modelId) {
-    return `/api/heatmap/${encodeURIComponent(slideId)}/${encodeURIComponent(modelId)}${levelParam}`;
+export function getHeatmapUrl(slideId: string, modelId?: string, level?: number, alphaPower?: number): string {
+  const params = new URLSearchParams();
+  if (level !== undefined) params.set('level', String(level));
+  if (alphaPower !== undefined && Math.abs(alphaPower - 0.7) > 0.01) {
+    params.set('alpha_power', alphaPower.toFixed(2));
   }
-  return `/api/heatmap/${encodeURIComponent(slideId)}${levelParam}`;
+  const qs = params.toString() ? `?${params.toString()}` : '';
+  if (modelId) {
+    return `/api/heatmap/${encodeURIComponent(slideId)}/${encodeURIComponent(modelId)}${qs}`;
+  }
+  return `/api/heatmap/${encodeURIComponent(slideId)}${qs}`;
 }
 
 /**

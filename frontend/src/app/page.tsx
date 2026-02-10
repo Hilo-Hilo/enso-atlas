@@ -247,6 +247,13 @@ function HomePage() {
     AVAILABLE_MODELS.length > 0 ? AVAILABLE_MODELS[0].id : "platinum_sensitivity"
   );
   const [heatmapLevel, setHeatmapLevel] = useState<number>(2); // 0-4, default 2 (512px)
+  const [heatmapAlphaPower, setHeatmapAlphaPower] = useState<number>(0.7); // 0.1-1.5, controls low-attention visibility
+  // Debounce alpha power so heatmap only re-fetches after user stops sliding
+  const [debouncedAlphaPower, setDebouncedAlphaPower] = useState<number>(0.7);
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedAlphaPower(heatmapAlphaPower), 400);
+    return () => clearTimeout(timer);
+  }, [heatmapAlphaPower]);
 
   // Multi-model analysis state
   const [multiModelResult, setMultiModelResult] = useState<MultiModelResponse | null>(null);
@@ -1520,7 +1527,7 @@ function HomePage() {
   
   // Build heatmap data with selected model
   const heatmapData = selectedSlide ? {
-    imageUrl: getHeatmapUrl(selectedSlide.id, heatmapModel || "platinum_sensitivity", heatmapLevel),
+    imageUrl: getHeatmapUrl(selectedSlide.id, heatmapModel || "platinum_sensitivity", heatmapLevel, debouncedAlphaPower),
     minValue: 0,
     maxValue: 1,
     colorScale: "viridis" as const,
@@ -1943,6 +1950,8 @@ function HomePage() {
                 heatmapModel={heatmapModel}
                 heatmapLevel={heatmapLevel}
                 onHeatmapLevelChange={setHeatmapLevel}
+                heatmapAlphaPower={heatmapAlphaPower}
+                onHeatmapAlphaPowerChange={setHeatmapAlphaPower}
                 onHeatmapModelChange={setHeatmapModel}
                 availableModels={AVAILABLE_MODELS.length > 0 ? AVAILABLE_MODELS.map(m => ({ id: m.id, name: m.displayName })) : DEFAULT_HEATMAP_MODELS}
                 onControlsReady={(controls) => { viewerControlsRef.current = controls; }}

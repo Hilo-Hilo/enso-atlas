@@ -81,6 +81,9 @@ interface WSIViewerProps {
   // Heatmap resolution level
   heatmapLevel?: number; // 0-4, default 2
   onHeatmapLevelChange?: (level: number) => void;
+  // Heatmap alpha power (controls low-attention patch visibility)
+  heatmapAlphaPower?: number; // 0.1-1.5, default 0.7
+  onHeatmapAlphaPowerChange?: (power: number) => void;
   onControlsReady?: (controls: WSIViewerControls) => void;
   onZoomChange?: (zoom: number) => void;
   // Annotation support
@@ -111,6 +114,8 @@ export function WSIViewer({
   availableModels = [],
   heatmapLevel = 2,
   onHeatmapLevelChange,
+  heatmapAlphaPower = 0.7,
+  onHeatmapAlphaPowerChange,
   onControlsReady,
   onZoomChange,
   annotations = [],
@@ -1510,6 +1515,25 @@ export function WSIViewer({
                     onChange={(e) => setHeatmapOpacity(Number(e.target.value))}
                     formatValue={(v) => `${Math.round(v * 100)}%`}
                   />
+                  <div className="flex items-center justify-between gap-2 mt-1">
+                    <span className="text-2xs text-gray-400 shrink-0">Sensitivity</span>
+                    <div className="flex items-center gap-1.5 flex-1">
+                      <input
+                        type="range"
+                        min={0.1}
+                        max={1.5}
+                        step={0.1}
+                        value={heatmapAlphaPower}
+                        onChange={(e) => onHeatmapAlphaPowerChange?.(Number(e.target.value))}
+                        className="flex-1 h-1 accent-blue-400"
+                      />
+                      <span className="text-2xs text-gray-400 w-6 text-right">{heatmapAlphaPower.toFixed(1)}</span>
+                    </div>
+                  </div>
+                  <div className="flex justify-between text-2xs text-gray-400 mt-0.5 px-0.5">
+                    <span>More visible</span>
+                    <span>More focused</span>
+                  </div>
                   <div className="mt-1">
                     <div className="heatmap-legend h-2.5 rounded" />
                     <div className="flex justify-between text-2xs text-gray-400 mt-1">
