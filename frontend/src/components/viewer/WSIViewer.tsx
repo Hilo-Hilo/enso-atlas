@@ -392,12 +392,19 @@ export function WSIViewer({
     }
     const bounds = slideImage.getBounds(false);
 
+    // Compute heatmap coverage: the patch grid covers ceil(dim/224)*224 pixels,
+    // which may exceed actual slide dimensions. Scale heatmap width accordingly.
+    const PATCH_SIZE = 224;
+    const contentSize = slideImage.getContentSize();
+    const coverageW = Math.ceil(contentSize.x / PATCH_SIZE) * PATCH_SIZE;
+    const heatmapWidth = bounds.width * (coverageW / contentSize.x);
+
     // Add heatmap as a simple image layer (rendered in OSD's tile pipeline)
     viewer.addSimpleImage({
       url: heatmapImageUrl,
       x: bounds.x,
       y: bounds.y,
-      width: bounds.width,
+      width: heatmapWidth,
       opacity: 0, // Start hidden, update via showHeatmap effect
       success: (event: any) => {
         heatmapTiledImageRef.current = event.item;
@@ -1273,15 +1280,15 @@ export function WSIViewer({
         className="absolute inset-0 w-full h-full"
         style={{
           pointerEvents: "none",
-          zIndex: 1,
+          zIndex: 0,
         }}
       />
 
-      {/* Patch grid overlay canvas — z-index 1 so it stays below UI overlays */}
+      {/* Patch grid overlay canvas — z-index 0 so it stays below UI overlays */}
       <canvas
         ref={gridCanvasRef}
         className="absolute top-0 left-0 w-full h-full"
-        style={{ pointerEvents: "none", zIndex: 1 }}
+        style={{ pointerEvents: "none", zIndex: 0 }}
       />
 
       {/* Selection mode indicator */}
@@ -1347,7 +1354,7 @@ export function WSIViewer({
 
       {/* Professional Toolbar */}
       {isReady && showToolbar && (
-        <div className="absolute top-4 left-4 viewer-toolbar">
+        <div className="absolute top-4 left-4 z-20 viewer-toolbar">
           {/* Navigation Tools */}
           <button
             onClick={() => setActiveTool("pan")}
@@ -1415,7 +1422,7 @@ export function WSIViewer({
 
       {/* Overlay Controls (always visible when viewer is ready) */}
       {isReady && (
-        <div className="absolute top-4 right-4">
+        <div className="absolute top-4 right-4 z-20">
           <div className="viewer-toolbar flex-col items-stretch gap-2 p-3 min-w-[200px]">
             {heatmap && (
               <>
@@ -1533,7 +1540,7 @@ export function WSIViewer({
 
       {/* Scale Bar + Magnification (single container to prevent overlap) */}
       {isReady && (
-        <div className="absolute bottom-4 left-4 flex items-end gap-3">
+        <div className="absolute bottom-4 left-4 z-20 flex items-end gap-3">
           <div className="scale-bar">
             <div
               className="scale-bar-line"
@@ -1551,7 +1558,7 @@ export function WSIViewer({
 
       {/* Coordinates Display - when crosshair tool is active */}
       {isReady && activeTool === "crosshair" && (
-        <div className="absolute bottom-4 right-4 bg-black/70 text-white px-3 py-1.5 rounded text-xs">
+        <div className="absolute bottom-4 right-4 z-20 bg-black/70 text-white px-3 py-1.5 rounded text-xs">
           <span className="text-gray-400 mr-1">Mode:</span>
           <span className="font-medium">Click to select region</span>
         </div>

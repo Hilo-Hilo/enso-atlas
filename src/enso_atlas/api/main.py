@@ -5558,6 +5558,45 @@ DISCLAIMER: This is a research tool. All findings must be validated by qualified
                 detail=f"Unknown model: {model_id}. Available: {list(MODEL_CONFIGS.keys())}"
             )
         
+        # Check disk cache first
+        cache_dir = embeddings_dir / "heatmap_cache"
+        cache_dir.mkdir(exist_ok=True)
+        cache_path = cache_dir / f"{slide_id}_{model_id}.png"
+        
+        if cache_path.exists():
+            # Serve cached heatmap — still need slide dims for headers
+            slide_path = resolve_slide_path(slide_id)
+            _slide_dims = None
+            if slide_path is not None and slide_path.exists():
+                try:
+                    import openslide
+                    with openslide.OpenSlide(str(slide_path)) as _slide:
+                        _slide_dims = _slide.dimensions
+                except Exception:
+                    pass
+            if _slide_dims is None:
+                coord_path_c = embeddings_dir / f"{slide_id}_coords.npy"
+                patch_size_c = 224
+                if coord_path_c.exists():
+                    _ca = np.load(coord_path_c).astype(np.int64, copy=False)
+                    _slide_dims = (int(_ca[:, 0].max()) + patch_size_c, int(_ca[:, 1].max()) + patch_size_c)
+                else:
+                    _slide_dims = (patch_size_c, patch_size_c)
+            logger.info(f"Serving cached heatmap for {slide_id}/{model_id}")
+            return FileResponse(
+                str(cache_path),
+                media_type="image/png",
+                headers={
+                    "X-Model-Id": model_id,
+                    "X-Model-Name": MODEL_CONFIGS[model_id]["display_name"],
+                    "X-Slide-Width": str(_slide_dims[0]),
+                    "X-Slide-Height": str(_slide_dims[1]),
+                    "X-Coverage-Width": str(int(np.ceil(_slide_dims[0] / 224)) * 224),
+                    "X-Coverage-Height": str(int(np.ceil(_slide_dims[1] / 224)) * 224),
+                    "Access-Control-Expose-Headers": "X-Model-Id, X-Model-Name, X-Slide-Width, X-Slide-Height, X-Coverage-Width, X-Coverage-Height",
+                }
+            )
+        
         emb_path = embeddings_dir / f"{slide_id}.npy"
         coord_path = embeddings_dir / f"{slide_id}_coords.npy"
         
@@ -5662,23 +5701,13 @@ DISCLAIMER: This is a research tool. All findings must be validated by qualified
             img.save(buf, format="PNG")
             buf.seek(0)
             
-            # Get actual slide dimensions for frontend alignment
-            slide_path = resolve_slide_path(slide_id)
-            if slide_path is not None and slide_path.exists():
-                try:
-                    import openslide
-                    with openslide.OpenSlide(str(slide_path)) as slide:
-                        slide_dims = slide.dimensions
-                except Exception:
-                    if coords_arr.size == 0:
-                        slide_dims = (patch_size, patch_size)
-                    else:
-                        slide_dims = (int(coords_arr[:, 0].max()) + patch_size, int(coords_arr[:, 1].max()) + patch_size)
-            else:
-                if coords_arr.size == 0:
-                    slide_dims = (patch_size, patch_size)
-                else:
-                    slide_dims = (int(coords_arr[:, 0].max()) + patch_size, int(coords_arr[:, 1].max()) + patch_size)
+            # Save to disk cache for subsequent requests
+            try:
+                with open(cache_path, "wb") as f:
+                    f.write(buf.getvalue())
+                logger.info(f"Cached heatmap to {cache_path}")
+            except Exception as cache_err:
+                logger.warning(f"Failed to cache heatmap: {cache_err}")
             
             return StreamingResponse(
                 buf, 
@@ -5688,7 +5717,9 @@ DISCLAIMER: This is a research tool. All findings must be validated by qualified
                     "X-Model-Name": MODEL_CONFIGS[model_id]["display_name"],
                     "X-Slide-Width": str(slide_dims[0]),
                     "X-Slide-Height": str(slide_dims[1]),
-                    "Access-Control-Expose-Headers": "X-Model-Id, X-Model-Name, X-Slide-Width, X-Slide-Height",
+                    "X-Coverage-Width": str(grid_w * patch_size),
+                    "X-Coverage-Height": str(grid_h * patch_size),
+                    "Access-Control-Expose-Headers": "X-Model-Id, X-Model-Name, X-Slide-Width, X-Slide-Height, X-Coverage-Width, X-Coverage-Height",
                 }
             )
             
