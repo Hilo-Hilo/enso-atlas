@@ -54,10 +54,10 @@ Models were trained and evaluated on The Cancer Genome Atlas Ovarian Cancer (TCG
 
 | Task | Slides | AUC | Architecture |
 |------|--------|-----|--------------|
-| Platinum Sensitivity | 152 | **0.752 (mean) / 0.857 (best fold)** | TransMIL |
+| Platinum Sensitivity | 202 | **0.931 (mean CV) / 0.905 (pooled)** | TransMIL |
 | Tumor Grade | 208 | 0.750 | TransMIL |
 
-The platinum sensitivity model achieves a mean cross-validated AUC of 0.752 across 5 folds, with the best fold reaching 0.857. At the Youden-optimal threshold (0.923), the model achieves 73% sensitivity and 77% specificity. Performance is constrained by severe class imbalance in TCGA-OV (91% platinum-sensitive), which limits the model's ability to learn negative-class features. All 208 TCGA-OV slides were fully embedded at level 0 magnification, averaging 6,934 patches per slide, with 152 slides having confirmed platinum response labels available for training.
+The platinum sensitivity model achieves a mean cross-validated AUC of 0.931 across 5 folds (per-fold: 0.895, 0.891, 0.917, 0.985, 0.966), with a pooled AUC of 0.905. At the optimal threshold (0.776), the model achieves 91.8% sensitivity and 87.5% specificity. Addressing the severe class imbalance in TCGA-OV (84% platinum-sensitive, 16% resistant) required focal loss (gamma=2, alpha=0.25) and 4x minority-class oversampling — without these, the model degenerates to predicting the majority class exclusively (specificity = 0%). All 208 TCGA-OV slides were fully embedded at level 0 magnification, averaging 6,934 patches per slide, with 202 slides having confirmed platinum response labels available for training.
 
 ### 3.2 System Performance
 
