@@ -1776,8 +1776,18 @@ def create_app(
                                 ))
                                 continue
                             cfg = MODEL_CONFIGS.get(mid, {})
-                            s, _ = model_obj.predict(embeddings)
-                            s = float(s)
+                            # Use predict_single which handles tensor conversion
+                            pred_result = multi_model_inference.predict_single(embeddings, mid)
+                            if "error" in pred_result:
+                                model_results_list.append(BatchModelResult(
+                                    model_id=mid,
+                                    model_name=cfg.get("display_name", mid),
+                                    error=pred_result["error"],
+                                ))
+                                if i == 0:
+                                    primary_label = "ERROR"
+                                continue
+                            s = float(pred_result["score"])
                             c = abs(s - 0.5) * 2
                             pos_label = cfg.get("positive_label", "Positive")
                             neg_label = cfg.get("negative_label", "Negative")
