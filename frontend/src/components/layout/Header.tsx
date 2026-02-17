@@ -183,7 +183,7 @@ function ProjectSwitcher() {
         className="flex items-center gap-2 px-3 py-1.5 bg-navy-800/50 hover:bg-navy-700/50 rounded-lg border border-navy-700/30 transition-colors"
       >
         <Layers className="h-4 w-4 text-clinical-400" />
-        <span className="text-sm text-gray-300 font-medium truncate max-w-[160px]">
+        <span className="text-sm text-gray-300 font-medium truncate max-w-[80px] lg:max-w-[120px] xl:max-w-[160px]">
           {currentProject.name}
         </span>
         <ChevronDown className={cn("h-3.5 w-3.5 text-gray-400 transition-transform", isOpen && "rotate-180")} />
@@ -306,7 +306,7 @@ export function Header({
           <div className="flex items-center gap-2 sm:gap-3">
             <Logo size="md" variant="full" className="hidden sm:flex" />
             <Logo size="sm" variant="mark" className="sm:hidden" />
-            <span className="text-xs text-navy-100 font-mono bg-navy-800/80 px-1.5 sm:px-2 py-0.5 rounded-full border border-navy-700/50 hidden sm:inline-flex items-center gap-1">
+            <span className="text-xs text-navy-100 font-mono bg-navy-800/80 px-1.5 sm:px-2 py-0.5 rounded-full border border-navy-700/50 hidden xl:inline-flex items-center gap-1">
               <span className="w-1.5 h-1.5 rounded-full bg-clinical-400 animate-pulse" />
               v{version}
             </span>
@@ -315,39 +315,41 @@ export function Header({
           {/* Divider */}
           <div className="h-8 w-px bg-gradient-to-b from-transparent via-navy-600 to-transparent mx-1 sm:mx-2 hidden md:block" />
 
-          {/* Institution Context - Desktop */}
-          <div className="hidden md:flex items-center gap-2 px-2 sm:px-3 py-1.5 bg-navy-800/50 rounded-lg border border-navy-700/30">
+          {/* Institution Context - Desktop (xl+ only) */}
+          <div className="hidden xl:flex items-center gap-2 px-3 py-1.5 bg-navy-800/50 rounded-lg border border-navy-700/30">
             <Building2 className="h-4 w-4 text-clinical-400" />
-            <span className="text-sm text-gray-300 font-medium truncate max-w-[120px] lg:max-w-none">{institutionName}</span>
+            <span className="text-sm text-gray-300 font-medium truncate max-w-[160px]">{institutionName}</span>
           </div>
 
           {/* Project Switcher */}
           <ProjectSwitcher />
 
-          {/* Slide Manager Link - Desktop */}
+          {/* Slide Manager Link - Desktop (icon-only at lg) */}
           <Link
             href="/slides"
-            className="hidden md:flex items-center gap-2 px-2 sm:px-3 py-1.5 bg-navy-800/50 hover:bg-navy-700/50 rounded-lg border border-navy-700/30 transition-colors"
+            className="hidden lg:flex items-center gap-2 px-2 xl:px-3 py-1.5 bg-navy-800/50 hover:bg-navy-700/50 rounded-lg border border-navy-700/30 transition-colors"
+            title="Slides"
           >
             <Layers className="h-4 w-4 text-clinical-400" />
-            <span className="text-sm text-gray-300 font-medium">Slides</span>
+            <span className="text-sm text-gray-300 font-medium hidden xl:inline">Slides</span>
           </Link>
 
-          {/* Project Management Link - Desktop */}
+          {/* Project Management Link - Desktop (icon-only at lg) */}
           <Link
             href="/projects"
-            className="hidden lg:flex items-center gap-2 px-2 sm:px-3 py-1.5 bg-navy-800/50 hover:bg-navy-700/50 rounded-lg border border-navy-700/30 transition-colors"
+            className="hidden lg:flex items-center gap-2 px-2 xl:px-3 py-1.5 bg-navy-800/50 hover:bg-navy-700/50 rounded-lg border border-navy-700/30 transition-colors"
+            title="Projects"
           >
             <FolderOpen className="h-4 w-4 text-clinical-400" />
-            <span className="text-sm text-gray-300 font-medium">Projects</span>
+            <span className="text-sm text-gray-300 font-medium hidden xl:inline">Projects</span>
           </Link>
 
           {/* Divider */}
           <div className="h-8 w-px bg-gradient-to-b from-transparent via-navy-600 to-transparent mx-2 hidden xl:block" />
 
-          {/* View Mode Toggle - Desktop only */}
+          {/* View Mode Toggle - Desktop only (icon-only at lg, labels at 2xl) */}
           {onViewModeChange && (
-            <div className="hidden xl:flex items-center bg-navy-800/80 rounded-xl p-1 border border-navy-700/30 shadow-inner">
+            <div className="hidden lg:flex items-center bg-navy-800/80 rounded-xl p-1 border border-navy-700/30 shadow-inner">
               <button
                 onClick={() => onViewModeChange("oncologist")}
                 className={cn(
@@ -414,7 +416,7 @@ export function Header({
                 isConnected ? "bg-status-positive" : "bg-status-negative"
               )} />
             </div>
-            <div className="flex flex-col">
+            <div className="hidden xl:flex flex-col">
               <span className={cn(
                 "text-xs font-medium flex items-center gap-1",
                 isConnected ? "text-status-positive" : "text-red-400"
@@ -422,11 +424,11 @@ export function Header({
                 {isConnected ? "Connected" : (
                   <>
                     <AlertTriangle className="h-3 w-3" />
-                    <span className="hidden xl:inline">Disconnected</span>
+                    Disconnected
                   </>
                 )}
               </span>
-              <span className="text-2xs text-gray-500 hidden xl:inline">Backend Service</span>
+              <span className="text-2xs text-gray-500">Backend Service</span>
             </div>
           </button>
 
@@ -470,18 +472,18 @@ export function Header({
 
           {/* Demo Mode Toggle */}
           {onDemoModeToggle && (
-            <div className="hidden sm:block">
+            <div className="hidden lg:block">
               <DemoToggle isActive={demoMode} onToggle={onDemoModeToggle} />
             </div>
           )}
 
           {/* Research Mode Warning - Desktop */}
-          <Badge variant="warning" size="sm" className="font-semibold shadow-sm hidden md:inline-flex">
+          <Badge variant="warning" size="sm" className="font-semibold shadow-sm hidden xl:inline-flex">
             Research Only
           </Badge>
 
           {/* Action Buttons - Responsive grouping */}
-          <div className="flex items-center gap-0.5 bg-navy-800/50 rounded-lg p-1 border border-navy-700/30">
+          <div className="hidden lg:flex items-center gap-0.5 bg-navy-800/50 rounded-lg p-1 border border-navy-700/30">
             <Button
               variant="ghost"
               size="sm"
@@ -521,7 +523,7 @@ export function Header({
           </div>
 
           {/* Divider - Desktop only */}
-          <div className="h-8 w-px bg-gradient-to-b from-transparent via-navy-600 to-transparent hidden md:block" />
+          <div className="h-8 w-px bg-gradient-to-b from-transparent via-navy-600 to-transparent hidden lg:block" />
 
           {/* User Context */}
           <div className="relative">
@@ -594,6 +596,27 @@ export function Header({
             <Building2 className="h-4 w-4 text-clinical-400" />
             <span className="text-sm font-medium">{institutionName}</span>
           </div>
+        </div>
+
+        {/* Navigation Links */}
+        <div className="p-4 border-b border-navy-700/50 space-y-1">
+          <p className="text-xs text-gray-500 mb-2 font-medium uppercase tracking-wide">Navigation</p>
+          <Link
+            href="/slides"
+            onClick={() => setMobileMenuOpen(false)}
+            className="flex items-center gap-3 w-full px-4 py-3 text-gray-300 hover:bg-navy-700/50 rounded-lg transition-colors"
+          >
+            <Layers className="h-5 w-5 text-clinical-400" />
+            <span>Slides</span>
+          </Link>
+          <Link
+            href="/projects"
+            onClick={() => setMobileMenuOpen(false)}
+            className="flex items-center gap-3 w-full px-4 py-3 text-gray-300 hover:bg-navy-700/50 rounded-lg transition-colors"
+          >
+            <FolderOpen className="h-5 w-5 text-clinical-400" />
+            <span>Projects</span>
+          </Link>
         </div>
 
         {/* Menu Actions */}
