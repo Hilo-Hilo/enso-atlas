@@ -1771,17 +1771,7 @@ function HomePage() {
         onPatchClick={handlePatchClick}
       />
 
-      {/* Few-Shot Patch Classifier */}
-      <PatchClassifierPanel
-        slideId={selectedSlide?.id ?? null}
-        isAnalyzed={!!analysisResult || !!multiModelResult}
-        totalPatches={selectedSlide?.numPatches}
-        onClassifyResult={setClassifyResult}
-        onShowHeatmap={setShowClassifyHeatmap}
-        showHeatmap={showClassifyHeatmap}
-        onSelectionModeChange={setPatchSelectionMode}
-        hasPatchCoordinates={!!patchCoordinates && patchCoordinates.length > 0}
-      />
+      {/* Few-Shot Patch Classifier -- disabled (feature not functional) */}
 
       {/* Clinical Report */}
       <div data-demo="report-panel">
