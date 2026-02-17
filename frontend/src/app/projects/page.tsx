@@ -940,17 +940,15 @@ export default function ProjectsPage() {
         {projects.length > 0 && (
           <div className="mt-8 space-y-3">
             <div className="p-5 bg-blue-50/50 rounded-xl border border-blue-100 text-sm text-blue-800">
-              <div className="flex items-start gap-3">
-                <Settings className="h-5 w-5 mt-0.5 flex-shrink-0" />
-                <div className="flex-1">
-                  <p className="font-semibold text-blue-900">How projects work</p>
-                  <ul className="mt-2 space-y-1.5 text-blue-700 text-sm">
-                    <li>Each project defines a cancer type, prediction classes, and associated models.</li>
-                    <li>Upload slides to a project, then generate embeddings from the Batch tab.</li>
-                    <li>Train MIL models per-project for accurate treatment response prediction.</li>
-                    <li>Switch between projects using the dropdown in the navigation bar.</li>
-                  </ul>
-                </div>
+              <div className="flex items-center gap-2 mb-3">
+                <Settings className="h-5 w-5 flex-shrink-0" />
+                <p className="font-semibold text-blue-900">How projects work</p>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1.5 text-blue-700 text-sm">
+                <p>Each project defines a cancer type, prediction classes, and associated models.</p>
+                <p>Upload slides to a project, then generate embeddings from the Batch tab.</p>
+                <p>Train MIL models per-project for accurate treatment response prediction.</p>
+                <p>Switch between projects using the dropdown in the navigation bar.</p>
               </div>
             </div>
             <div className="p-4 bg-gray-50 rounded-xl border border-gray-200 text-sm text-gray-600">
