@@ -1172,16 +1172,16 @@ function HomePage() {
     }
   }, [slideList, clearResults]);
 
-  // Handle report generation
+  // Handle report generation (works with single-model or cached multi-model results)
   const handleGenerateReport = useCallback(async () => {
-    if (!selectedSlide || !analysisResult) return;
+    if (!selectedSlide || (!analysisResult && !multiModelResult)) return;
 
     await generateSlideReport({
       slideId: selectedSlide.id,
-      evidencePatchIds: analysisResult.evidencePatches.map((p) => p.id),
+      evidencePatchIds: analysisResult?.evidencePatches?.map((p) => p.id) ?? [],
       includeDetails: true,
     });
-  }, [selectedSlide, analysisResult, generateSlideReport]);
+  }, [selectedSlide, analysisResult, multiModelResult, generateSlideReport]);
 
   // Define keyboard shortcuts
   const keyboardShortcuts = useMemo<KeyboardShortcut[]>(() => [
@@ -1312,7 +1312,7 @@ function HomePage() {
       description: "Generate report",
       category: "Actions",
       handler: () => {
-        if (selectedSlide && analysisResult && !report && !isGeneratingReport) {
+        if (selectedSlide && (analysisResult || multiModelResult) && !report && !isGeneratingReport) {
           handleGenerateReport();
         }
       },
@@ -1577,8 +1577,8 @@ function HomePage() {
     colorScale: "viridis" as const,
   } : undefined;
 
-  // Determine if we have results to show
-  const hasResults = !!analysisResult || isAnalyzing;
+  // Determine if we have results to show (cached multi-model counts too)
+  const hasResults = !!analysisResult || !!multiModelResult || isAnalyzing;
 
   // Render left sidebar content
   const renderLeftSidebarContent = () => (
@@ -1781,7 +1781,7 @@ function HomePage() {
           progress={reportProgress}
           progressMessage={reportProgressMessage}
           onGenerateReport={
-            analysisResult && !report ? handleGenerateReport : undefined
+            (analysisResult || multiModelResult) && !report ? handleGenerateReport : undefined
           }
           onExportPdf={report ? handleExportPdf : undefined}
           onExportJson={report ? handleExportJson : undefined}
