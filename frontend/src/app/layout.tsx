@@ -46,6 +46,7 @@ export default function RootLayout({
       <body className="font-sans antialiased">
         <ToastProvider>
           <ProjectProvider>
+            <DisclaimerBanner />
             <ErrorBoundary>{children}</ErrorBoundary>
           </ProjectProvider>
         </ToastProvider>
