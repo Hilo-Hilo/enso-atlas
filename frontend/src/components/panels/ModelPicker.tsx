@@ -104,7 +104,7 @@ export function ModelPicker({
 }: ModelPickerProps) {
   const [isExpanded, setIsExpanded] = React.useState(false);
   const { currentProject } = useProject();
-  const cancerTypeLabel = currentProject.cancer_type || "Ovarian Cancer";
+  const cancerTypeLabel = currentProject.cancer_type || "Cancer Specific";
 
   // Fetch full model configs from the project available-models API
   const [apiModelDetails, setApiModelDetails] = useState<AvailableModelDetail[]>([]);
@@ -200,7 +200,7 @@ export function ModelPicker({
     onSelectionChange([]);
   };
 
-  const selectOvarian = () => {
+  const selectCancerSpecific = () => {
     onSelectionChange(
       models.filter((m) => m.category !== "general_pathology").map((m) => m.id)
     );
@@ -212,7 +212,7 @@ export function ModelPicker({
     );
   };
 
-  const ovarianModels = models.filter((m) => m.category !== "general_pathology");
+  const cancerSpecificModels = models.filter((m) => m.category !== "general_pathology");
   const generalModels = models.filter((m) => m.category === "general_pathology");
 
   // Determine embedding readiness for each level
@@ -376,7 +376,7 @@ export function ModelPicker({
               None
             </button>
             <button
-              onClick={selectOvarian}
+              onClick={selectCancerSpecific}
               disabled={disabled}
               className="text-xs px-2 py-1 rounded bg-pink-100 hover:bg-pink-200 text-pink-700 transition-colors"
             >
@@ -401,7 +401,7 @@ export function ModelPicker({
                 </span>
               </div>
               <div className="space-y-1.5">
-                {ovarianModels.map((model) => (
+                {cancerSpecificModels.map((model) => (
                   <ModelCheckbox
                     key={model.id}
                     model={model}

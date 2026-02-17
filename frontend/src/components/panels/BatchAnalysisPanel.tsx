@@ -409,7 +409,7 @@ export function BatchAnalysisPanel({
     return "partial";
   }, [selectedIds.size, slides.length]);
 
-  const ovarianModels = models.filter((m) => m.category !== "general_pathology");
+  const cancerSpecificModels = models.filter((m) => m.category !== "general_pathology");
   const generalModels = models.filter((m) => m.category === "general_pathology");
 
   return (
@@ -620,16 +620,16 @@ export function BatchAnalysisPanel({
                     </div>
 
                     {/* Cancer-specific models */}
-                    {ovarianModels.length > 0 && (
+                    {cancerSpecificModels.length > 0 && (
                       <div className="mb-2">
                         <div className="flex items-center gap-1.5 mb-1">
                           <Activity className="h-3 w-3 text-pink-500" />
                           <span className="text-xs text-gray-500 dark:text-gray-400">
-                            {currentProject.cancer_type || "Ovarian Cancer"}
+                            {currentProject.cancer_type || "Cancer Specific"}
                           </span>
                         </div>
                         <div className="space-y-1">
-                          {ovarianModels.map((model) => (
+                          {cancerSpecificModels.map((model) => (
                             <BatchModelCheckbox
                               key={model.id}
                               model={model}

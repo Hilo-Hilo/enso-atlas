@@ -275,7 +275,7 @@ export function Header({
   };
 
   const handleOpenDocs = () => {
-    window.open("https://github.com/Enso-Labs/medgemma", "_blank");
+    window.open("https://github.com/Hilo-Hilo/med-gemma-hackathon/blob/main/TECHNICAL_SPECIFICATION.md", "_blank");
   };
 
   const showDisconnectionBanner = !isConnected && !bannerDismissed;

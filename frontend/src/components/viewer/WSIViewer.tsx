@@ -36,14 +36,9 @@ import {
 } from "lucide-react";
 import type { PatchCoordinates, HeatmapData, Annotation, PatchOverlay } from "@/types";
 
-// Heatmap model options
-const HEATMAP_MODELS = [
-  { id: "platinum_sensitivity", name: "Platinum Sensitivity" },
-  { id: "tumor_grade", name: "Tumor Grade" },
-  { id: "survival_5y", name: "5-Year Survival" },
-  { id: "survival_3y", name: "3-Year Survival" },
-  { id: "survival_1y", name: "1-Year Survival" },
-] as const;
+// Heatmap model options - derived from shared model config
+import { AVAILABLE_MODELS } from "@/components/panels/ModelPicker";
+const HEATMAP_MODELS = AVAILABLE_MODELS.map((m) => ({ id: m.id, name: m.displayName }));
 
 // Viewer control interface for keyboard shortcuts
 export interface WSIViewerControls {
@@ -1170,7 +1165,7 @@ export function WSIViewer({
     <div className="mb-3">
       <label className="text-xs text-gray-500 mb-1.5 block">Model</label>
       <select
-        value={heatmapModel ?? "platinum_sensitivity"}
+        value={heatmapModel ?? (HEATMAP_MODELS[0]?.id || "platinum_sensitivity")}
         onChange={(e) => {
           onHeatmapModelChange?.(e.target.value);
         }}

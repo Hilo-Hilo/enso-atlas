@@ -49,14 +49,8 @@ const WSIViewer = nextDynamic(
   { ssr: false, loading: () => <div className="h-full flex items-center justify-center bg-gray-100 rounded-lg">Loading viewer...</div> }
 );
 
-// Fallback heatmap models -- overridden dynamically from AVAILABLE_MODELS
-const DEFAULT_HEATMAP_MODELS = [
-  { id: "platinum_sensitivity", name: "Platinum Sensitivity" },
-  { id: "tumor_grade", name: "Tumor Grade" },
-  { id: "survival_5y", name: "5-Year Survival" },
-  { id: "survival_3y", name: "3-Year Survival" },
-  { id: "survival_1y", name: "1-Year Survival" },
-];
+// Fallback heatmap models -- derived from shared model config
+const DEFAULT_HEATMAP_MODELS = AVAILABLE_MODELS.map((m) => ({ id: m.id, name: m.displayName }));
 
 // Mobile Panel Tab Component
 type MobilePanelTab = "slides" | "results";
@@ -284,7 +278,7 @@ function HomePage() {
   const [selectedModels, setSelectedModels] = useState<string[]>(() => 
     AVAILABLE_MODELS.length >= 2 
       ? AVAILABLE_MODELS.slice(0, 2).map(m => m.id)
-      : ["platinum_sensitivity", "tumor_grade"]
+      : AVAILABLE_MODELS.slice(0, 2).map((m) => m.id)
   );
   const [resolutionLevel, setResolutionLevel] = useState<number>(1); // 0 = full res, 1 = downsampled
   const [forceReembed, setForceReembed] = useState(false);
@@ -1577,7 +1571,7 @@ function HomePage() {
   
   // Build heatmap data with selected model
   const heatmapData = selectedSlide ? {
-    imageUrl: getHeatmapUrl(selectedSlide.id, heatmapModel || "platinum_sensitivity", heatmapLevel, debouncedAlphaPower),
+    imageUrl: getHeatmapUrl(selectedSlide.id, heatmapModel || (AVAILABLE_MODELS[0]?.id ?? "platinum_sensitivity"), heatmapLevel, debouncedAlphaPower),
     minValue: 0,
     maxValue: 1,
     colorScale: "viridis" as const,

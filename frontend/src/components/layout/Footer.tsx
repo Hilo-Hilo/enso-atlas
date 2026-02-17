@@ -41,7 +41,7 @@ export function Footer({ version = "0.1.0", buildDate }: FooterProps) {
         </div>
         <div className="h-4 w-px bg-gray-200 dark:bg-slate-700 hidden sm:block" />
         <a
-          href="https://github.com/Hilo-Hilo/med-gemma-hackathon#readme"
+          href="https://github.com/Hilo-Hilo/med-gemma-hackathon/blob/main/TECHNICAL_SPECIFICATION.md"
           target="_blank"
           rel="noopener noreferrer"
           className="hidden sm:flex items-center gap-1.5 hover:text-clinical-600 dark:hover:text-clinical-400 transition-colors duration-150 group"

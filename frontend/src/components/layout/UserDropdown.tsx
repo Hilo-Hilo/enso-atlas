@@ -96,7 +96,7 @@ export function UserDropdown({
       label: "Help & Support",
       description: "Documentation",
       onClick: () => {
-        window.open("https://github.com/Enso-Labs/medgemma", "_blank");
+        window.open("https://github.com/Hilo-Hilo/med-gemma-hackathon/blob/main/TECHNICAL_SPECIFICATION.md", "_blank");
         onClose();
       },
     },
