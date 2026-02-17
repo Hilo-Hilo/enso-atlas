@@ -436,9 +436,9 @@ export function BatchAnalysisPanel({
       <CardContent className="flex-1 flex flex-col min-h-0 space-y-4 pt-0">
         {/* Error State */}
         {error && (
-          <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg flex items-center gap-2">
+          <div className="p-3 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2">
             <AlertTriangle className="h-4 w-4 text-red-500 shrink-0" />
-            <span className="text-sm text-red-700 dark:text-red-400">{error}</span>
+            <span className="text-sm text-red-700">{error}</span>
             <Button
               variant="ghost"
               size="sm"
@@ -455,26 +455,26 @@ export function BatchAnalysisPanel({
           <div className="flex-1 flex items-center justify-center py-8">
             <div className="text-center">
               <Spinner size="md" />
-              <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">Loading slides...</p>
+              <p className="text-sm text-gray-500 mt-2">Loading slides...</p>
             </div>
           </div>
         )}
 
         {/* Analysis Progress */}
         {isAnalyzing && (
-          <div className="p-4 bg-clinical-50 dark:bg-clinical-900/20 border border-clinical-200 dark:border-clinical-800 rounded-lg">
+          <div className="p-4 bg-clinical-50 border border-clinical-200 rounded-lg">
             <div className="flex items-center justify-between mb-2">
               <div className="flex-1">
                 <div className="flex items-center justify-between mb-1">
-                  <span className="text-sm font-medium text-clinical-800 dark:text-clinical-200">
+                  <span className="text-sm font-medium text-clinical-800">
                     Analyzing slide {progress.current + 1}/{progress.total}
                   </span>
-                  <span className="text-xs text-clinical-600 dark:text-clinical-400">
+                  <span className="text-xs text-clinical-600">
                     {Math.round((progress.current / progress.total) * 100)}%
                   </span>
                 </div>
                 {progress.currentSlide && (
-                  <p className="text-xs text-clinical-600 dark:text-clinical-400 truncate" title={progress.currentSlide}>
+                  <p className="text-xs text-clinical-600 truncate" title={progress.currentSlide}>
                     Current: {cleanSlideId(progress.currentSlide)}
                   </p>
                 )}
@@ -484,7 +484,7 @@ export function BatchAnalysisPanel({
                 size="sm"
                 onClick={handleCancel}
                 disabled={isCancelling}
-                className="ml-4 text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20"
+                className="ml-4 text-red-600 hover:text-red-700 hover:bg-red-50"
               >
                 {isCancelling ? (
                   <Spinner size="sm" className="mr-1" />
@@ -494,7 +494,7 @@ export function BatchAnalysisPanel({
                 Cancel
               </Button>
             </div>
-            <div className="w-full bg-clinical-200 dark:bg-clinical-800 rounded-full h-2">
+            <div className="w-full bg-clinical-200 rounded-full h-2">
               <div
                 className="bg-clinical-600 h-2 rounded-full transition-all duration-300"
                 style={{
@@ -509,17 +509,17 @@ export function BatchAnalysisPanel({
         {!showResults && !isLoadingSlides && !isAnalyzing && (
           <>
             {/* Model Configuration Card */}
-            <div className="rounded-lg border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-700">
+            <div className="rounded-lg border border-gray-200 bg-white">
               <button
                 onClick={() => setModelConfigExpanded(!modelConfigExpanded)}
                 className={cn(
                   "w-full flex items-center justify-between px-3 py-2.5 text-left",
-                  "hover:bg-gray-50 dark:hover:bg-slate-600 transition-colors rounded-lg"
+                  "hover:bg-gray-50 transition-colors rounded-lg"
                 )}
               >
                 <div className="flex items-center gap-2">
                   <FlaskConical className="h-4 w-4 text-clinical-600" />
-                  <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                  <span className="text-sm font-medium text-gray-900">
                     Model & Embedding Config
                   </span>
                   <Badge variant="default" size="sm">
@@ -537,12 +537,12 @@ export function BatchAnalysisPanel({
               </button>
 
               {modelConfigExpanded && (
-                <div className="px-3 pb-3 space-y-3 border-t border-gray-100 dark:border-slate-600 pt-3">
+                <div className="px-3 pb-3 space-y-3 border-t border-gray-100 pt-3">
                   {/* Resolution Level */}
-                  <div className="pb-3 border-b border-gray-100 dark:border-slate-600">
+                  <div className="pb-3 border-b border-gray-100">
                     <div className="flex items-center gap-1.5 mb-2">
                       <Layers className="h-3 w-3 text-purple-500" />
-                      <span className="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wide">
+                      <span className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
                         Resolution Level
                       </span>
                     </div>
@@ -552,8 +552,8 @@ export function BatchAnalysisPanel({
                         className={cn(
                           "flex-1 px-3 py-2 rounded-md text-sm font-medium transition-colors",
                           resolutionLevel === 1
-                            ? "bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 border-2 border-purple-300 dark:border-purple-600"
-                            : "bg-gray-100 dark:bg-slate-600 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-slate-500 border-2 border-transparent"
+                            ? "bg-purple-100 text-purple-700 border-2 border-purple-300"
+                            : "bg-gray-100 text-gray-600 hover:bg-gray-200 border-2 border-transparent"
                         )}
                       >
                         <div className="text-center">
@@ -566,8 +566,8 @@ export function BatchAnalysisPanel({
                         className={cn(
                           "flex-1 px-3 py-2 rounded-md text-sm font-medium transition-colors",
                           resolutionLevel === 0
-                            ? "bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 border-2 border-purple-300 dark:border-purple-600"
-                            : "bg-gray-100 dark:bg-slate-600 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-slate-500 border-2 border-transparent"
+                            ? "bg-purple-100 text-purple-700 border-2 border-purple-300"
+                            : "bg-gray-100 text-gray-600 hover:bg-gray-200 border-2 border-transparent"
                         )}
                       >
                         <div className="text-center">
@@ -578,19 +578,19 @@ export function BatchAnalysisPanel({
                     </div>
 
                     {/* Force Re-embed */}
-                    <label className="mt-3 flex items-start gap-2 text-xs text-gray-600 dark:text-gray-400">
+                    <label className="mt-3 flex items-start gap-2 text-xs text-gray-600">
                       <input
                         type="checkbox"
                         checked={forceReembed}
                         onChange={(e) => setForceReembed(e.target.checked)}
-                        className="mt-0.5 h-4 w-4 rounded border-gray-300 dark:border-slate-500 text-clinical-600 focus:ring-clinical-500"
+                        className="mt-0.5 h-4 w-4 rounded border-gray-300 text-clinical-600 focus:ring-clinical-500"
                       />
                       <span className="flex-1">
-                        <span className="font-medium text-gray-700 dark:text-gray-300">
+                        <span className="font-medium text-gray-700">
                           <RefreshCw className="h-3 w-3 inline mr-1" />
                           Force Re-embed
                         </span>
-                        <span className="block text-gray-500 dark:text-gray-500">
+                        <span className="block text-gray-500">
                           Regenerate embeddings even if cached
                         </span>
                       </span>
@@ -600,19 +600,19 @@ export function BatchAnalysisPanel({
                   {/* Model Selection */}
                   <div>
                     <div className="flex items-center justify-between mb-2">
-                      <span className="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wide">
+                      <span className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
                         Models
                       </span>
                       <div className="flex gap-1.5">
                         <button
                           onClick={selectAllModels}
-                          className="text-xs px-2 py-0.5 rounded bg-gray-100 dark:bg-slate-600 hover:bg-gray-200 dark:hover:bg-slate-500 text-gray-700 dark:text-gray-300 transition-colors"
+                          className="text-xs px-2 py-0.5 rounded bg-gray-100 hover:bg-gray-200 text-gray-700 transition-colors"
                         >
                           All
                         </button>
                         <button
                           onClick={selectNoModels}
-                          className="text-xs px-2 py-0.5 rounded bg-gray-100 dark:bg-slate-600 hover:bg-gray-200 dark:hover:bg-slate-500 text-gray-700 dark:text-gray-300 transition-colors"
+                          className="text-xs px-2 py-0.5 rounded bg-gray-100 hover:bg-gray-200 text-gray-700 transition-colors"
                         >
                           None
                         </button>
@@ -624,7 +624,7 @@ export function BatchAnalysisPanel({
                       <div className="mb-2">
                         <div className="flex items-center gap-1.5 mb-1">
                           <Activity className="h-3 w-3 text-pink-500" />
-                          <span className="text-xs text-gray-500 dark:text-gray-400">
+                          <span className="text-xs text-gray-500">
                             {currentProject.cancer_type || "Cancer Specific"}
                           </span>
                         </div>
@@ -647,7 +647,7 @@ export function BatchAnalysisPanel({
                       <div>
                         <div className="flex items-center gap-1.5 mb-1">
                           <FlaskConical className="h-3 w-3 text-blue-500" />
-                          <span className="text-xs text-gray-500 dark:text-gray-400">General Pathology</span>
+                          <span className="text-xs text-gray-500">General Pathology</span>
                         </div>
                         <div className="space-y-1">
                           {generalModels.map((model) => (
@@ -670,7 +670,7 @@ export function BatchAnalysisPanel({
             <div className="flex items-center justify-between">
               <button
                 onClick={handleSelectAll}
-                className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 hover:text-clinical-600"
+                className="flex items-center gap-2 text-sm text-gray-600 hover:text-clinical-600"
               >
                 {selectionState === "all" ? (
                   <CheckSquare className="h-4 w-4 text-clinical-600" />
@@ -691,13 +691,13 @@ export function BatchAnalysisPanel({
             </div>
 
             {/* Concurrency Setting */}
-            <div className="flex items-center gap-2 px-2 py-1.5 bg-gray-50 dark:bg-slate-700 rounded-lg">
+            <div className="flex items-center gap-2 px-2 py-1.5 bg-gray-50 rounded-lg">
               <Zap className="h-3.5 w-3.5 text-amber-500" />
-              <span className="text-xs text-gray-600 dark:text-gray-400">Parallel processing:</span>
+              <span className="text-xs text-gray-600">Parallel processing:</span>
               <select
                 value={concurrency}
                 onChange={(e) => setConcurrency(parseInt(e.target.value, 10))}
-                className="text-xs bg-white dark:bg-slate-600 border border-gray-200 dark:border-slate-500 rounded px-2 py-1 text-gray-900 dark:text-gray-100"
+                className="text-xs bg-white border border-gray-200 rounded px-2 py-1 text-gray-900"
               >
                 {[1, 2, 4, 6, 8, 10].map((n) => (
                   <option key={n} value={n}>{n} slides</option>
@@ -713,10 +713,10 @@ export function BatchAnalysisPanel({
                   onClick={() => handleToggleSelect(slide.id)}
                   className={cn(
                     "w-full flex items-center gap-3 p-2 rounded-lg border transition-all text-left",
-                    "hover:border-clinical-400 hover:bg-clinical-50/50 dark:hover:bg-clinical-900/20",
+                    "hover:border-clinical-400 hover:bg-clinical-50/50",
                     selectedIds.has(slide.id)
-                      ? "border-clinical-500 bg-clinical-50 dark:bg-clinical-900/20 dark:border-clinical-400"
-                      : "border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-700"
+                      ? "border-clinical-500 bg-clinical-50"
+                      : "border-gray-200 bg-white"
                   )}
                 >
                   {selectedIds.has(slide.id) ? (
@@ -725,10 +725,10 @@ export function BatchAnalysisPanel({
                     <Square className="h-4 w-4 text-gray-400 shrink-0" />
                   )}
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate" title={slide.id}>
+                    <p className="text-sm font-medium text-gray-900 truncate" title={slide.id}>
                       {cleanSlideId(slide.id)}
                     </p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                    <p className="text-xs text-gray-500">
                       {slide.numPatches?.toLocaleString() || "?"} patches
                     </p>
                   </div>
@@ -793,7 +793,7 @@ export function BatchAnalysisPanel({
             </div>
 
             {/* Stats Bar */}
-            <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 px-1">
+            <div className="flex items-center justify-between text-xs text-gray-500 px-1">
               <div className="flex items-center gap-4">
                 <span className="flex items-center gap-1">
                   <BarChart3 className="h-3 w-3" />
@@ -822,7 +822,7 @@ export function BatchAnalysisPanel({
             </div>
 
             {/* Filter Tabs */}
-            <div className="flex gap-1 p-1 bg-gray-100 dark:bg-slate-700 rounded-lg">
+            <div className="flex gap-1 p-1 bg-gray-100 rounded-lg">
               {[
                 { key: "all", label: "All", count: results.length },
                 { key: "uncertain", label: "Uncertain", count: summary.uncertain },
@@ -836,8 +836,8 @@ export function BatchAnalysisPanel({
                   className={cn(
                     "flex-1 px-2 py-1.5 text-xs font-medium rounded transition-colors",
                     filterMode === key
-                      ? "bg-white dark:bg-slate-600 text-clinical-700 dark:text-clinical-300 shadow-sm"
-                      : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
+                      ? "bg-white text-clinical-700 shadow-sm"
+                      : "text-gray-600 hover:text-gray-900"
                   )}
                 >
                   {label} ({count})
@@ -848,7 +848,7 @@ export function BatchAnalysisPanel({
             {/* Results Table */}
             <div className="flex-1 overflow-auto">
               <table className="w-full text-sm">
-                <thead className="sticky top-0 bg-gray-50 dark:bg-slate-700">
+                <thead className="sticky top-0 bg-gray-50">
                   <tr>
                     {hasMultiModelResults && (
                       <th className="px-1 py-2 w-6" />
@@ -905,7 +905,7 @@ export function BatchAnalysisPanel({
                 </tbody>
               </table>
               {filteredResults.length === 0 && (
-                <div className="py-8 text-center text-gray-500 dark:text-gray-400 text-sm">
+                <div className="py-8 text-center text-gray-500 text-sm">
                   No results match the current filter
                 </div>
               )}
@@ -933,18 +933,18 @@ function BatchModelCheckbox({
     <label
       className={cn(
         "flex items-center gap-2 p-1.5 rounded cursor-pointer",
-        "hover:bg-gray-50 dark:hover:bg-slate-600 transition-colors",
-        checked && "bg-clinical-50 dark:bg-clinical-900/20"
+        "hover:bg-gray-50 transition-colors",
+        checked && "bg-clinical-50"
       )}
     >
       <input
         type="checkbox"
         checked={checked}
         onChange={onChange}
-        className="h-3.5 w-3.5 rounded border-gray-300 dark:border-slate-500 text-clinical-600 focus:ring-clinical-500"
+        className="h-3.5 w-3.5 rounded border-gray-300 text-clinical-600 focus:ring-clinical-500"
       />
       <div className="flex-1 min-w-0 flex items-center gap-1.5">
-        <span className="text-xs font-medium text-gray-900 dark:text-gray-100 truncate">
+        <span className="text-xs font-medium text-gray-900 truncate">
           {model.displayName}
         </span>
         {isPrimary && (
@@ -971,10 +971,10 @@ function SummaryCard({
   color: "gray" | "green" | "red" | "yellow";
 }) {
   const colors = {
-    gray: "bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300",
-    green: "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800 text-green-600 dark:text-green-400",
-    red: "bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 text-red-600 dark:text-red-400",
-    yellow: "bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800 text-yellow-600 dark:text-yellow-400",
+    gray: "bg-gray-50 border-gray-200 text-gray-600",
+    green: "bg-green-50 border-green-200 text-green-600",
+    red: "bg-red-50 border-red-200 text-red-600",
+    yellow: "bg-yellow-50 border-yellow-200 text-yellow-600",
   };
 
   return (
@@ -1006,7 +1006,7 @@ function SortableHeader({
 
   return (
     <th
-      className="px-2 py-2 text-left font-medium text-gray-600 dark:text-gray-400 cursor-pointer hover:text-gray-900 dark:hover:text-gray-200"
+      className="px-2 py-2 text-left font-medium text-gray-600 cursor-pointer hover:text-gray-900"
       onClick={() => onClick(field)}
     >
       <div className="flex items-center gap-1">
@@ -1060,7 +1060,7 @@ function ResultRow({
 
   if (result.error) {
     return (
-      <tr className="border-t border-gray-100 dark:border-slate-600 bg-red-50/50 dark:bg-red-900/10">
+      <tr className="border-t border-gray-100 bg-red-50/50">
         {hasMultiModel && <td className="px-1 py-2" />}
         <td className="px-2 py-2">
           <button
@@ -1071,7 +1071,7 @@ function ResultRow({
             {cleanSlideId(result.slideId)}
           </button>
         </td>
-        <td colSpan={3} className="px-2 py-2 text-red-600 dark:text-red-400 text-xs">
+        <td colSpan={3} className="px-2 py-2 text-red-600 text-xs">
           Error: {result.error}
         </td>
       </tr>
@@ -1081,8 +1081,8 @@ function ResultRow({
   return (
     <tr
       className={cn(
-        "border-t border-gray-100 dark:border-slate-600 hover:bg-gray-50 dark:hover:bg-slate-600 cursor-pointer",
-        result.requiresReview && "bg-yellow-50/30 dark:bg-yellow-900/10"
+        "border-t border-gray-100 hover:bg-gray-50 cursor-pointer",
+        result.requiresReview && "bg-yellow-50/30"
       )}
       onClick={onClick}
     >
@@ -1094,7 +1094,7 @@ function ResultRow({
                 e.stopPropagation();
                 onToggleExpand();
               }}
-              className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+              className="text-gray-400 hover:text-gray-600"
             >
               {isExpanded ? (
                 <ChevronDown className="h-3.5 w-3.5" />
@@ -1106,7 +1106,7 @@ function ResultRow({
         </td>
       )}
       <td className="px-2 py-2">
-        <span className="font-mono text-xs hover:text-clinical-600 dark:text-gray-300" title={result.slideId}>
+        <span className="font-mono text-xs hover:text-clinical-600" title={result.slideId}>
           {cleanSlideId(result.slideId)}
         </span>
       </td>
@@ -1120,7 +1120,7 @@ function ResultRow({
       </td>
       <td className="px-2 py-2">
         <div className="flex items-center gap-2">
-          <div className="w-16 bg-gray-200 dark:bg-slate-600 rounded-full h-1.5">
+          <div className="w-16 bg-gray-200 rounded-full h-1.5">
             <div
               className={cn(
                 "h-1.5 rounded-full",
@@ -1133,7 +1133,7 @@ function ResultRow({
               style={{ width: `${result.confidence * 100}%` }}
             />
           </div>
-          <span className="text-xs text-gray-600 dark:text-gray-400 w-10">
+          <span className="text-xs text-gray-600 w-10">
             {(result.confidence * 100).toFixed(0)}%
           </span>
         </div>
@@ -1147,10 +1147,10 @@ function ResultRow({
 function ModelResultRow({ modelResult }: { modelResult: BatchModelResult }) {
   if (modelResult.error) {
     return (
-      <tr className="bg-gray-50/50 dark:bg-slate-800/50">
+      <tr className="bg-gray-50/50">
         <td className="px-1 py-1" />
         <td className="px-2 py-1 pl-6">
-          <span className="text-xs text-gray-500 dark:text-gray-400">{modelResult.modelName}</span>
+          <span className="text-xs text-gray-500">{modelResult.modelName}</span>
         </td>
         <td colSpan={3} className="px-2 py-1 text-red-500 text-xs">
           Error: {modelResult.error}
@@ -1162,24 +1162,24 @@ function ModelResultRow({ modelResult }: { modelResult: BatchModelResult }) {
   const isPositive = modelResult.score > 0.5;
 
   return (
-    <tr className="bg-gray-50/50 dark:bg-slate-800/50 border-t border-gray-50 dark:border-slate-700">
+    <tr className="bg-gray-50/50 border-t border-gray-50">
       <td className="px-1 py-1" />
       <td className="px-2 py-1 pl-6">
-        <span className="text-xs text-gray-600 dark:text-gray-400 font-medium">
+        <span className="text-xs text-gray-600 font-medium">
           {modelResult.modelName}
         </span>
       </td>
       <td className="px-2 py-1">
         <span className={cn(
           "text-xs font-medium",
-          isPositive ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"
+          isPositive ? "text-green-600" : "text-red-600"
         )}>
           {modelResult.prediction}
         </span>
       </td>
       <td className="px-2 py-1">
         <div className="flex items-center gap-2">
-          <div className="w-12 bg-gray-200 dark:bg-slate-600 rounded-full h-1">
+          <div className="w-12 bg-gray-200 rounded-full h-1">
             <div
               className={cn(
                 "h-1 rounded-full",
@@ -1192,7 +1192,7 @@ function ModelResultRow({ modelResult }: { modelResult: BatchModelResult }) {
               style={{ width: `${modelResult.confidence * 100}%` }}
             />
           </div>
-          <span className="text-2xs text-gray-500 dark:text-gray-400">
+          <span className="text-2xs text-gray-500">
             {(modelResult.confidence * 100).toFixed(0)}%
           </span>
         </div>

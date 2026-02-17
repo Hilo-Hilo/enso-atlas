@@ -55,7 +55,7 @@
   }
 
   body {
-    @apply bg-surface-secondary text-gray-900 dark:bg-slate-900 dark:text-gray-100;
+    @apply bg-surface-secondary text-gray-900;
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
     transition: background-color var(--transition-slow) var(--ease-in-out-smooth),
                 color var(--transition-slow) var(--ease-in-out-smooth);
@@ -77,24 +77,24 @@
   }
 
   ::-webkit-scrollbar-thumb {
-    @apply bg-gray-300 dark:bg-slate-600 rounded-full;
+    @apply bg-gray-300 rounded-full;
     transition: background-color 0.2s;
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    @apply bg-gray-400 dark:bg-slate-500;
+    @apply bg-gray-400;
   }
 
   /* Custom selection colors */
   ::selection {
-    @apply bg-clinical-200 text-clinical-900 dark:bg-clinical-700 dark:text-clinical-100;
+    @apply bg-clinical-200 text-clinical-900;
   }
 }
 
 @layer components {
   /* Professional card styling */
   .clinical-card {
-    @apply bg-white dark:bg-slate-800 rounded-lg border border-surface-border dark:border-slate-700 shadow-clinical;
+    @apply bg-white rounded-lg border border-surface-border shadow-clinical;
   }
 
   .clinical-card-elevated {
@@ -103,7 +103,7 @@
 
   /* Panel header styling */
   .panel-header {
-    @apply px-4 py-3 border-b border-surface-border dark:border-slate-700 bg-surface-secondary dark:bg-slate-900;
+    @apply px-4 py-3 border-b border-surface-border bg-surface-secondary;
   }
 
   .panel-header-dark {
@@ -162,7 +162,7 @@
 
   /* Professional toolbar styling */
   .viewer-toolbar {
-    @apply flex items-center gap-1 bg-white/95 dark:bg-slate-800/95 backdrop-blur-sm rounded-lg shadow-clinical-md border border-surface-border dark:border-slate-700 p-1;
+    @apply flex items-center gap-1 bg-white/95 backdrop-blur-sm rounded-lg shadow-clinical-md border border-surface-border p-1;
   }
 
   .toolbar-button {
@@ -308,8 +308,8 @@
 
   /* Search input styling */
   .search-input {
-    @apply w-full pl-9 pr-4 py-2 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg text-sm dark:text-gray-100;
-    @apply placeholder:text-gray-400 dark:placeholder:text-gray-500;
+    @apply w-full pl-9 pr-4 py-2 bg-white border border-gray-200 rounded-lg text-sm;
+    @apply placeholder:text-gray-400;
     @apply focus:outline-none focus:ring-2 focus:ring-clinical-500 focus:border-transparent;
   }
 

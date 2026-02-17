@@ -31,6 +31,7 @@ import {
   Settings,
   X,
 } from "lucide-react";
+import { healthCheck } from "@/lib/api";
 
 // -------------------------------------------------------------------
 // Types
@@ -744,8 +745,8 @@ export default function ProjectsPage() {
     let cancelled = false;
     const check = async () => {
       try {
-        const res = await fetch("/api/health", { signal: AbortSignal.timeout(5000) });
-        if (!cancelled) setIsConnected(res.ok);
+        await healthCheck();
+        if (!cancelled) setIsConnected(true);
       } catch (err) {
         if (!cancelled) setIsConnected(false);
       }
@@ -964,7 +965,10 @@ export default function ProjectsPage() {
         )}
       </main>
 
-      <Footer />
+      {/* Footer - hidden on mobile for layout consistency */}
+      <div className="hidden sm:block">
+        <Footer />
+      </div>
 
       {/* Modals */}
       {showCreate && (

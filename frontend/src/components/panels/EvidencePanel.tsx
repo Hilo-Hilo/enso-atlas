@@ -298,7 +298,7 @@ export function EvidencePanel({
               className={cn(
                 "p-1.5 rounded-md transition-all",
                 viewMode === "grid"
-                  ? "bg-white dark:bg-slate-800 shadow-clinical text-clinical-700"
+                  ? "bg-white shadow-clinical text-clinical-700"
                   : "text-gray-500 hover:text-gray-700"
               )}
               title="Grid view"
@@ -310,7 +310,7 @@ export function EvidencePanel({
               className={cn(
                 "p-1.5 rounded-md transition-all",
                 viewMode === "list"
-                  ? "bg-white dark:bg-slate-800 shadow-clinical text-clinical-700"
+                  ? "bg-white shadow-clinical text-clinical-700"
                   : "text-gray-500 hover:text-gray-700"
               )}
               title="List view"
@@ -347,7 +347,7 @@ export function EvidencePanel({
                     "inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium transition-all border",
                     tissueFilter === type
                       ? cn(info.bgColor, info.color, info.borderColor, "ring-1")
-                      : cn("bg-white dark:bg-slate-800 border-gray-200 text-gray-600", info.hoverBg)
+                      : cn("bg-white border-gray-200 text-gray-600", info.hoverBg)
                   )}
                 >
                   <Circle className={cn("h-2 w-2", tissueFilter === type ? "fill-current" : "")} />
@@ -628,7 +628,7 @@ function PatchThumbnail({
                     "p-1 rounded transition-colors cursor-pointer",
                     isSearching
                       ? "bg-clinical-500/50 cursor-wait"
-                      : "bg-white dark:bg-slate-800/20 hover:bg-clinical-500/60"
+                      : "bg-white hover:bg-clinical-500/60"
                   )}
                   title="Find similar patches"
                 >
@@ -649,7 +649,7 @@ function PatchThumbnail({
                     onZoom?.();
                   }
                 }}
-                className="p-1 bg-white dark:bg-slate-800/20 rounded hover:bg-white dark:bg-slate-800/40 transition-colors cursor-pointer"
+                className="p-1 bg-white rounded hover:bg-white transition-colors cursor-pointer"
                 title="View enlarged"
               >
                 <ZoomIn className="h-4 w-4" />
@@ -702,7 +702,7 @@ function PatchListItem({
         "focus:outline-none focus:ring-2 focus:ring-clinical-500",
         isSelected
           ? "border-clinical-600 bg-clinical-50 ring-1 ring-clinical-200"
-          : "border-gray-200 bg-white dark:bg-slate-800"
+          : "border-gray-200 bg-white"
       )}
     >
       {/* Thumbnail */}

@@ -220,20 +220,20 @@ export function ModelPicker({
   const level0Ready = embeddingStatus?.hasLevel0 ?? false;
 
   return (
-    <div className={cn("rounded-lg border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-700", className)}>
+    <div className={cn("rounded-lg border border-gray-200 bg-white", className)}>
       {/* Header */}
       <button
         onClick={() => setIsExpanded(!isExpanded)}
         disabled={disabled}
         className={cn(
           "w-full flex items-center justify-between px-3 py-2.5 text-left",
-          "hover:bg-gray-50 dark:hover:bg-slate-600 transition-colors rounded-lg",
+          "hover:bg-gray-50 transition-colors rounded-lg",
           disabled && "opacity-50 cursor-not-allowed"
         )}
       >
         <div className="flex items-center gap-2">
           <FlaskConical className="h-4 w-4 text-clinical-600" />
-          <span className="text-sm font-medium text-gray-900 dark:text-gray-100">Model Selection</span>
+          <span className="text-sm font-medium text-gray-900">Model Selection</span>
           <Badge variant="default" size="sm">
             {selectedModels.length}/{models.length}
           </Badge>
@@ -257,7 +257,7 @@ export function ModelPicker({
           <div className="pb-3 border-b border-gray-100">
             <div className="flex items-center gap-1.5 mb-2">
               <Layers className="h-3 w-3 text-purple-500" />
-              <span className="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wide">
+              <span className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
                 Resolution Level
               </span>
             </div>
@@ -351,7 +351,7 @@ export function ModelPicker({
                 className="mt-0.5 h-4 w-4 rounded border-gray-300 text-clinical-600 focus:ring-clinical-500"
               />
               <span className="flex-1">
-                <span className="font-medium text-gray-700 dark:text-gray-300">Force Re-embed</span>
+                <span className="font-medium text-gray-700">Force Re-embed</span>
                 <span className="block text-2xs text-gray-500">
                   Regenerate embeddings even if cached.
                 </span>
@@ -396,7 +396,7 @@ export function ModelPicker({
             <div>
               <div className="flex items-center gap-1.5 mb-2">
                 <Activity className="h-3 w-3 text-pink-500" />
-                <span className="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wide">
+                <span className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
                   {cancerTypeLabel}
                 </span>
               </div>
@@ -419,7 +419,7 @@ export function ModelPicker({
             <div>
               <div className="flex items-center gap-1.5 mb-2">
                 <FlaskConical className="h-3 w-3 text-blue-500" />
-                <span className="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wide">
+                <span className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
                   General Pathology
                 </span>
               </div>
@@ -462,7 +462,7 @@ function ModelCheckbox({
     <label
       className={cn(
         "flex items-center gap-2.5 p-2 rounded-md cursor-pointer",
-        "hover:bg-gray-50 dark:hover:bg-slate-600 transition-colors",
+        "hover:bg-gray-50 transition-colors",
         checked && "bg-clinical-50",
         disabled && "opacity-50 cursor-not-allowed"
       )}

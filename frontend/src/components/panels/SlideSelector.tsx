@@ -459,7 +459,7 @@ export function SlideSelector({
 
             {/* Patient Demographics Card */}
             {selectedSlide.patient && (
-              <div className="mt-3 p-3 bg-white dark:bg-slate-800 border border-clinical-200 rounded-lg">
+              <div className="mt-3 p-3 bg-white border border-clinical-200 rounded-lg">
                 <div className="flex items-center gap-2 mb-2">
                   <User className="h-3.5 w-3.5 text-clinical-600" />
                   <span className="text-xs font-semibold text-clinical-800">Patient Context</span>
@@ -548,7 +548,7 @@ function SortButton({
         "flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors",
         isActive
           ? "bg-clinical-600 text-white"
-          : "bg-white dark:bg-slate-800 text-gray-600 border border-gray-200 hover:bg-gray-50"
+          : "bg-white text-gray-600 border border-gray-200 hover:bg-gray-50"
       )}
     >
       {label}
@@ -722,7 +722,7 @@ function SlideItem({ slide, isSelected, onClick, qcMetrics }: SlideItemProps) {
         "hover:border-clinical-400 hover:bg-clinical-50/50 hover:shadow-clinical",
         isSelected
           ? "border-clinical-500 bg-clinical-50 ring-1 ring-clinical-200"
-          : "border-gray-200 bg-white dark:bg-slate-800"
+          : "border-gray-200 bg-white"
       )}
     >
       {/* Thumbnail with lazy loading */}

@@ -256,7 +256,7 @@ export function SimilarCasesPanel({
               className={cn(
                 "px-2 py-1 rounded text-xs font-medium transition-all",
                 viewMode === "grouped"
-                  ? "bg-white dark:bg-slate-800 shadow-clinical text-clinical-700"
+                  ? "bg-white shadow-clinical text-clinical-700"
                   : "text-gray-500 hover:text-gray-700"
               )}
             >
@@ -267,7 +267,7 @@ export function SimilarCasesPanel({
               className={cn(
                 "px-2 py-1 rounded text-xs font-medium transition-all",
                 viewMode === "list"
-                  ? "bg-white dark:bg-slate-800 shadow-clinical text-clinical-700"
+                  ? "bg-white shadow-clinical text-clinical-700"
                   : "text-gray-500 hover:text-gray-700"
               )}
             >
@@ -474,7 +474,7 @@ function SimilarCaseItem({
     <div
       className={cn(
         "border rounded-lg transition-all overflow-hidden",
-        isExpanded ? "border-clinical-300 bg-clinical-50/50" : "border-gray-200 bg-white dark:bg-slate-800"
+        isExpanded ? "border-clinical-300 bg-clinical-50/50" : "border-gray-200 bg-white"
       )}
     >
       {/* Main Row */}

@@ -129,10 +129,10 @@ export function OutlierDetectorPanel({
           {/* Threshold slider */}
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
-              <label className="text-xs font-medium text-gray-600 dark:text-gray-400">
+              <label className="text-xs font-medium text-gray-600">
                 Z-Score Threshold
               </label>
-              <span className="text-xs font-mono text-gray-500 dark:text-gray-400">
+              <span className="text-xs font-mono text-gray-500">
                 {threshold.toFixed(1)} SD
               </span>
             </div>
@@ -143,10 +143,10 @@ export function OutlierDetectorPanel({
               step="0.1"
               value={threshold}
               onChange={(e) => setThreshold(parseFloat(e.target.value))}
-              className="w-full h-1.5 bg-gray-200 dark:bg-slate-600 rounded-lg appearance-none cursor-pointer accent-amber-500"
+              className="w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-amber-500"
               disabled={isLoading}
             />
-            <div className="flex justify-between text-2xs text-gray-400 dark:text-gray-500">
+            <div className="flex justify-between text-2xs text-gray-400">
               <span>1.0 (more outliers)</span>
               <span>4.0 (fewer)</span>
             </div>
@@ -175,8 +175,8 @@ export function OutlierDetectorPanel({
 
           {/* Error display */}
           {error && (
-            <div className="p-2.5 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-              <p className="text-xs text-red-700 dark:text-red-400">{error}</p>
+            <div className="p-2.5 bg-red-50 border border-red-200 rounded-lg">
+              <p className="text-xs text-red-700">{error}</p>
             </div>
           )}
 
@@ -185,38 +185,38 @@ export function OutlierDetectorPanel({
             <div className="space-y-3">
               {/* Stats summary */}
               <div className="grid grid-cols-2 gap-2">
-                <div className="p-2 bg-gray-50 dark:bg-slate-700/50 rounded-lg">
-                  <p className="text-2xs text-gray-500 dark:text-gray-400">
+                <div className="p-2 bg-gray-50 rounded-lg">
+                  <p className="text-2xs text-gray-500">
                     Total Patches
                   </p>
-                  <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                  <p className="text-sm font-semibold text-gray-900">
                     {result.totalPatches.toLocaleString()}
                   </p>
                 </div>
-                <div className="p-2 bg-amber-50 dark:bg-amber-900/20 rounded-lg">
-                  <p className="text-2xs text-amber-600 dark:text-amber-400">
+                <div className="p-2 bg-amber-50 rounded-lg">
+                  <p className="text-2xs text-amber-600">
                     Outliers Found
                   </p>
-                  <p className="text-sm font-semibold text-amber-700 dark:text-amber-300">
+                  <p className="text-sm font-semibold text-amber-700">
                     {result.outlierCount}
                     <span className="text-2xs font-normal ml-1">
                       ({((result.outlierCount / result.totalPatches) * 100).toFixed(1)}%)
                     </span>
                   </p>
                 </div>
-                <div className="p-2 bg-gray-50 dark:bg-slate-700/50 rounded-lg">
-                  <p className="text-2xs text-gray-500 dark:text-gray-400">
+                <div className="p-2 bg-gray-50 rounded-lg">
+                  <p className="text-2xs text-gray-500">
                     Mean Distance
                   </p>
-                  <p className="text-sm font-mono text-gray-900 dark:text-gray-100">
+                  <p className="text-sm font-mono text-gray-900">
                     {result.meanDistance.toFixed(2)}
                   </p>
                 </div>
-                <div className="p-2 bg-gray-50 dark:bg-slate-700/50 rounded-lg">
-                  <p className="text-2xs text-gray-500 dark:text-gray-400">
+                <div className="p-2 bg-gray-50 rounded-lg">
+                  <p className="text-2xs text-gray-500">
                     Std Deviation
                   </p>
-                  <p className="text-sm font-mono text-gray-900 dark:text-gray-100">
+                  <p className="text-sm font-mono text-gray-900">
                     {result.stdDistance.toFixed(2)}
                   </p>
                 </div>
@@ -228,8 +228,8 @@ export function OutlierDetectorPanel({
                 className={cn(
                   "w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition-colors",
                   showHeatmap
-                    ? "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800"
-                    : "bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-slate-600"
+                    ? "bg-amber-100 text-amber-700 border border-amber-200"
+                    : "bg-gray-100 text-gray-600 hover:bg-gray-200"
                 )}
               >
                 {showHeatmap ? (
@@ -249,7 +249,7 @@ export function OutlierDetectorPanel({
               {result.outlierPatches.length > 0 && (
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between">
-                    <p className="text-xs font-medium text-gray-600 dark:text-gray-400">
+                    <p className="text-xs font-medium text-gray-600">
                       Top Outlier Patches
                     </p>
                     <Badge variant="warning" size="sm">
@@ -262,19 +262,19 @@ export function OutlierDetectorPanel({
                       <button
                         key={patch.patchIdx}
                         onClick={() => handlePatchClick(patch)}
-                        className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-md text-left hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors group"
+                        className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-md text-left hover:bg-amber-50 transition-colors group"
                       >
                         <div className="flex items-center gap-2 min-w-0">
                           <BarChart3 className="h-3 w-3 text-amber-500 shrink-0" />
-                          <span className="text-xs text-gray-700 dark:text-gray-300 truncate">
+                          <span className="text-xs text-gray-700 truncate">
                             Patch {patch.patchIdx}
                           </span>
-                          <span className="text-2xs text-gray-400 dark:text-gray-500">
+                          <span className="text-2xs text-gray-400">
                             ({patch.x}, {patch.y})
                           </span>
                         </div>
                         <div className="flex items-center gap-1.5 shrink-0">
-                          <span className="text-xs font-mono text-amber-600 dark:text-amber-400">
+                          <span className="text-xs font-mono text-amber-600">
                             {patch.zScore.toFixed(1)} SD
                           </span>
                         </div>
@@ -286,7 +286,7 @@ export function OutlierDetectorPanel({
                   {hasMore && (
                     <button
                       onClick={() => setShowAllOutliers(!showAllOutliers)}
-                      className="w-full text-center text-xs text-clinical-600 dark:text-clinical-400 hover:text-clinical-700 dark:hover:text-clinical-300 font-medium py-1"
+                      className="w-full text-center text-xs text-clinical-600 hover:text-clinical-700 font-medium py-1"
                     >
                       {showAllOutliers
                         ? "Show less"
@@ -298,8 +298,8 @@ export function OutlierDetectorPanel({
 
               {/* No outliers message */}
               {result.outlierPatches.length === 0 && (
-                <div className="p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg text-center">
-                  <p className="text-xs text-green-700 dark:text-green-400">
+                <div className="p-3 bg-green-50 border border-green-200 rounded-lg text-center">
+                  <p className="text-xs text-green-700">
                     No outlier patches detected at {threshold.toFixed(1)} SD
                     threshold. Tissue appears homogeneous.
                   </p>
@@ -310,7 +310,7 @@ export function OutlierDetectorPanel({
 
           {/* Disabled state */}
           {!slideId && (
-            <p className="text-xs text-gray-400 dark:text-gray-500 text-center py-2">
+            <p className="text-xs text-gray-400 text-center py-2">
               Select a slide to detect outlier tissue
             </p>
           )}

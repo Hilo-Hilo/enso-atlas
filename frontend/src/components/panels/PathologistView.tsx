@@ -317,21 +317,21 @@ export function PathologistView({
   return (
     <div className="flex flex-col gap-4 pb-2">
       {/* Header with mode indicator */}
-      <div className="flex items-center justify-between bg-violet-50 dark:bg-violet-900/30 border border-violet-200 dark:border-violet-700 rounded-lg px-4 py-3">
+      <div className="flex items-center justify-between bg-violet-50 border border-violet-200 rounded-lg px-4 py-3">
         <div className="flex items-center gap-3">
-          <div className="p-2 bg-violet-600 dark:bg-violet-500 rounded-lg">
+          <div className="p-2 bg-violet-600 rounded-lg">
             <Microscope className="h-5 w-5 text-white" />
           </div>
           <div>
-            <h2 className="font-semibold text-violet-900 dark:text-violet-100">Pathologist Review Mode</h2>
-            <p className="text-sm text-violet-600 dark:text-violet-300">Full WSI analysis with annotation tools</p>
+            <h2 className="font-semibold text-violet-900">Pathologist Review Mode</h2>
+            <p className="text-sm text-violet-600">Full WSI analysis with annotation tools</p>
           </div>
         </div>
         <Button
           variant="secondary"
           size="sm"
           onClick={onSwitchToOncologistView}
-          className="border-violet-300 dark:border-violet-600 text-violet-700 dark:text-violet-200 hover:bg-violet-100 dark:hover:bg-violet-800"
+          className="border-violet-300 text-violet-700 hover:bg-violet-100"
         >
           Switch to Oncologist View
         </Button>
@@ -343,14 +343,14 @@ export function PathologistView({
           onClick={() => toggleSection("navigation")}
           className="flex items-center justify-between w-full mb-3"
         >
-          <h3 className="font-medium text-gray-900 dark:text-gray-100 flex items-center gap-2">
-            <Target className="h-4 w-4 text-violet-600 dark:text-violet-400" />
+          <h3 className="font-medium text-gray-900 flex items-center gap-2">
+            <Target className="h-4 w-4 text-violet-600" />
             Navigation &amp; Magnification
           </h3>
           {expandedSections.navigation ? (
-            <ChevronUp className="h-4 w-4 text-gray-400 dark:text-gray-500" />
+            <ChevronUp className="h-4 w-4 text-gray-400" />
           ) : (
-            <ChevronDown className="h-4 w-4 text-gray-400 dark:text-gray-500" />
+            <ChevronDown className="h-4 w-4 text-gray-400" />
           )}
         </button>
         
@@ -364,15 +364,15 @@ export function PathologistView({
                   className={cn(
                     "px-3 py-1.5 rounded-md text-sm font-medium transition-all",
                     currentMagnification.label === opt.label
-                      ? "bg-violet-600 dark:bg-violet-500 text-white"
-                      : "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
+                      ? "bg-violet-600 text-white"
+                      : "bg-gray-100 text-gray-700 hover:bg-gray-200"
                   )}
                 >
                   {opt.label}
                 </button>
               ))}
             </div>
-            <div className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-2">
+            <div className="text-xs text-gray-500 flex items-center gap-2">
               <Info className="h-3 w-3" />
               <span>
                 Viewer zoom: {viewerZoom < 1 ? viewerZoom.toFixed(2) : viewerZoom.toFixed(1)}x
@@ -390,14 +390,14 @@ export function PathologistView({
           onClick={() => toggleSection("annotations")}
           className="flex items-center justify-between w-full mb-3"
         >
-          <h3 className="font-medium text-gray-900 dark:text-gray-100 flex items-center gap-2">
-            <PenTool className="h-4 w-4 text-violet-600 dark:text-violet-400" />
+          <h3 className="font-medium text-gray-900 flex items-center gap-2">
+            <PenTool className="h-4 w-4 text-violet-600" />
             Annotation Tools
           </h3>
           {expandedSections.annotations ? (
-            <ChevronUp className="h-4 w-4 text-gray-400 dark:text-gray-500" />
+            <ChevronUp className="h-4 w-4 text-gray-400" />
           ) : (
-            <ChevronDown className="h-4 w-4 text-gray-400 dark:text-gray-500" />
+            <ChevronDown className="h-4 w-4 text-gray-400" />
           )}
         </button>
 
@@ -445,7 +445,7 @@ export function PathologistView({
 
             {/* Active tool indicator */}
             {activeTool !== "pointer" && activeTool !== "note" && (
-              <div className="text-xs text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-900/30 px-3 py-2 rounded-md">
+              <div className="text-xs text-violet-600 bg-violet-50 px-3 py-2 rounded-md">
                 Tool active: {activeTool}. Draw on the slide. Click the active tool again or press Esc to return to pan mode.
               </div>
             )}
@@ -458,7 +458,7 @@ export function PathologistView({
                   value={noteText}
                   onChange={(e) => setNoteText(e.target.value)}
                   placeholder="Add a note..."
-                  className="flex-1 px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500"
+                  className="flex-1 px-3 py-2 text-sm border border-gray-200 bg-white text-gray-900 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500"
                   onKeyDown={(e) => {
                     if (e.key === "Enter") handleAddNote();
                   }}
@@ -471,12 +471,12 @@ export function PathologistView({
 
             {/* Annotations list */}
             <div className="flex items-center justify-between">
-              <span className="text-sm text-gray-600 dark:text-gray-400">
+              <span className="text-sm text-gray-600">
                 {annotations.length} annotation{annotations.length !== 1 ? "s" : ""}
               </span>
               <button
                 onClick={() => setShowAnnotations(!showAnnotations)}
-                className="flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+                className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700"
               >
                 {showAnnotations ? (
                   <>
@@ -498,18 +498,18 @@ export function PathologistView({
                     className={cn(
                       "flex items-center justify-between py-1 px-2 rounded text-sm cursor-pointer",
                       selectedAnnotationId === ann.id
-                        ? "bg-violet-100 dark:bg-violet-900/40 border border-violet-300 dark:border-violet-700"
-                        : "bg-gray-50 dark:bg-gray-700/50"
+                        ? "bg-violet-100 border border-violet-300"
+                        : "bg-gray-50"
                     )}
                     onClick={() => onSelectAnnotation?.(ann.id)}
                   >
-                    <span className="truncate flex-1 text-gray-800 dark:text-gray-200">{ann.text || ann.notes || ann.label || ann.type}</span>
+                    <span className="truncate flex-1 text-gray-800">{ann.text || ann.notes || ann.label || ann.type}</span>
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
                         onDeleteAnnotation(ann.id);
                       }}
-                      className="p-1 text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
+                      className="p-1 text-red-500 hover:text-red-700"
                     >
                       <Trash2 className="h-3 w-3" />
                     </button>
@@ -527,14 +527,14 @@ export function PathologistView({
           onClick={() => toggleSection("grading")}
           className="flex items-center justify-between w-full mb-3"
         >
-          <h3 className="font-medium text-gray-900 dark:text-gray-100 flex items-center gap-2">
-            <Layers className="h-4 w-4 text-violet-600 dark:text-violet-400" />
+          <h3 className="font-medium text-gray-900 flex items-center gap-2">
+            <Layers className="h-4 w-4 text-violet-600" />
             Tumor Grading Assistant
           </h3>
           {expandedSections.grading ? (
-            <ChevronUp className="h-4 w-4 text-gray-400 dark:text-gray-500" />
+            <ChevronUp className="h-4 w-4 text-gray-400" />
           ) : (
-            <ChevronDown className="h-4 w-4 text-gray-400 dark:text-gray-500" />
+            <ChevronDown className="h-4 w-4 text-gray-400" />
           )}
         </button>
 
@@ -547,17 +547,17 @@ export function PathologistView({
                 className={cn(
                   "w-full text-left p-3 rounded-lg border transition-all",
                   selectedGrade === grade.grade
-                    ? "border-violet-500 dark:border-violet-400 bg-violet-50 dark:bg-violet-900/30"
-                    : "border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500"
+                    ? "border-violet-500 bg-violet-50"
+                    : "border-gray-200 hover:border-gray-300"
                 )}
               >
                 <div className="flex items-center justify-between">
-                  <span className="font-medium text-sm text-gray-900 dark:text-gray-100">{grade.label}</span>
+                  <span className="font-medium text-sm text-gray-900">{grade.label}</span>
                   {selectedGrade === grade.grade && (
-                    <CheckCircle className="h-4 w-4 text-violet-600 dark:text-violet-400" />
+                    <CheckCircle className="h-4 w-4 text-violet-600" />
                   )}
                 </div>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{grade.description}</p>
+                <p className="text-xs text-gray-500 mt-1">{grade.description}</p>
               </button>
             ))}
           </div>
@@ -570,27 +570,27 @@ export function PathologistView({
           onClick={() => toggleSection("mitotic")}
           className="flex items-center justify-between w-full mb-3"
         >
-          <h3 className="font-medium text-gray-900 dark:text-gray-100 flex items-center gap-2">
-            <Target className="h-4 w-4 text-violet-600 dark:text-violet-400" />
+          <h3 className="font-medium text-gray-900 flex items-center gap-2">
+            <Target className="h-4 w-4 text-violet-600" />
             Mitotic Figure Counter
           </h3>
           {expandedSections.mitotic ? (
-            <ChevronUp className="h-4 w-4 text-gray-400 dark:text-gray-500" />
+            <ChevronUp className="h-4 w-4 text-gray-400" />
           ) : (
-            <ChevronDown className="h-4 w-4 text-gray-400 dark:text-gray-500" />
+            <ChevronDown className="h-4 w-4 text-gray-400" />
           )}
         </button>
 
         {expandedSections.mitotic && (
           <div className="space-y-4">
-            <div className="flex items-center justify-center gap-4 p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+            <div className="flex items-center justify-center gap-4 p-4 bg-gray-50 rounded-lg">
               <div className="text-center">
-                <div className="text-3xl font-bold text-violet-600 dark:text-violet-400">{mitoticCount}</div>
-                <div className="text-xs text-gray-500 dark:text-gray-400">Current Field</div>
+                <div className="text-3xl font-bold text-violet-600">{mitoticCount}</div>
+                <div className="text-xs text-gray-500">Current Field</div>
               </div>
               <div className="text-center">
-                <div className="text-3xl font-bold text-gray-400 dark:text-gray-500">{mitoticFields}</div>
-                <div className="text-xs text-gray-500 dark:text-gray-400">Fields Counted</div>
+                <div className="text-3xl font-bold text-gray-400">{mitoticFields}</div>
+                <div className="text-xs text-gray-500">Fields Counted</div>
               </div>
             </div>
 
@@ -613,8 +613,8 @@ export function PathologistView({
               </Button>
             </div>
 
-            <div className="text-xs text-gray-500 dark:text-gray-400 flex items-start gap-2">
-              <AlertTriangle className="h-3 w-3 mt-0.5 text-amber-500 dark:text-amber-400" />
+            <div className="text-xs text-gray-500 flex items-start gap-2">
+              <AlertTriangle className="h-3 w-3 mt-0.5 text-amber-500" />
               <span>
                 Count mitotic figures in 10 consecutive HPFs (40x) for accurate assessment.
                 Mock counter for demo purposes.
@@ -630,21 +630,21 @@ export function PathologistView({
           onClick={() => toggleSection("morphology")}
           className="flex items-center justify-between w-full mb-3"
         >
-          <h3 className="font-medium text-gray-900 dark:text-gray-100 flex items-center gap-2">
-            <Microscope className="h-4 w-4 text-violet-600 dark:text-violet-400" />
+          <h3 className="font-medium text-gray-900 flex items-center gap-2">
+            <Microscope className="h-4 w-4 text-violet-600" />
             Patch Morphology Analysis
           </h3>
           {expandedSections.morphology ? (
-            <ChevronUp className="h-4 w-4 text-gray-400 dark:text-gray-500" />
+            <ChevronUp className="h-4 w-4 text-gray-400" />
           ) : (
-            <ChevronDown className="h-4 w-4 text-gray-400 dark:text-gray-500" />
+            <ChevronDown className="h-4 w-4 text-gray-400" />
           )}
         </button>
 
         {expandedSections.morphology && (
           <div className="space-y-3 max-h-96 overflow-y-auto">
             {patchesWithMorphology.length === 0 && (
-              <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">
+              <p className="text-sm text-gray-500 text-center py-4">
                 Run analysis to see patch morphology descriptions.
               </p>
             )}
@@ -655,15 +655,15 @@ export function PathologistView({
                 className={cn(
                   "p-3 rounded-lg border cursor-pointer transition-all",
                   selectedPatchId === patch.id
-                    ? "border-violet-500 dark:border-violet-400 bg-violet-50 dark:bg-violet-900/30"
-                    : "border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500"
+                    ? "border-violet-500 bg-violet-50"
+                    : "border-gray-200 hover:border-gray-300"
                 )}
               >
                 <div className="flex items-center justify-between mb-2">
                   <Badge variant="default" size="sm">
                     Patch {idx + 1}
                   </Badge>
-                  <span className="text-xs text-gray-500 dark:text-gray-400">
+                  <span className="text-xs text-gray-500">
                     Attention: {(patch.attentionWeight * 100).toFixed(1)}%
                   </span>
                 </div>
@@ -683,11 +683,11 @@ export function PathologistView({
                     {patch.tissueConfidence && ` (${(patch.tissueConfidence * 100).toFixed(0)}%)`}
                   </Badge>
                 )}
-                <p className="text-sm text-gray-600 dark:text-gray-300 leading-relaxed">
+                <p className="text-sm text-gray-600 leading-relaxed">
                   {patch.morphologyDescription}
                 </p>
                 {patch.isGenerated && (
-                  <p className="text-2xs text-gray-400 dark:text-gray-500 mt-1 italic">
+                  <p className="text-2xs text-gray-400 mt-1 italic">
                     AI-generated description (fallback)
                   </p>
                 )}
@@ -714,7 +714,7 @@ export function PathologistView({
               </>
             ) : saveStatus === "saved" ? (
               <>
-                <CheckCircle className="h-4 w-4 mr-1 text-green-600 dark:text-green-400" />
+                <CheckCircle className="h-4 w-4 mr-1 text-green-600" />
                 Saved to browser
               </>
             ) : (
@@ -747,7 +747,7 @@ export function PathologistView({
             Export Text Report
           </Button>
         </div>
-        <p className="text-2xs text-gray-400 dark:text-gray-500 text-center">
+        <p className="text-2xs text-gray-400 text-center">
           Annotations saved to browser localStorage
         </p>
       </div>
@@ -773,8 +773,8 @@ function ToolButton({
       className={cn(
         "flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-all",
         active
-          ? "bg-violet-600 dark:bg-violet-500 text-white"
-          : "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
+          ? "bg-violet-600 text-white"
+          : "bg-gray-100 text-gray-700 hover:bg-gray-200"
       )}
       title={label}
     >

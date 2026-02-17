@@ -100,16 +100,16 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       />
 
       {/* Modal */}
-      <div className="relative z-10 w-full max-w-lg mx-4 bg-white dark:bg-slate-800 rounded-xl shadow-2xl overflow-hidden animate-scale-in">
+      <div className="relative z-10 w-full max-w-lg mx-4 bg-white rounded-xl shadow-2xl overflow-hidden animate-scale-in">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-900">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 bg-gray-50">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-clinical-600 flex items-center justify-center">
               <Settings className="h-5 w-5 text-white" />
             </div>
             <div>
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Settings</h2>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Configure your preferences</p>
+              <h2 className="text-lg font-semibold text-gray-900">Settings</h2>
+              <p className="text-sm text-gray-500">Configure your preferences</p>
             </div>
           </div>
           <Button variant="ghost" size="sm" onClick={onClose} className="p-2">
@@ -121,7 +121,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
         <div className="p-6 max-h-[60vh] overflow-y-auto">
           <div className="space-y-6">
             <div>
-              <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">Theme</h3>
+              <h3 className="text-sm font-semibold text-gray-900 mb-3">Theme</h3>
               <div className="grid grid-cols-3 gap-3">
                 {[
                   { id: "light" as const, label: "Light", icon: Sun },
@@ -134,8 +134,8 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                     className={cn(
                       "flex flex-col items-center gap-2 p-4 rounded-lg border-2 transition-all",
                       theme === option.id
-                        ? "border-clinical-500 bg-clinical-50 dark:bg-clinical-900/30 text-clinical-700 dark:text-clinical-300"
-                        : "border-gray-200 dark:border-slate-600 hover:border-gray-300 dark:hover:border-slate-500 text-gray-600 dark:text-gray-400"
+                        ? "border-clinical-500 bg-clinical-50 text-clinical-700"
+                        : "border-gray-200 hover:border-gray-300 text-gray-600"
                     )}
                   >
                     <option.icon className="h-6 w-6" />
@@ -148,12 +148,12 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between px-6 py-4 border-t border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-900">
+        <div className="flex items-center justify-between px-6 py-4 border-t border-gray-200 bg-gray-50">
           <Button
             variant="ghost"
             size="sm"
             onClick={handleReset}
-            className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+            className="text-gray-500 hover:text-gray-700"
           >
             <RefreshCw className="h-4 w-4 mr-2" />
             Reset to Defaults

@@ -483,7 +483,7 @@ export default function SlidesPage() {
       <Header
         isConnected={isConnected}
         version="0.1.0"
-        institutionName="Research Laboratory"
+        institutionName="Enso Labs"
       />
 
       {/* Page Header */}
@@ -681,8 +681,10 @@ export default function SlidesPage() {
         />
       )}
 
-      {/* Footer */}
-      <Footer />
+      {/* Footer - hidden on mobile for layout consistency */}
+      <div className="hidden sm:block">
+        <Footer />
+      </div>
     </div>
   );
 }

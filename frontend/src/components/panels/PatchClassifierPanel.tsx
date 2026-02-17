@@ -22,14 +22,14 @@ import { classifyPatches } from "@/lib/api";
 
 // Predefined colors for classification classes (up to 8)
 const CLASS_COLORS = [
-  { bg: "bg-blue-500", text: "text-blue-700 dark:text-blue-300", light: "bg-blue-100 dark:bg-blue-900/30", hex: "#3b82f6" },
-  { bg: "bg-red-500", text: "text-red-700 dark:text-red-300", light: "bg-red-100 dark:bg-red-900/30", hex: "#ef4444" },
-  { bg: "bg-emerald-500", text: "text-emerald-700 dark:text-emerald-300", light: "bg-emerald-100 dark:bg-emerald-900/30", hex: "#10b981" },
-  { bg: "bg-amber-500", text: "text-amber-700 dark:text-amber-300", light: "bg-amber-100 dark:bg-amber-900/30", hex: "#f59e0b" },
-  { bg: "bg-purple-500", text: "text-purple-700 dark:text-purple-300", light: "bg-purple-100 dark:bg-purple-900/30", hex: "#8b5cf6" },
-  { bg: "bg-pink-500", text: "text-pink-700 dark:text-pink-300", light: "bg-pink-100 dark:bg-pink-900/30", hex: "#ec4899" },
-  { bg: "bg-cyan-500", text: "text-cyan-700 dark:text-cyan-300", light: "bg-cyan-100 dark:bg-cyan-900/30", hex: "#06b6d4" },
-  { bg: "bg-orange-500", text: "text-orange-700 dark:text-orange-300", light: "bg-orange-100 dark:bg-orange-900/30", hex: "#f97316" },
+  { bg: "bg-blue-500", text: "text-blue-700", light: "bg-blue-100", hex: "#3b82f6" },
+  { bg: "bg-red-500", text: "text-red-700", light: "bg-red-100", hex: "#ef4444" },
+  { bg: "bg-emerald-500", text: "text-emerald-700", light: "bg-emerald-100", hex: "#10b981" },
+  { bg: "bg-amber-500", text: "text-amber-700", light: "bg-amber-100", hex: "#f59e0b" },
+  { bg: "bg-purple-500", text: "text-purple-700", light: "bg-purple-100", hex: "#8b5cf6" },
+  { bg: "bg-pink-500", text: "text-pink-700", light: "bg-pink-100", hex: "#ec4899" },
+  { bg: "bg-cyan-500", text: "text-cyan-700", light: "bg-cyan-100", hex: "#06b6d4" },
+  { bg: "bg-orange-500", text: "text-orange-700", light: "bg-orange-100", hex: "#f97316" },
 ];
 
 interface ClassDefinition {
@@ -204,12 +204,12 @@ export function PatchClassifierPanel({
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Layers className="h-4 w-4 text-gray-400 dark:text-gray-500" />
+            <Layers className="h-4 w-4 text-gray-400" />
             Patch Classification
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-sm text-gray-500 dark:text-gray-400">
+          <p className="text-sm text-gray-500">
             Analyze a slide first to enable few-shot patch classification.
           </p>
         </CardContent>
@@ -222,7 +222,7 @@ export function PatchClassifierPanel({
       <CardHeader>
         <div className="flex items-center justify-between">
           <CardTitle className="flex items-center gap-2">
-            <Layers className="h-4 w-4 text-clinical-600 dark:text-clinical-400" />
+            <Layers className="h-4 w-4 text-clinical-600" />
             Patch Classification
           </CardTitle>
           {result && (
@@ -232,7 +232,7 @@ export function PatchClassifierPanel({
             </Button>
           )}
         </div>
-        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+        <p className="text-xs text-gray-500 mt-1">
           Define classes and provide example patch indices to train a classifier.
           {totalPatches ? ` (${totalPatches.toLocaleString()} patches available)` : ""}
         </p>
@@ -246,7 +246,7 @@ export function PatchClassifierPanel({
                 const color = CLASS_COLORS[idx % CLASS_COLORS.length];
                 const parsedCount = parsePatchIndices(cls.patchIndicesText).length;
                 return (
-                  <div key={idx} className={cn("p-3 rounded-lg border", color.light, "border-gray-200 dark:border-gray-700")}>
+                  <div key={idx} className={cn("p-3 rounded-lg border", color.light, "border-gray-200")}>
                     <div className="flex items-center gap-2 mb-2">
                       <div className={cn("w-3 h-3 rounded-full", color.bg)} />
                       <input
@@ -254,7 +254,7 @@ export function PatchClassifierPanel({
                         value={cls.name}
                         onChange={(e) => updateClassName(idx, e.target.value)}
                         placeholder="Class name"
-                        className="flex-1 text-sm font-medium bg-transparent border-none outline-none text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
+                        className="flex-1 text-sm font-medium bg-transparent border-none outline-none text-gray-900 placeholder-gray-400"
                       />
                       {parsedCount > 0 && (
                         <Badge variant="default" className="text-xs">
@@ -264,7 +264,7 @@ export function PatchClassifierPanel({
                       {classes.length > 2 && (
                         <button
                           onClick={() => removeClass(idx)}
-                          className="text-gray-400 hover:text-red-500 dark:text-gray-500 dark:hover:text-red-400 transition-colors"
+                          className="text-gray-400 hover:text-red-500 transition-colors"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>
@@ -276,7 +276,7 @@ export function PatchClassifierPanel({
                         value={cls.patchIndicesText}
                         onChange={(e) => updatePatchIndices(idx, e.target.value)}
                         placeholder="Patch indices: 1,2,3 or 10-20"
-                        className="flex-1 text-xs bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded px-2 py-1.5 text-gray-700 dark:text-gray-300 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-clinical-500"
+                        className="flex-1 text-xs bg-white border border-gray-200 rounded px-2 py-1.5 text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-clinical-500"
                       />
                       {hasPatchCoordinates && (
                         <button
@@ -285,7 +285,7 @@ export function PatchClassifierPanel({
                             "shrink-0 px-2 py-1.5 text-2xs rounded border transition-colors",
                             activeSelectionClass === idx
                               ? "bg-clinical-500 text-white border-clinical-500"
-                              : "bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400 border-gray-200 dark:border-gray-600 hover:border-clinical-300"
+                              : "bg-white text-gray-500 border-gray-200 hover:border-clinical-300"
                           )}
                           title={activeSelectionClass === idx ? "Stop selecting" : "Click patches on slide to add"}
                         >
@@ -334,9 +334,9 @@ export function PatchClassifierPanel({
 
         {/* Error display */}
         {error && (
-          <div className="flex items-start gap-2 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+          <div className="flex items-start gap-2 p-3 rounded-lg bg-red-50 border border-red-200">
             <AlertCircle className="h-4 w-4 text-red-500 mt-0.5 flex-shrink-0" />
-            <p className="text-xs text-red-700 dark:text-red-300">{error}</p>
+            <p className="text-xs text-red-700">{error}</p>
           </div>
         )}
 
@@ -345,9 +345,9 @@ export function PatchClassifierPanel({
           <div className="space-y-3">
             {/* Accuracy estimate */}
             {result.accuracyEstimate !== null && (
-              <div className="flex items-center gap-2 p-2 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
-                <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-400" />
-                <span className="text-xs text-green-700 dark:text-green-300">
+              <div className="flex items-center gap-2 p-2 rounded-lg bg-green-50 border border-green-200">
+                <CheckCircle className="h-4 w-4 text-green-600" />
+                <span className="text-xs text-green-700">
                   Leave-one-out accuracy: <span className="font-semibold">{(result.accuracyEstimate * 100).toFixed(1)}%</span>
                 </span>
               </div>
@@ -355,7 +355,7 @@ export function PatchClassifierPanel({
 
             {/* Class distribution */}
             <div className="space-y-2">
-              <h4 className="text-xs font-medium text-gray-600 dark:text-gray-400 flex items-center gap-1">
+              <h4 className="text-xs font-medium text-gray-600 flex items-center gap-1">
                 <BarChart3 className="h-3 w-3" />
                 Class Distribution ({result.totalPatches.toLocaleString()} patches)
               </h4>
@@ -370,11 +370,11 @@ export function PatchClassifierPanel({
                         <div className={cn("w-2.5 h-2.5 rounded-full", color.bg)} />
                         <span className={cn("font-medium", color.text)}>{cls}</span>
                       </div>
-                      <span className="text-gray-500 dark:text-gray-400">
+                      <span className="text-gray-500">
                         {count.toLocaleString()} ({pct.toFixed(1)}%)
                       </span>
                     </div>
-                    <div className="w-full h-2 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
+                    <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
                       <div
                         className={cn("h-full rounded-full transition-all", color.bg)}
                         style={{ width: `${pct}%` }}
@@ -386,7 +386,7 @@ export function PatchClassifierPanel({
             </div>
 
             {/* Heatmap toggle */}
-            <div className="pt-2 border-t border-gray-200 dark:border-gray-700">
+            <div className="pt-2 border-t border-gray-200">
               <Button
                 variant={showHeatmap ? "primary" : "secondary"}
                 size="sm"
