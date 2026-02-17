@@ -28,13 +28,13 @@ foundation_models:
 
 # Global classification model definitions (referenced by projects)
 classification_models:
-  breast_stage:
-    model_dir: "brca_transmil_stage"
+  lung_stage:
+    model_dir: "luad_transmil_stage"
     display_name: "Tumor Stage"
     description: "Predicts pathologic stage (early vs advanced)"
     auc: 0.0
     n_slides: 0
-    category: "breast_cancer"
+    category: "lung_cancer"
     positive_label: "Advanced (III/IV)"
     negative_label: "Early (I/II)"
     compatible_foundation: "path_foundation"
@@ -127,13 +127,13 @@ projects:
     threshold: 0.9229
     threshold_config: models/threshold_config.json
 
-  breast-stage:
-    name: "Breast Cancer - Stage Classification"
-    cancer_type: Breast Cancer
+  lung-stage:
+    name: "Lung Adenocarcinoma - Stage Classification"
+    cancer_type: Lung Cancer
     prediction_target: tumor_stage
     classes: ["early", "advanced"]
     positive_class: advanced
-    description: "Predicts pathologic stage (early I/II vs advanced III/IV) in invasive breast carcinoma"
+    description: "Predicts pathologic stage (early I/II vs advanced III/IV) in lung adenocarcinoma"
     dataset_source: "TCGA"
     disclaimer: >-
       These predictions are from research models. Model reliability varies by
@@ -141,18 +141,18 @@ projects:
       patient history, other biomarkers, and clinician expertise.
     foundation_model: path_foundation
     dataset:
-      slides_dir: data/brca/slides
-      embeddings_dir: data/brca/embeddings
-      labels_file: data/brca/stage_labels.json
+      slides_dir: data/luad/slides
+      embeddings_dir: data/luad/embeddings
+      labels_file: data/luad/stage_labels.json
       label_column: tumor_stage
     models:
       embedder: path-foundation
       mil_architecture: transmil
-      mil_checkpoint: outputs/brca_transmil_stage/best_model.pt
+      mil_checkpoint: outputs/luad_transmil_stage/best_model.pt
       report_generator: medgemma-4b
       semantic_search: medsiglip
     classification_models:
-      - breast_stage
+      - lung_stage
     features:
       medgemma_reports: true
       medsiglip_search: false

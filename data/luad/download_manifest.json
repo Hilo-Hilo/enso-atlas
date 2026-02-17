@@ -1,0 +1,652 @@
+[
+  {
+    "id": "5965ab59-8a43-4a84-a07a-fd0b0c3fab7a",
+    "filename": "TCGA-05-4425-01Z-00-DX1.82B093EE-49BC-4FD9-91AC-4CC89944309D.svs",
+    "size_mb": 6
+  },
+  {
+    "id": "1509e64e-18dc-43c6-8c0e-99b4cd1c29b8",
+    "filename": "TCGA-05-5715-01Z-00-DX1.D3F0A1FA-2507-45FF-823F-F9981E62BB4C.svs",
+    "size_mb": 8
+  },
+  {
+    "id": "06f120a8-46a3-4e9b-b15a-c33493ba4164",
+    "filename": "TCGA-05-5429-01Z-00-DX1.20729065-FADA-4E43-98D7-AFA5FB4A0447.svs",
+    "size_mb": 9
+  },
+  {
+    "id": "18a048fd-ece4-46ed-beb6-da5243466d34",
+    "filename": "TCGA-55-8207-01Z-00-DX1.2dafc442-f927-4b0d-b197-cc8c5f86d0fc.svs",
+    "size_mb": 9
+  },
+  {
+    "id": "22904f9d-0788-463c-9961-02629cf9a85f",
+    "filename": "TCGA-05-5428-01Z-00-DX1.8018AD62-F1CE-4BFF-8EFD-3F2D4513FC11.svs",
+    "size_mb": 9
+  },
+  {
+    "id": "3e98b0f7-17ea-41a1-a4f8-5064ca345eb5",
+    "filename": "TCGA-05-5425-01Z-00-DX1.85865B2F-4888-43DD-A501-458BEFCF832B.svs",
+    "size_mb": 9
+  },
+  {
+    "id": "97abb7f1-6535-43b8-a003-467f5bb0cae9",
+    "filename": "TCGA-05-4384-01Z-00-DX1.CA68BF29-BBE3-4C8E-B48B-554431A9EE13.svs",
+    "size_mb": 10
+  },
+  {
+    "id": "f84130fe-4853-4252-a292-9372aeea4a5d",
+    "filename": "TCGA-05-4390-01Z-00-DX1.858E64DF-DD3E-4F43-B7C1-CE35B33F1C90.svs",
+    "size_mb": 11
+  },
+  {
+    "id": "4fe08445-76f1-4d5b-b1ac-dc46bd17991d",
+    "filename": "TCGA-05-5423-01Z-00-DX1.CCCF5FDB-ACAD-4D9D-80DF-556F0D6284AF.svs",
+    "size_mb": 12
+  },
+  {
+    "id": "62ed77c3-06d8-4f62-a5cc-051a1307b444",
+    "filename": "TCGA-05-5420-01Z-00-DX1.8C253A99-44FD-48B6-AF31-D808CCB7DB1E.svs",
+    "size_mb": 12
+  },
+  {
+    "id": "c7e8578a-1c57-4f26-bcd7-915e1e8d7e9e",
+    "filename": "TCGA-05-4410-01Z-00-DX1.E5B66334-4949-4F45-9200-296B1A2F1AD5.svs",
+    "size_mb": 14
+  },
+  {
+    "id": "4d231d26-9b71-489d-9436-1186b88f7d47",
+    "filename": "TCGA-44-7661-01Z-00-DX1.baf72abd-edb9-4f56-beb3-f5138aa50930.svs",
+    "size_mb": 15
+  },
+  {
+    "id": "5566a89d-7e94-4de2-a332-a835a7c08566",
+    "filename": "TCGA-55-8204-01Z-00-DX1.30ba69f3-53f1-41cc-826c-20dce3cfe86b.svs",
+    "size_mb": 30
+  },
+  {
+    "id": "61d58d69-95ea-45b0-ad61-f05339834bdb",
+    "filename": "TCGA-55-8505-01Z-00-DX1.D364C30D-BFB8-486B-A0D3-948FF8E90C3E.svs",
+    "size_mb": 38
+  },
+  {
+    "id": "25daa5e5-bf3c-41e6-9b9e-170c18a603fb",
+    "filename": "TCGA-99-7458-01Z-00-DX1.10ea0b2c-c763-40d1-83a4-3d4ae957fdb0.svs",
+    "size_mb": 50
+  },
+  {
+    "id": "5f739d40-1c4f-47f4-87d1-4368e8b6b0b9",
+    "filename": "TCGA-55-A48X-01Z-00-DX1.A46C6373-8458-4D55-88C3-4C70A05F9F47.svs",
+    "size_mb": 50
+  },
+  {
+    "id": "3bbf7cf7-a805-450b-aba3-4dd9bcc847c4",
+    "filename": "TCGA-55-6987-01Z-00-DX1.0c52b721-2209-4818-af8f-b22d37e6e81e.svs",
+    "size_mb": 52
+  },
+  {
+    "id": "0e64c462-0c17-4e84-bb04-96976f01f62b",
+    "filename": "TCGA-55-8089-01Z-00-DX1.da4d99ff-4a7c-45a3-b79c-039c0c9e9712.svs",
+    "size_mb": 56
+  },
+  {
+    "id": "20c9afac-0d0c-4fcf-b3bf-a2beba3dd76b",
+    "filename": "TCGA-55-6972-01Z-00-DX1.0b441ad0-c30f-4f63-849a-36c98d6e2d3b.svs",
+    "size_mb": 60
+  },
+  {
+    "id": "0a869b47-8dc0-420c-b6ce-4b1312a12e17",
+    "filename": "TCGA-44-7662-01Z-00-DX1.2f0b6cea-795a-40ad-93a9-319858e6fb3b.svs",
+    "size_mb": 60
+  },
+  {
+    "id": "eb66d209-e956-4487-9cc8-7a507fa10992",
+    "filename": "TCGA-95-8039-01Z-00-DX1.38b07435-987d-495d-9940-ba5f20e6ef97.svs",
+    "size_mb": 63
+  },
+  {
+    "id": "e6477e75-1729-4e1a-8166-963a1ed02556",
+    "filename": "TCGA-55-7724-01Z-00-DX1.31a194ac-62e3-4225-8e32-8c2a83dcdd10.svs",
+    "size_mb": 65
+  },
+  {
+    "id": "974547d1-97a6-4370-895e-c5102e5303aa",
+    "filename": "TCGA-55-8097-01Z-00-DX1.2f847b65-a5dc-41be-9dd0-a1e11df3cd10.svs",
+    "size_mb": 70
+  },
+  {
+    "id": "2b46025f-aa27-4671-adbc-9133158374d0",
+    "filename": "TCGA-55-8092-01Z-00-DX1.04e44341-c4bb-4b0b-965c-7ec83f3877a6.svs",
+    "size_mb": 70
+  },
+  {
+    "id": "f11ab9a7-438a-4d39-818a-8ef5346ae6e3",
+    "filename": "TCGA-75-6211-01Z-00-DX1.3E7B5948-521E-48EE-9204-80F5713ECD25.svs",
+    "size_mb": 71
+  },
+  {
+    "id": "f6391915-f8dd-430b-821a-7ef7f5b6baa2",
+    "filename": "TCGA-55-8203-01Z-00-DX1.f530d261-be19-4ff0-98d0-27b789dffb23.svs",
+    "size_mb": 73
+  },
+  {
+    "id": "5d220819-58aa-4c3b-afe0-b442ebdd53a1",
+    "filename": "TCGA-55-A4DG-01Z-00-DX1.9CE9B7BE-48EF-44F1-9C25-F15700A3E5DE.svs",
+    "size_mb": 73
+  },
+  {
+    "id": "0c5b9279-e9d5-4ac5-bd71-5c21d73ef417",
+    "filename": "TCGA-55-8094-01Z-00-DX1.8dc29615-e124-4f17-81a1-c0b20c38d12c.svs",
+    "size_mb": 76
+  },
+  {
+    "id": "59f453a9-0eda-447b-aaa6-1ff4bdcb35d5",
+    "filename": "TCGA-55-8085-01Z-00-DX1.ff220eba-3515-4d2e-b317-76337dd3d206.svs",
+    "size_mb": 78
+  },
+  {
+    "id": "cd396be4-8833-45c9-ad39-fc651724d798",
+    "filename": "TCGA-55-7281-01Z-00-DX1.a92dafa4-3a65-4f5c-97f0-83aff231274a.svs",
+    "size_mb": 78
+  },
+  {
+    "id": "60b5e16f-f0ed-4277-a35c-dd2933579867",
+    "filename": "TCGA-55-8090-01Z-00-DX1.83f86d5f-7cb9-443a-a812-b19ba4aea836.svs",
+    "size_mb": 79
+  },
+  {
+    "id": "9e0bbb1b-5f03-4b95-a885-5f455fc73f8e",
+    "filename": "TCGA-55-7913-01Z-00-DX1.2295fcc5-70b0-412e-a1fd-b5366fce0739.svs",
+    "size_mb": 79
+  },
+  {
+    "id": "ac97687c-bfb7-4903-b041-78b70e4cc1e3",
+    "filename": "TCGA-44-2655-01Z-00-DX1.ee255271-780c-461c-ab23-5cd3504b5e4a.svs",
+    "size_mb": 79
+  },
+  {
+    "id": "7f48f248-ec94-4d6e-868d-534d71bf6112",
+    "filename": "TCGA-55-7903-01Z-00-DX1.40fc5dcb-b5bb-46b4-90bd-2eeb3ea880f5.svs",
+    "size_mb": 81
+  },
+  {
+    "id": "5296e2bf-dae3-432b-b9bf-020a27dbde48",
+    "filename": "TCGA-55-7725-01Z-00-DX1.4d678777-63b1-4f4a-932a-7fccabf504c7.svs",
+    "size_mb": 83
+  },
+  {
+    "id": "fdb89f0d-4402-493a-a6ef-a88cfb9542e8",
+    "filename": "TCGA-44-3919-01Z-00-DX1.41144972-46a1-4b25-9faa-ed1b9d1996d2.svs",
+    "size_mb": 86
+  },
+  {
+    "id": "12284e6d-1e79-4a21-9d63-7d20f9692899",
+    "filename": "TCGA-55-8301-01Z-00-DX1.2A66E0FC-84F2-4DF8-B06E-D7CDD7AA82C7.svs",
+    "size_mb": 87
+  },
+  {
+    "id": "76d45738-6b69-4454-84d9-22899a4cfca7",
+    "filename": "TCGA-55-7914-01Z-00-DX1.875bffe1-8c56-4c29-ab11-6840ee3a643c.svs",
+    "size_mb": 88
+  },
+  {
+    "id": "2565c233-f5d8-4214-8e54-b7ccdd308f99",
+    "filename": "TCGA-55-7726-01Z-00-DX1.37df197b-d4fb-41c4-ac6a-72dbaa31027b.svs",
+    "size_mb": 89
+  },
+  {
+    "id": "3c6f03fd-05e8-4bb7-8b78-d1c87468335c",
+    "filename": "TCGA-99-8033-01Z-00-DX1.06f8ca81-c0a7-4ab5-b2fe-d5fc6671e29d.svs",
+    "size_mb": 92
+  },
+  {
+    "id": "42b16372-261d-42d2-95e5-27cae585e69d",
+    "filename": "TCGA-86-8671-01Z-00-DX1.1fd0019c-df9d-48cc-9055-8de57759f273.svs",
+    "size_mb": 98
+  },
+  {
+    "id": "939eae7b-afc7-437a-81e3-1e9615897027",
+    "filename": "TCGA-44-8119-01Z-00-DX1.1EBEBFA7-22DB-4365-9DF8-C4E679C11312.svs",
+    "size_mb": 98
+  },
+  {
+    "id": "61b92a3c-9098-4b5f-96c8-fa21f1861095",
+    "filename": "TCGA-44-2659-01Z-00-DX1.b33f40e6-bc18-48b0-8dad-bdb0a6a200b5.svs",
+    "size_mb": 100
+  },
+  {
+    "id": "20fc6d32-fa0d-4bf2-b43b-402c78d0564c",
+    "filename": "TCGA-55-A48Y-01Z-00-DX1.D8735347-E060-439F-B5A1-1E47A958A392.svs",
+    "size_mb": 101
+  },
+  {
+    "id": "77518948-63db-4221-89bd-9fb2cf1c67af",
+    "filename": "TCGA-44-6144-01Z-00-DX1.604b3c7c-92e8-474a-bae8-e48415ea6196.svs",
+    "size_mb": 103
+  },
+  {
+    "id": "86988f31-6d83-454b-badd-89d55db38fe5",
+    "filename": "TCGA-55-7728-01Z-00-DX1.1d47a5fe-cab5-4d5a-a62b-16f345334d25.svs",
+    "size_mb": 104
+  },
+  {
+    "id": "4805eab4-7bcd-4e9d-a680-b66a5ed76a74",
+    "filename": "TCGA-75-6206-01Z-00-DX1.63230D94-7015-4247-936D-E7ACD6692AB3.svs",
+    "size_mb": 110
+  },
+  {
+    "id": "d4824e95-b846-4829-b47a-f1ededd09406",
+    "filename": "TCGA-55-A491-01Z-00-DX1.E5F3B4E5-18EA-4067-AE28-119DABCE739A.svs",
+    "size_mb": 112
+  },
+  {
+    "id": "9502ca50-ea37-4790-855c-a94b5998abc7",
+    "filename": "TCGA-99-8032-01Z-00-DX1.7380b78f-ea25-43e0-ac90-194b5c6b1432.svs",
+    "size_mb": 112
+  },
+  {
+    "id": "183f363e-3404-4c1b-aee3-d33d8bccf456",
+    "filename": "TCGA-55-6712-01Z-00-DX1.8cd4b879-294e-4da0-8636-704f61b510dc.svs",
+    "size_mb": 113
+  },
+  {
+    "id": "1365c2c0-7231-487c-9ede-5036116ff6fa",
+    "filename": "TCGA-99-8028-01Z-00-DX1.23de89b1-67f8-41fb-980a-010ea190d687.svs",
+    "size_mb": 116
+  },
+  {
+    "id": "0dd2b471-dde2-4847-892e-4a42f417544f",
+    "filename": "TCGA-55-A493-01Z-00-DX1.1CF94B85-7A64-4213-9B04-16504512DE2E.svs",
+    "size_mb": 116
+  },
+  {
+    "id": "0af63566-016d-451c-8d29-a02a08d7cd5c",
+    "filename": "TCGA-55-6975-01Z-00-DX1.2762a872-b1c3-47fd-8ed5-b715a5b20163.svs",
+    "size_mb": 117
+  },
+  {
+    "id": "193cc528-3328-4ba7-b285-3adb8a0f7586",
+    "filename": "TCGA-44-7671-01Z-00-DX1.00297baa-00e7-4894-a7b8-c9ac2a9d42d8.svs",
+    "size_mb": 120
+  },
+  {
+    "id": "79f0e52e-82dd-493b-9585-d39422fd8e67",
+    "filename": "TCGA-75-6214-01Z-00-DX1.00424C13-65B8-4872-81EB-EE207AB3F78C.svs",
+    "size_mb": 120
+  },
+  {
+    "id": "6ff48f44-29d0-4c79-be38-54444a0f5694",
+    "filename": "TCGA-55-A57B-01Z-00-DX1.8D3C7063-3AF6-4839-A656-F844EC0AF9DB.svs",
+    "size_mb": 123
+  },
+  {
+    "id": "a9d2de24-b5a3-4b7b-961e-c3dcb47e1017",
+    "filename": "TCGA-75-5147-01Z-00-DX1.3156FA5C-9737-4EAA-989C-FD578FBF15A1.svs",
+    "size_mb": 132
+  },
+  {
+    "id": "9dce4938-27d5-4926-9c66-7176369d27e8",
+    "filename": "TCGA-55-6985-01Z-00-DX1.428ad69e-c0ea-445e-8d38-fa2dab6eb81f.svs",
+    "size_mb": 132
+  },
+  {
+    "id": "a21ba7ca-1bbb-4b84-9b6e-1d0de4ee28bc",
+    "filename": "TCGA-55-7576-01Z-00-DX1.3a6142e9-c90a-4938-a1d1-061c2ac261f0.svs",
+    "size_mb": 136
+  },
+  {
+    "id": "6a547832-dd90-4857-a0a9-7136f2d9cb34",
+    "filename": "TCGA-55-8096-01Z-00-DX1.c833417d-10c1-4430-a241-d6f5496e1cd9.svs",
+    "size_mb": 137
+  },
+  {
+    "id": "b745bca0-80d3-4f76-b896-900f9ea00ca4",
+    "filename": "TCGA-75-5146-01Z-00-DX1.4958A631-7E6F-4FBB-A1C3-B8F8368D46C5.svs",
+    "size_mb": 140
+  },
+  {
+    "id": "d55c9a13-07f1-4ac0-af76-4b17a8721098",
+    "filename": "TCGA-55-8510-01Z-00-DX1.BB1EAC72-6215-400B-BCBF-E3D51A60182D.svs",
+    "size_mb": 141
+  },
+  {
+    "id": "d1be6e24-e64c-45bc-822d-cbf5a5d5f9a9",
+    "filename": "TCGA-55-6971-01Z-00-DX1.6c790768-8252-466a-95e1-97d2086a8132.svs",
+    "size_mb": 141
+  },
+  {
+    "id": "a83ac4f3-0b14-4e4e-af76-1c8644d416cc",
+    "filename": "TCGA-75-7031-01Z-00-DX1.B058D81B-E869-4AEA-8CAC-4B6264FB86A8.svs",
+    "size_mb": 146
+  },
+  {
+    "id": "8e8f5aba-0399-4450-b778-73c18d80e977",
+    "filename": "TCGA-44-3917-01Z-00-DX1.cf5b5b49-de5e-4f2e-90b4-b138f55560a9.svs",
+    "size_mb": 146
+  },
+  {
+    "id": "da0234f7-cdf2-4736-8d25-09d81b5ee793",
+    "filename": "TCGA-55-8511-01Z-00-DX1.8EDFB05B-5B59-46EA-973C-1048B1E284D2.svs",
+    "size_mb": 146
+  },
+  {
+    "id": "33b8af43-091a-4bc6-9711-37dacfde5dc8",
+    "filename": "TCGA-80-5608-01Z-00-DX1.CB85BA53-AF00-4C7D-8489-C2FF0F4F49AB.svs",
+    "size_mb": 150
+  },
+  {
+    "id": "67560f24-1cc3-4be7-9fec-2289886c1ad2",
+    "filename": "TCGA-55-7573-01Z-00-DX1.43a4bbd2-6a3b-4910-9356-2d750a736817.svs",
+    "size_mb": 150
+  },
+  {
+    "id": "dc9604b4-b425-4cbe-b271-3453f740ea11",
+    "filename": "TCGA-75-7025-01Z-00-DX1.284477D7-4F47-4084-A15C-0A7E9571E3DF.svs",
+    "size_mb": 150
+  },
+  {
+    "id": "31bb53b3-ea96-43c4-b672-7069a6cca1bc",
+    "filename": "TCGA-44-2657-01Z-00-DX1.b7f608bd-2381-40a2-a757-ca4648a7de8a.svs",
+    "size_mb": 151
+  },
+  {
+    "id": "c362b1ce-0af7-43a4-80f5-43d849262abc",
+    "filename": "TCGA-55-8621-01Z-00-DX1.7C519007-D59D-432A-BF4D-23D14A1C8BB6.svs",
+    "size_mb": 152
+  },
+  {
+    "id": "0d1eefe4-ac29-413e-828f-584a2f27e3c2",
+    "filename": "TCGA-55-8506-01Z-00-DX1.A908E3D2-91F7-4DE2-98C9-95D1038B9F49.svs",
+    "size_mb": 155
+  },
+  {
+    "id": "1303284b-7746-401d-9970-8e4e2422d256",
+    "filename": "TCGA-55-A4DF-01Z-00-DX1.C945E1AD-BEF4-403F-BB11-BAC831D24CDA.svs",
+    "size_mb": 157
+  },
+  {
+    "id": "c7aad125-c092-4451-8480-993a3d982879",
+    "filename": "TCGA-86-8056-01Z-00-DX1.eee7e03a-842c-4a44-bff8-f7b906725605.svs",
+    "size_mb": 160
+  },
+  {
+    "id": "c98ee938-e171-4dcc-8046-c466dedd2745",
+    "filename": "TCGA-55-6642-01Z-00-DX1.0487cfc6-8216-4da3-aae1-a35452e9e4f6.svs",
+    "size_mb": 161
+  },
+  {
+    "id": "74e02518-3b74-4ba6-b4a5-044e44f8f370",
+    "filename": "TCGA-55-6981-01Z-00-DX1.5fecd134-42a0-40a2-be75-1e8bd14c5b30.svs",
+    "size_mb": 163
+  },
+  {
+    "id": "f63cc6cf-dbd1-4024-a8c8-cdf7a14d1ec4",
+    "filename": "TCGA-44-3398-01Z-00-DX1.74757c91-a0c6-4e7f-b2db-8748c68ffa44.svs",
+    "size_mb": 163
+  },
+  {
+    "id": "1ddc6a98-e855-4ca9-8809-f20725fe3120",
+    "filename": "TCGA-55-6983-01Z-00-DX1.8f940a64-1f1b-4e6e-99ea-418175be2b3f.svs",
+    "size_mb": 165
+  },
+  {
+    "id": "3ece9266-6efc-47f1-a894-bbe0969daa31",
+    "filename": "TCGA-75-6212-01Z-00-DX1.FCB36956-DF6C-485D-8E7A-922A2BDAE669.svs",
+    "size_mb": 166
+  },
+  {
+    "id": "4f5dc3e8-816d-4ab7-8a1d-c01cc7b566b4",
+    "filename": "TCGA-67-3774-01Z-00-DX1.FE85FDCB-91D2-47C5-8D13-D622A51A7BE0.svs",
+    "size_mb": 167
+  },
+  {
+    "id": "0cd87478-c165-49a3-a871-f8ab53042656",
+    "filename": "TCGA-55-7283-01Z-00-DX1.0f716216-0a46-404e-a4d4-5bb6d7e3f0d1.svs",
+    "size_mb": 168
+  },
+  {
+    "id": "1842d3e2-caff-4b04-98b1-c535dc65df19",
+    "filename": "TCGA-91-A4BC-01Z-00-DX1.8D8783B1-D1BA-4970-B77B-3AED8506C487.svs",
+    "size_mb": 168
+  },
+  {
+    "id": "6ab0b463-bd0b-4020-8c12-7fd1aedccfd0",
+    "filename": "TCGA-55-6982-01Z-00-DX1.055aeec1-2fc1-4796-b5df-c159335e0300.svs",
+    "size_mb": 169
+  },
+  {
+    "id": "19f4edb8-e8e8-449d-944e-da3a98979cc6",
+    "filename": "TCGA-55-8513-01Z-00-DX1.E21776FE-DF49-48D1-90D6-6F71D0764492.svs",
+    "size_mb": 173
+  },
+  {
+    "id": "9eb264eb-548e-4452-955a-fb5572e43cf6",
+    "filename": "TCGA-05-4382-01Z-00-DX1.76b49a4c-dbbb-48b0-b677-6d3037e5ce88.svs",
+    "size_mb": 179
+  },
+  {
+    "id": "97f2808a-be03-4dd0-b291-dbd797d659e1",
+    "filename": "TCGA-05-4245-01Z-00-DX1.36ff5403-d4bb-4415-b2c5-7c750d655cde.svs",
+    "size_mb": 182
+  },
+  {
+    "id": "035fdf1f-b813-4ea6-9395-f2ea38ccaee6",
+    "filename": "TCGA-86-6851-01Z-00-DX1.0b13e600-fd7b-44a2-9ec2-26e9938fb7bc.svs",
+    "size_mb": 182
+  },
+  {
+    "id": "2062d310-ef70-4e81-8e4c-3871797c4d46",
+    "filename": "TCGA-44-2665-01Z-00-DX1.d429e37e-3915-4da6-b5bc-bf2f09f4fbf7.svs",
+    "size_mb": 183
+  },
+  {
+    "id": "1e894464-0639-4fd7-8375-71b809ada590",
+    "filename": "TCGA-55-7995-01Z-00-DX1.fef24d04-35a0-4f57-8f51-7ad602a78871.svs",
+    "size_mb": 184
+  },
+  {
+    "id": "d3f472e7-e76a-458e-a455-224eaa6ec4c6",
+    "filename": "TCGA-55-7994-01Z-00-DX1.a0858080-c471-4337-bc57-7af57e9d92d8.svs",
+    "size_mb": 189
+  },
+  {
+    "id": "fd1c95ff-26b9-4a95-a671-fa1e2b511cbe",
+    "filename": "TCGA-44-7672-01Z-00-DX1.71f4a0c6-a9cc-481c-ace8-c8c314952aa1.svs",
+    "size_mb": 189
+  },
+  {
+    "id": "2e484996-d335-48c5-9e3c-b9380d865ce2",
+    "filename": "TCGA-99-8025-01Z-00-DX1.76d4e012-91a7-4f1d-ba0f-4cecd812ec49.svs",
+    "size_mb": 189
+  },
+  {
+    "id": "0f1cfc85-c918-4730-b062-b818847b1df7",
+    "filename": "TCGA-55-8091-01Z-00-DX1.0996c58a-6e93-4092-8cb8-014d548fe60c.svs",
+    "size_mb": 189
+  },
+  {
+    "id": "5b79089a-1c0b-4bf6-908e-e47267d8855b",
+    "filename": "TCGA-55-8087-01Z-00-DX1.548f2800-8caf-4c0e-a7b5-6d3d28315d9c.svs",
+    "size_mb": 190
+  },
+  {
+    "id": "36f08375-4d1c-47ef-885b-e58910f7732a",
+    "filename": "TCGA-55-7570-01Z-00-DX1.9020ae67-cf60-4bac-8c60-403c8891c4a3.svs",
+    "size_mb": 191
+  },
+  {
+    "id": "a9b535d7-0f38-466c-b5d5-feb5e055af0b",
+    "filename": "TCGA-55-8205-01Z-00-DX1.6df6d499-f325-409d-acb1-9e13172f2bb4.svs",
+    "size_mb": 191
+  },
+  {
+    "id": "2aa283f3-732c-4879-8d37-1fec3ccf5bdc",
+    "filename": "TCGA-05-4395-01Z-00-DX1.20205276-ca16-46b2-914a-fe5e576a5cf9.svs",
+    "size_mb": 191
+  },
+  {
+    "id": "3dbbc991-f9b6-4ec7-ae83-b9d8fd50ff14",
+    "filename": "TCGA-75-6203-01Z-00-DX1.9796ACAB-9E1A-4BC5-B80C-4EC856FA14B7.svs",
+    "size_mb": 192
+  },
+  {
+    "id": "94dfeae0-aaa6-405f-bf37-1c17d207f0ca",
+    "filename": "TCGA-86-7954-01Z-00-DX1.0a063ee6-18b7-4b66-9726-04fb452156cb.svs",
+    "size_mb": 193
+  },
+  {
+    "id": "7c4036ba-3945-49de-b730-2f252a1d9808",
+    "filename": "TCGA-64-1681-01Z-00-DX1.fb0244f6-51a8-4da2-b45c-38d8e02edab7.svs",
+    "size_mb": 194
+  },
+  {
+    "id": "da7b6160-d659-4c1f-95f7-a7c5c265ee23",
+    "filename": "TCGA-75-5122-01Z-00-DX1.627FD712-3881-44CC-83E0-6C4DFC6C88C1.svs",
+    "size_mb": 195
+  },
+  {
+    "id": "ae7f998c-d185-4114-a4a3-3cbbbed055f0",
+    "filename": "TCGA-55-8206-01Z-00-DX1.1216f330-c4e9-41b5-a2b7-9cafd960fa11.svs",
+    "size_mb": 196
+  },
+  {
+    "id": "1aeef158-860c-48cd-a43a-f6255e8fa002",
+    "filename": "TCGA-49-AAR9-01Z-00-DX1.B6A9966E-89B8-404B-8ABC-1F8F8553D4DA.svs",
+    "size_mb": 199
+  },
+  {
+    "id": "f057f0f9-7879-412c-b593-bfc41b27938d",
+    "filename": "TCGA-44-7669-01Z-00-DX1.34d0c9ac-d3dc-4a5e-b99c-a8c1c1e120d1.svs",
+    "size_mb": 200
+  },
+  {
+    "id": "f0f72398-a19e-4674-8ba3-f248747d4cff",
+    "filename": "TCGA-44-A47B-01Z-00-DX1.177D0531-E037-435B-BFD4-382B2150B10D.svs",
+    "size_mb": 202
+  },
+  {
+    "id": "6b6545f2-b556-4a2b-9dde-1579ffae09ab",
+    "filename": "TCGA-44-6146-01Z-00-DX1.8db8c567-690e-4df3-98a9-f241b6a8d811.svs",
+    "size_mb": 205
+  },
+  {
+    "id": "46373e9f-11c3-40d1-aa12-b615af7fd10c",
+    "filename": "TCGA-44-2668-01Z-00-DX1.f66fa464-dad1-4a9f-8486-3d7579ca42b6.svs",
+    "size_mb": 206
+  },
+  {
+    "id": "5389e7cf-ca61-4264-b912-9b802c5b1165",
+    "filename": "TCGA-55-7574-01Z-00-DX1.09639e6a-d85f-4d84-abbc-0f5a6d679683.svs",
+    "size_mb": 206
+  },
+  {
+    "id": "f8e5a0da-e46f-4ac9-be5e-ae11327e5a26",
+    "filename": "TCGA-86-8073-01Z-00-DX1.33c016fc-5c9e-4ad6-8de2-a7f8521d205c.svs",
+    "size_mb": 208
+  },
+  {
+    "id": "395291b1-a13b-4602-890f-de900d3e3153",
+    "filename": "TCGA-44-7659-01Z-00-DX1.818bf5b3-b4c1-4d23-a6ae-98d5015eb8c1.svs",
+    "size_mb": 210
+  },
+  {
+    "id": "1c71e69a-d769-4082-8d0a-2ea6480dba43",
+    "filename": "TCGA-38-4632-01Z-00-DX1.5E05F85C-53BC-4280-8E7F-8B9DECEF849F.svs",
+    "size_mb": 215
+  },
+  {
+    "id": "19c7ad8e-83e9-4ef9-a9c7-64d6427fecae",
+    "filename": "TCGA-44-A47F-01Z-00-DX1.C1EC3F2D-33C8-483B-9DDA-2F01B5FED618.svs",
+    "size_mb": 216
+  },
+  {
+    "id": "c1691a60-9040-4cff-8e76-fe50efc31436",
+    "filename": "TCGA-55-8619-01Z-00-DX1.46C7678A-6032-4C95-B535-85C87B92B6ED.svs",
+    "size_mb": 216
+  },
+  {
+    "id": "b139b75c-44e8-4909-96f0-208e6122e5fb",
+    "filename": "TCGA-05-4424-01Z-00-DX1.4892016C-1A96-4A72-ACB8-FFD282FC4E69.svs",
+    "size_mb": 219
+  },
+  {
+    "id": "778a0f8c-753f-4e61-a110-55c9287fc9c2",
+    "filename": "TCGA-55-8620-01Z-00-DX1.6591EEC4-D696-4826-80BD-99BE1D99EBB8.svs",
+    "size_mb": 223
+  },
+  {
+    "id": "27098156-24f9-4d49-91ca-1b9ace9fa61b",
+    "filename": "TCGA-55-7911-01Z-00-DX1.081bc002-06ee-4218-a25f-26c0e6c4b333.svs",
+    "size_mb": 224
+  },
+  {
+    "id": "2898ffa2-48f6-449e-b2eb-381796b10dd0",
+    "filename": "TCGA-86-8281-01Z-00-DX1.02237263-003b-4de1-8a2f-0f3ad14768c7.svs",
+    "size_mb": 225
+  },
+  {
+    "id": "2538130f-3e8f-4f88-93e6-bd8a949e2b57",
+    "filename": "TCGA-44-6148-01Z-00-DX1.94c29c83-1085-458f-a0c9-3ffa8592cb98.svs",
+    "size_mb": 227
+  },
+  {
+    "id": "dec2f84b-db6d-4cc3-94c4-4a13b91ebcaa",
+    "filename": "TCGA-44-6145-01Z-00-DX1.175ad655-b054-407d-bb22-3a4f85849488.svs",
+    "size_mb": 227
+  },
+  {
+    "id": "57246c93-5967-4f70-a29e-85d0e325566c",
+    "filename": "TCGA-44-6147-01Z-00-DX1.a34a9f49-e86b-43ee-9e2d-7ef35da0aecf.svs",
+    "size_mb": 229
+  },
+  {
+    "id": "f28b9a47-68b8-4549-abfd-06e3038dad7b",
+    "filename": "TCGA-38-4631-01Z-00-DX1.5e0c873a-9c4c-4e0b-bf2e-e3cd8b760761.svs",
+    "size_mb": 231
+  },
+  {
+    "id": "9c8c0e57-fd08-4a46-a9e2-fbe570496fe6",
+    "filename": "TCGA-38-4628-01Z-00-DX1.eee4f100-142f-4d9c-8e38-b16aab123413.svs",
+    "size_mb": 232
+  },
+  {
+    "id": "836487d9-cc0f-4c1a-9fe6-ef6ed93a28f7",
+    "filename": "TCGA-75-6207-01Z-00-DX1.837B7B0F-424C-423B-9045-A905E7C1C54C.svs",
+    "size_mb": 234
+  },
+  {
+    "id": "0b3cff7b-bbe2-40ab-aee6-cb0554940eaa",
+    "filename": "TCGA-05-4244-01Z-00-DX1.d4ff32cd-38cf-40ea-8213-45c2b100ac01.svs",
+    "size_mb": 235
+  },
+  {
+    "id": "52e47f40-f343-440a-a7e4-c5b34f24a4e4",
+    "filename": "TCGA-44-6774-01Z-00-DX1.f169485b-f863-4be0-9844-258d78170b64.svs",
+    "size_mb": 235
+  },
+  {
+    "id": "85a2afb9-6aa2-4d8d-a495-099dd88cb96a",
+    "filename": "TCGA-44-5644-01Z-00-DX1.7e4edaa7-25c6-49f4-81bc-f50d6c5fac38.svs",
+    "size_mb": 238
+  },
+  {
+    "id": "46fe9cc7-73be-4251-8542-6675bd03a21f",
+    "filename": "TCGA-44-6779-01Z-00-DX1.40f10ad8-55f3-4043-a89b-37d33a26dd8c.svs",
+    "size_mb": 239
+  },
+  {
+    "id": "8a699e69-5f01-4fd9-bf8f-9c85cbdbfd9a",
+    "filename": "TCGA-55-7227-01Z-00-DX1.e1a9e09c-4a50-4ee5-b1e4-2c7ae34dc913.svs",
+    "size_mb": 242
+  },
+  {
+    "id": "3fdb16f9-2c00-4e03-ac66-f6cf76b4637f",
+    "filename": "TCGA-55-7815-01Z-00-DX1.288408e6-f6b3-4de4-a1ce-cb2498d9d46d.svs",
+    "size_mb": 243
+  },
+  {
+    "id": "61ce296a-11f2-49d7-89d3-976c3d2dbaec",
+    "filename": "TCGA-55-6978-01Z-00-DX1.2ef6d6aa-2a19-4bce-b845-cc83ac81a1c3.svs",
+    "size_mb": 245
+  }
+]

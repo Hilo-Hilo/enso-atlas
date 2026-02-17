@@ -227,7 +227,7 @@ export function Header({
   isConnected = false,
   isProcessing = false,
   version = "0.1.0",
-  institutionName = "Research Laboratory",
+  institutionName = "Enso Labs",
   userName,
   onOpenShortcuts,
   viewMode = "oncologist",
