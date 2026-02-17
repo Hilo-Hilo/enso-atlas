@@ -54,6 +54,41 @@ function ModelCardSkeleton() {
   );
 }
 
+/**
+ * Detect contradictions in survival predictions.
+ * E.g. if 1-year says "Deceased" but 5-year says "Survived", that's impossible.
+ * Returns a list of human-readable contradiction strings.
+ */
+function detectSurvivalContradictions(predictions: ModelPrediction[]): string[] {
+  const contradictions: string[] = [];
+
+  // Extract survival models and sort by timeframe
+  const survivalModels = predictions
+    .filter((p) => p.modelId.match(/survival/i))
+    .map((p) => {
+      const yearMatch = p.modelName.match(/(\d+)[- ]?[Yy]ear/);
+      return yearMatch ? { years: parseInt(yearMatch[1]), prediction: p } : null;
+    })
+    .filter((x): x is { years: number; prediction: ModelPrediction } => x !== null)
+    .sort((a, b) => a.years - b.years);
+
+  // Check logical consistency: if dead at year N, must be dead at year M > N
+  for (let i = 0; i < survivalModels.length; i++) {
+    for (let j = i + 1; j < survivalModels.length; j++) {
+      const shorter = survivalModels[i];
+      const longer = survivalModels[j];
+      // If shorter-term predicts deceased but longer-term predicts survived
+      if (shorter.prediction.score < 0.5 && longer.prediction.score >= 0.5) {
+        contradictions.push(
+          `${shorter.prediction.modelName} predicts poor survival, but ${longer.prediction.modelName} predicts favorable outcome`
+        );
+      }
+    }
+  }
+
+  return contradictions;
+}
+
 // Example/Placeholder Prediction Card
 function PlaceholderModelCard({ modelName, description }: { modelName: string; description: string }) {
   return (
@@ -247,10 +282,6 @@ function ModelCard({ prediction, isExpanded, onToggle }: ModelCardProps) {
             <div className="flex items-center gap-1">
               <BarChart3 className="h-3 w-3" />
               <span>Confidence: {(prediction.confidence * 100).toFixed(0)}%</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <Layers className="h-3 w-3" />
-              <span>Trained on {prediction.nTrainingSlides} slides</span>
             </div>
           </div>
 
@@ -575,6 +606,13 @@ export function MultiModelPredictionPanel({
   // Results view
   const { byCategory, nPatches, processingTimeMs } = multiModelResult;
 
+  // Collect all predictions for contradiction detection
+  const allPredictions = [
+    ...(byCategory.cancerSpecific || []),
+    ...(byCategory.generalPathology || []),
+  ];
+  const survivalContradictions = detectSurvivalContradictions(allPredictions);
+
   // Format the cached timestamp into a relative string
   const formatCachedTime = (isoStr: string | null | undefined): string => {
     if (!isoStr) return "";
@@ -646,6 +684,24 @@ export function MultiModelPredictionPanel({
           <div className="flex items-center gap-2 text-xs text-gray-600">
             <Layers className="h-3.5 w-3.5" />
             <span>Analyzed {nPatches} tissue patches</span>
+          </div>
+        )}
+
+        {/* Survival Contradiction Warning */}
+        {survivalContradictions.length > 0 && (
+          <div className="flex items-start gap-2 px-3 py-2.5 bg-orange-50 border border-orange-300 rounded-lg">
+            <AlertTriangle className="h-4 w-4 text-orange-600 shrink-0 mt-0.5" />
+            <div className="space-y-1">
+              <span className="text-xs font-semibold text-orange-800">
+                Contradictory Predictions Detected
+              </span>
+              {survivalContradictions.map((c, i) => (
+                <p key={i} className="text-xs text-orange-700">{c}</p>
+              ))}
+              <p className="text-2xs text-orange-600 italic">
+                These models are independent and may disagree. Interpret with caution.
+              </p>
+            </div>
           </div>
         )}
 
