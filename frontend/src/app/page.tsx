@@ -760,9 +760,16 @@ function HomePage() {
         });
         setIsCachedResult(true);
         setCachedResultTimestamp(latestTimestamp);
+
+        // Auto-run single-model analysis to populate evidence patches + semantic search
+        analyze({
+          slideId: slide.id,
+          patchBudget: 8000,
+          magnification: 20,
+        }).catch(() => {});  // Silent -- cached multi-model results already shown
       }
     },
-    [clearResults]
+    [clearResults, analyze]
   );
 
   // Handle semantic search
