@@ -844,23 +844,30 @@ export default function ProjectsPage() {
       <Header isConnected={isConnected} />
 
       <main className="flex-1 max-w-6xl mx-auto w-full px-4 sm:px-6 py-6">
-        {/* Breadcrumb */}
-        <div className="flex items-center gap-2 text-sm text-gray-500 mb-6">
-          <Link href="/" className="hover:text-gray-700 transition-colors">
-            <ArrowLeft className="h-4 w-4" />
-          </Link>
-          <Link href="/" className="hover:text-gray-700">Home</Link>
-          <ChevronRight className="h-3 w-3" />
-          <span className="text-gray-900 font-medium">Projects</span>
-        </div>
-
         {/* Page header */}
         <div className="flex items-center justify-between mb-6">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Project Management</h1>
-            <p className="text-sm text-gray-500 mt-1">
-              Configure cancer types, prediction targets, and manage slides per project.
-            </p>
+          <div className="flex items-center gap-3">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => router.push("/")}
+              className="gap-1.5"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Back
+            </Button>
+            <div className="h-6 w-px bg-gray-200" />
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-clinical-50 rounded-lg">
+                <FolderOpen className="h-5 w-5 text-clinical-600" />
+              </div>
+              <div>
+                <h1 className="text-xl font-semibold text-gray-900">Project Management</h1>
+                <p className="text-sm text-gray-500">
+                  Configure cancer types, prediction targets, and manage slides per project.
+                </p>
+              </div>
+            </div>
           </div>
           <div className="flex items-center gap-3">
             <Button variant="ghost" onClick={loadProjects} disabled={loading}>
