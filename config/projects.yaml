@@ -104,9 +104,9 @@ projects:
       patient history, other biomarkers, and clinician expertise.
     foundation_model: path_foundation
     dataset:
-      slides_dir: data/tcga_full/slides
-      embeddings_dir: data/embeddings/level0
-      labels_file: data/labels.csv
+      slides_dir: data/projects/ovarian-platinum/slides
+      embeddings_dir: data/projects/ovarian-platinum/embeddings
+      labels_file: data/projects/ovarian-platinum/labels.csv
       label_column: platinum_sensitivity
     models:
       embedder: path-foundation
@@ -141,9 +141,9 @@ projects:
       patient history, other biomarkers, and clinician expertise.
     foundation_model: path_foundation
     dataset:
-      slides_dir: data/luad/slides
-      embeddings_dir: data/luad/embeddings
-      labels_file: data/luad/stage_labels.json
+      slides_dir: data/projects/lung-stage/slides
+      embeddings_dir: data/projects/lung-stage/embeddings
+      labels_file: data/projects/lung-stage/labels.json
       label_column: tumor_stage
     models:
       embedder: path-foundation
