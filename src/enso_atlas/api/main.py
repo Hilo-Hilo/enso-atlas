@@ -975,15 +975,19 @@ def create_app(
         """Health check endpoint."""
         # Build per-project slide counts if registry is available
         slides_by_project = {}
-        if project_registry:
-            for proj in (project_registry.list_projects() if hasattr(project_registry, 'list_projects') else []):
-                pid = proj.id if hasattr(proj, 'id') else proj.get('id', '')
-                if pid:
-                    try:
-                        proj_slides = await list_slides(project_id=pid)
-                        slides_by_project[pid] = len(proj_slides)
-                    except Exception:
-                        pass
+        if project_registry and hasattr(project_registry, 'list_projects'):
+            projects_dict = project_registry.list_projects()  # Dict[str, ProjectConfig]
+            for pid in projects_dict:
+                try:
+                    proj_cfg = projects_dict[pid]
+                    if proj_cfg and hasattr(proj_cfg, 'dataset') and proj_cfg.dataset:
+                        proj_emb_dir = Path(proj_cfg.dataset.embeddings_dir)
+                        if not proj_emb_dir.is_absolute():
+                            proj_emb_dir = _data_root.parent / proj_emb_dir
+                        if proj_emb_dir.exists():
+                            slides_by_project[pid] = len([f for f in proj_emb_dir.glob("*.npy") if not f.name.endswith("_coords.npy")])
+                except Exception:
+                    pass
         total_slides = sum(slides_by_project.values()) if slides_by_project else len(available_slides)
         return {
             "status": "healthy",
