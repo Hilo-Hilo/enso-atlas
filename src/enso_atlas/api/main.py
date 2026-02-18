@@ -237,6 +237,7 @@ class SlideDimensions(BaseModel):
 class SlideInfo(BaseModel):
     slide_id: str
     patient_id: Optional[str] = None
+    has_wsi: bool = False
     has_embeddings: bool = False
     has_level0_embeddings: bool = False  # Whether level 0 (full resolution) embeddings exist
     label: Optional[str] = None
@@ -603,16 +604,41 @@ def create_app(
     _data_root: Path = Path("data")
     slides_dir: Path = _data_root / 'slides'
 
-    def resolve_slide_path(slide_id: str) -> Path | None:
-        """Resolve slide file path across possible slide directories."""
-        # Common locations we may store slides (always relative to data root)
-        candidates_dirs = [
+    def resolve_slide_path(slide_id: str, project_id: Optional[str] = None) -> Path | None:
+        """Resolve slide file path across possible slide directories.
+
+        If project_id is provided, prioritize that project's configured slides_dir.
+        """
+        candidates_dirs: list[Path] = []
+
+        # 1) Project-specific directory first (if provided)
+        if project_id and project_registry:
+            proj_cfg = project_registry.get_project(project_id)
+            if proj_cfg:
+                try:
+                    candidates_dirs.append(Path(proj_cfg.dataset.slides_dir))
+                except Exception:
+                    pass
+
+        # 2) Global/default common locations
+        candidates_dirs.extend([
             slides_dir,
             _data_root / 'tcga_full' / 'slides',
             _data_root / 'ovarian_bev' / 'slides',
             _data_root / 'demo' / 'slides',
             _data_root / 'slides',
-        ]
+        ])
+
+        # 3) Any project-configured slides dirs as a final fallback
+        if project_registry:
+            try:
+                for _pid, _cfg in project_registry.list_projects().items():
+                    p = Path(_cfg.dataset.slides_dir)
+                    if p not in candidates_dirs:
+                        candidates_dirs.append(p)
+            except Exception:
+                pass
+
         exts = ['.svs', '.tiff', '.tif', '.ndpi', '.mrxs', '.vms', '.scn']
         for d in candidates_dirs:
             if not d.exists():
@@ -622,6 +648,9 @@ def create_app(
                 if cand.exists():
                     return cand
         return None
+
+    def has_wsi_file(slide_id: str, project_id: Optional[str] = None) -> bool:
+        return resolve_slide_path(slide_id, project_id=project_id) is not None
 
 
     @app.on_event("startup")
@@ -1088,6 +1117,7 @@ def create_app(
                     slides.append(SlideInfo(
                         slide_id=r["slide_id"],
                         patient_id=r.get("patient_id"),
+                        has_wsi=has_wsi_file(r["slide_id"], project_id=project_id),
                         has_embeddings=r.get("has_embeddings", False),
                         has_level0_embeddings=r.get("has_level0_embeddings", False),
                         label=r.get("label"),
@@ -1209,7 +1239,7 @@ def create_app(
             data = slide_data.get(slide_id, {})
             dims = SlideDimensions()
             mpp = None
-            slide_path = resolve_slide_path(slide_id)
+            slide_path = resolve_slide_path(slide_id, project_id=project_id)
             if slide_path is not None and slide_path.exists():
                 try:
                     import openslide
@@ -1248,6 +1278,7 @@ def create_app(
 
             slides.append(SlideInfo(
                 slide_id=slide_id,
+                has_wsi=(slide_path is not None and slide_path.exists()),
                 has_embeddings=True,
                 has_level0_embeddings=has_level0,
                 label=data.get("label"),
@@ -1289,6 +1320,7 @@ def create_app(
             {
                 "slide_id": s.slide_id,
                 "patient_id": s.patient_id,
+                "has_wsi": s.has_wsi,
                 "has_embeddings": s.has_embeddings,
                 "has_level0_embeddings": s.has_level0_embeddings,
                 "label": s.label,
@@ -4272,13 +4304,14 @@ DISCLAIMER: This is a research tool. All findings must be validated by qualified
     wsi_cache: Dict[str, Any] = {}
     logger.info(f"Slides directory: {slides_dir}")
 
-    def get_slide_and_dz(slide_id: str):
+    def get_slide_and_dz(slide_id: str, project_id: Optional[str] = None):
         """Get or create OpenSlide and DeepZoomGenerator for a slide."""
-        if slide_id in wsi_cache:
-            return wsi_cache[slide_id]
+        cache_key = f"{project_id or '__any__'}::{slide_id}"
+        if cache_key in wsi_cache:
+            return wsi_cache[cache_key]
 
         # Use resolve_slide_path to search multiple directories
-        slide_path = resolve_slide_path(slide_id)
+        slide_path = resolve_slide_path(slide_id, project_id=project_id)
         
         if slide_path is None:
             logger.warning(f"WSI file not found for slide_id={slide_id}")
@@ -4291,7 +4324,7 @@ DISCLAIMER: This is a research tool. All findings must be validated by qualified
             slide = openslide.OpenSlide(str(slide_path))
             # tile_size=254 with overlap=1 is standard for OpenSeadragon
             dz = DeepZoomGenerator(slide, tile_size=254, overlap=1, limit_bounds=True)
-            wsi_cache[slide_id] = (slide, dz)
+            wsi_cache[cache_key] = (slide, dz)
             logger.info(f"Loaded WSI: {slide_path}")
             return slide, dz
         except Exception as e:
@@ -4299,13 +4332,21 @@ DISCLAIMER: This is a research tool. All findings must be validated by qualified
             return None
 
     @app.get("/api/slides/{slide_id}/dzi")
-    async def get_dzi_descriptor(slide_id: str):
+    async def get_dzi_descriptor(
+        slide_id: str,
+        project_id: Optional[str] = Query(None, description="Optional project id to resolve project-specific WSI paths"),
+    ):
         """Get Deep Zoom Image descriptor (XML) for OpenSeadragon."""
-        result = get_slide_and_dz(slide_id)
+        result = get_slide_and_dz(slide_id, project_id=project_id)
         if result is None:
             raise HTTPException(
                 status_code=404,
-                detail=f"WSI file not found for slide {slide_id}"
+                detail={
+                    "code": "WSI_NOT_FOUND",
+                    "message": f"WSI file not found for slide {slide_id}",
+                    "slide_id": slide_id,
+                    "has_wsi": False,
+                },
             )
 
         slide, dz = result
@@ -4327,9 +4368,14 @@ DISCLAIMER: This is a research tool. All findings must be validated by qualified
         )
 
     @app.get("/api/slides/{slide_id}/dzi_files/{level}/{tile_spec}")
-    async def get_dzi_tile(slide_id: str, level: int, tile_spec: str):
+    async def get_dzi_tile(
+        slide_id: str,
+        level: int,
+        tile_spec: str,
+        project_id: Optional[str] = Query(None, description="Optional project id to resolve project-specific WSI paths"),
+    ):
         """Serve a single DZI tile image."""
-        result = get_slide_and_dz(slide_id)
+        result = get_slide_and_dz(slide_id, project_id=project_id)
         if result is None:
             raise HTTPException(
                 status_code=404,
@@ -4378,25 +4424,69 @@ DISCLAIMER: This is a research tool. All findings must be validated by qualified
     thumbnail_cache_dir.mkdir(parents=True, exist_ok=True)
 
     @app.get("/api/slides/{slide_id}/thumbnail")
-    async def get_slide_thumbnail(slide_id: str, size: int = 256):
+    async def get_slide_thumbnail(
+        slide_id: str,
+        size: int = 256,
+        project_id: Optional[str] = Query(None, description="Optional project id to resolve project-specific WSI paths"),
+    ):
         """Get a thumbnail of the whole slide.
-        
-        Thumbnails are cached to disk for performance.
+
+        Thumbnails are cached to disk for performance. If WSI is unavailable,
+        returns an in-memory fallback image (embeddings-only placeholder) so
+        clients never render broken image icons.
         """
+        size = max(64, min(size, 1024))
+
         # Check disk cache first
         cache_path = thumbnail_cache_dir / f"{slide_id}_{size}.jpg"
         if cache_path.exists():
             return FileResponse(
                 cache_path,
                 media_type="image/jpeg",
-                headers={"Cache-Control": "public, max-age=86400"}
+                headers={
+                    "Cache-Control": "public, max-age=86400",
+                    "X-WSI-Available": "true",
+                },
             )
 
-        result = get_slide_and_dz(slide_id)
+        result = get_slide_and_dz(slide_id, project_id=project_id)
         if result is None:
-            raise HTTPException(
-                status_code=404,
-                detail=f"WSI file not found for slide {slide_id}"
+            # Graceful fallback: deterministic placeholder for embeddings-only slides
+            from PIL import ImageDraw
+
+            img = Image.new("RGB", (size, size), (237, 242, 247))
+            draw = ImageDraw.Draw(img)
+            draw.rectangle([0, 0, size - 1, size - 1], outline=(203, 213, 225), width=2)
+
+            try:
+                from PIL import ImageFont
+                font = ImageFont.load_default()
+            except Exception:
+                font = None
+
+            title = "Embeddings"
+            subtitle = "WSI unavailable"
+            # Center text block
+            tb = draw.textbbox((0, 0), title, font=font)
+            sb = draw.textbbox((0, 0), subtitle, font=font)
+            tw = tb[2] - tb[0]
+            th = tb[3] - tb[1]
+            sw = sb[2] - sb[0]
+            sh = sb[3] - sb[1]
+            draw.text(((size - tw) / 2, (size - th - sh - 6) / 2), title, fill=(71, 85, 105), font=font)
+            draw.text(((size - sw) / 2, (size - th - sh - 6) / 2 + th + 6), subtitle, fill=(100, 116, 139), font=font)
+
+            buf = io.BytesIO()
+            img.save(buf, format="JPEG", quality=90)
+            buf.seek(0)
+            return StreamingResponse(
+                buf,
+                media_type="image/jpeg",
+                headers={
+                    "Cache-Control": "public, max-age=3600",
+                    "X-WSI-Available": "false",
+                    "X-Thumbnail-Fallback": "embeddings-only",
+                },
             )
 
         slide, dz = result
@@ -4413,7 +4503,10 @@ DISCLAIMER: This is a research tool. All findings must be validated by qualified
             return FileResponse(
                 cache_path,
                 media_type="image/jpeg",
-                headers={"Cache-Control": "public, max-age=86400"}
+                headers={
+                    "Cache-Control": "public, max-age=86400",
+                    "X-WSI-Available": "true",
+                },
             )
         except Exception as e:
             logger.error(f"Failed to get thumbnail for {slide_id}: {e}")

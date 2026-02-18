@@ -267,6 +267,7 @@ interface BackendSlideInfo {
   slide_id: string;
   patient_id?: string;
   display_name?: string | null;
+  has_wsi?: boolean;
   has_embeddings: boolean;
   has_level0_embeddings?: boolean;  // Whether level 0 (full res) embeddings exist
   label?: string;
@@ -308,6 +309,7 @@ export async function getSlides(params: { page?: number; perPage?: number; proje
       createdAt: new Date().toISOString(),
       // Extended fields from backend
       label: s.label,
+      hasWsi: s.has_wsi,
       hasEmbeddings: s.has_embeddings,
       hasLevel0Embeddings: s.has_level0_embeddings ?? false, // Level 0 embedding status
       numPatches: s.num_patches,
@@ -691,10 +693,13 @@ export async function generateReport(
  * The proxy routes through /api/slides/{id}/dzi and /api/slides/{id}/dzi_files/...
  * which forward to the backend while keeping same-origin.
  */
-export function getDziUrl(slideId: string): string {
+export function getDziUrl(slideId: string, projectId?: string): string {
   // Use local proxy to avoid CORS - OpenSeadragon will fetch tiles from
   // /api/slides/{id}/dzi_files/{level}/{col}_{row}.jpeg (relative to DZI URL)
-  return `/api/slides/${encodeURIComponent(slideId)}/dzi`;
+  const params = new URLSearchParams();
+  if (projectId) params.set("project_id", projectId);
+  const qs = params.toString() ? `?${params.toString()}` : "";
+  return `/api/slides/${encodeURIComponent(slideId)}/dzi${qs}`;
 }
 
 /**
@@ -724,8 +729,11 @@ export function getHeatmapUrl(slideId: string, modelId?: string, level?: number,
  * 
  * Uses local Next.js API proxy to avoid CORS issues.
  */
-export function getThumbnailUrl(slideId: string): string {
-  return `/api/slides/${encodeURIComponent(slideId)}/thumbnail`;
+export function getThumbnailUrl(slideId: string, projectId?: string): string {
+  const params = new URLSearchParams();
+  if (projectId) params.set("project_id", projectId);
+  const qs = params.toString() ? `?${params.toString()}` : "";
+  return `/api/slides/${encodeURIComponent(slideId)}/thumbnail${qs}`;
 }
 
 /**

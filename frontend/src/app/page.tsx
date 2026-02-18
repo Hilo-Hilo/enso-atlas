@@ -1641,7 +1641,7 @@ function HomePage() {
   }, [patchSelectionMode]);
 
   // Get DZI and heatmap URLs
-  const dziUrl = selectedSlide ? getDziUrl(selectedSlide.id) : undefined;
+  const dziUrl = selectedSlide ? getDziUrl(selectedSlide.id, currentProject?.id) : undefined;
   
   // Build heatmap data with selected model
   const heatmapData = selectedSlide ? {
@@ -2037,6 +2037,7 @@ function HomePage() {
               <WSIViewer
                 slideId={selectedSlide.id}
                 dziUrl={dziUrl}
+                hasWsi={selectedSlide.hasWsi}
                 heatmap={heatmapData}
                 mpp={selectedSlide.mpp}
                 onRegionClick={handlePatchClick}

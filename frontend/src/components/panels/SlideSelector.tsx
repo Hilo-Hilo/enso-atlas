@@ -74,11 +74,15 @@ function SlideThumbnail({
   slideId, 
   thumbnailUrl, 
   filename,
+  hasWsi,
+  projectId,
   className 
 }: { 
   slideId: string; 
   thumbnailUrl?: string; 
   filename: string;
+  hasWsi?: boolean;
+  projectId?: string;
   className?: string;
 }) {
   const [imageLoaded, setImageLoaded] = useState(false);
@@ -106,7 +110,9 @@ function SlideThumbnail({
   }, []);
 
   // Get the thumbnail URL - either from the slide data or construct from API
-  const imgSrc = thumbnailUrl || (isVisible ? getThumbnailUrl(slideId) : undefined);
+  const imgSrc = hasWsi === false
+    ? undefined
+    : (thumbnailUrl || (isVisible ? getThumbnailUrl(slideId, projectId) : undefined));
 
   return (
     <div 
@@ -136,7 +142,7 @@ function SlideThumbnail({
             loading="lazy"
           />
         </>
-      ) : imageError ? (
+      ) : (imageError || hasWsi === false) ? (
         <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200">
           <Layers className="h-5 w-5 text-slate-400" />
           <span className="text-[7px] font-medium text-slate-400 mt-0.5 leading-none">Embeddings</span>
@@ -144,6 +150,13 @@ function SlideThumbnail({
       ) : (
         <div className="w-full h-full flex items-center justify-center pattern-dots">
           <Microscope className="h-6 w-6 text-gray-400" />
+        </div>
+      )}
+
+      {/* Status indicator */}
+      {hasWsi === false && (
+        <div className="absolute bottom-0.5 right-0.5 px-1 py-0.5 rounded bg-slate-700/90 text-[8px] leading-none text-white">
+          Emb
         </div>
       )}
     </div>
@@ -388,6 +401,7 @@ export function SlideSelector({
                     isSelected={selectedSlideId === slide.id}
                     onClick={() => onSlideSelect(slide)}
                     qcMetrics={qcMetrics[slide.id]}
+                    currentProjectId={currentProject.id}
                   />
                 ))}
               </>
@@ -403,6 +417,8 @@ export function SlideSelector({
                 slideId={selectedSlide.id}
                 thumbnailUrl={selectedSlide.thumbnailUrl}
                 filename={selectedSlide.filename}
+                hasWsi={selectedSlide.hasWsi}
+                projectId={currentProject.id}
                 className="w-12 h-12 border-clinical-300"
               />
               <div className="flex-1 min-w-0">
@@ -438,6 +454,12 @@ export function SlideSelector({
                 <div className="flex items-center gap-1.5 text-clinical-700">
                   <ImageIcon className="h-3 w-3" />
                   <span>{selectedSlide.numPatches.toLocaleString()} patches</span>
+                </div>
+              )}
+              {selectedSlide.hasWsi === false && (
+                <div className="flex items-center gap-1.5 text-amber-700">
+                  <ImageOff className="h-3 w-3" />
+                  <span>Embeddings only (WSI unavailable)</span>
                 </div>
               )}
               {selectedSlide.label && (
@@ -637,6 +659,7 @@ interface SlideItemProps {
   isSelected: boolean;
   onClick: () => void;
   qcMetrics?: SlideQCMetrics;
+  currentProjectId?: string;
 }
 
 // Inline rename component for the selected slide
@@ -709,7 +732,7 @@ function SlideRenameInline({
   );
 }
 
-function SlideItem({ slide, isSelected, onClick, qcMetrics }: SlideItemProps) {
+function SlideItem({ slide, isSelected, onClick, qcMetrics, currentProjectId }: SlideItemProps) {
   const formattedDate = new Date(slide.createdAt).toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
@@ -731,6 +754,8 @@ function SlideItem({ slide, isSelected, onClick, qcMetrics }: SlideItemProps) {
         slideId={slide.id}
         thumbnailUrl={slide.thumbnailUrl}
         filename={slide.filename}
+        hasWsi={slide.hasWsi}
+        projectId={currentProjectId}
         className="group-hover:border-clinical-300"
       />
 
@@ -755,12 +780,18 @@ function SlideItem({ slide, isSelected, onClick, qcMetrics }: SlideItemProps) {
             </Badge>
           )}
         </div>
-        <div className="flex items-center gap-2 mt-1">
+        <div className="flex items-center gap-2 mt-1 flex-wrap">
           <span className="text-2xs text-gray-400">{formattedDate}</span>
           {slide.hasEmbeddings && (
             <span className="text-2xs text-clinical-600 font-medium">
               Embeddings ready
             </span>
+          )}
+          {slide.hasWsi === false && (
+            <span className="text-2xs text-amber-700 font-medium">WSI unavailable</span>
+          )}
+          {slide.hasWsi === true && (
+            <span className="text-2xs text-emerald-700 font-medium">WSI preview</span>
           )}
         </div>
       </div>

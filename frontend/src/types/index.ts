@@ -47,6 +47,7 @@ export interface SlideInfo {
   createdAt: string;
   // Extended fields from backend
   label?: string;
+  hasWsi?: boolean;
   hasEmbeddings?: boolean;
   hasLevel0Embeddings?: boolean; // Whether full-resolution (level 0) embeddings exist
   numPatches?: number;

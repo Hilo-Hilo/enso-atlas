@@ -64,6 +64,7 @@ type AnnotationTool = "pointer" | "circle" | "rectangle" | "freehand" | "point";
 interface WSIViewerProps {
   slideId: string;
   dziUrl: string;
+  hasWsi?: boolean;
   heatmap?: HeatmapData;
   mpp?: number; // microns per pixel
   onRegionClick?: (coords: PatchCoordinates) => void;
@@ -99,6 +100,7 @@ interface WSIViewerProps {
 export function WSIViewer({
   slideId,
   dziUrl,
+  hasWsi,
   heatmap,
   mpp = 0.5,
   onRegionClick,
@@ -255,6 +257,12 @@ export function WSIViewer({
   useEffect(() => {
     if (!containerRef.current || !dziUrl) return;
 
+    if (hasWsi === false) {
+      setLoadError("WSI preview unavailable — embeddings only");
+      setIsReady(false);
+      return;
+    }
+
     setLoadError(null);
     setIsReady(false);
 
@@ -377,7 +385,7 @@ export function WSIViewer({
       }
       setIsReady(false);
     };
-  }, [dziUrl, slideId]); // Removed onRegionClick and activeTool - they use refs now
+  }, [dziUrl, slideId, hasWsi]); // Removed onRegionClick and activeTool - they use refs now
 
   // Navigate to target coordinates when they change
   useEffect(() => {

@@ -12,8 +12,12 @@ export async function GET(
   const { slideId, level, tileSpec } = await params;
   
   try {
-    const backendUrl = `${BACKEND_URL}/api/slides/${encodeURIComponent(slideId)}/dzi_files/${level}/${tileSpec}`;
-    
+    const { searchParams } = new URL(request.url);
+    const projectId = searchParams.get("project_id");
+    const backendQs = new URLSearchParams();
+    if (projectId) backendQs.set("project_id", projectId);
+    const backendUrl = `${BACKEND_URL}/api/slides/${encodeURIComponent(slideId)}/dzi_files/${level}/${tileSpec}${backendQs.toString() ? `?${backendQs.toString()}` : ""}`;
+
     const response = await fetch(backendUrl, {
       method: "GET",
     });
