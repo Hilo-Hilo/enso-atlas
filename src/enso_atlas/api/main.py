@@ -2694,7 +2694,7 @@ def create_app(
             "limitations": [
                 "This is an uncalibrated research model - probabilities are not clinically validated",
                 "Prediction is based on morphological patterns and may not capture all relevant clinical factors",
-                "Model has been trained on a limited ovarian cancer dataset and may not generalize to all populations",
+                "Model has been trained on a limited cancer dataset and may not generalize to all populations",
                 "Slide quality and tissue representation may affect prediction accuracy",
                 "Similar case comparison is based on embedding distance, not verified clinical outcomes",
             ],
