@@ -418,7 +418,10 @@ export async function analyzeSlide(
     "/api/analyze",
     {
       method: "POST",
-      body: JSON.stringify({ slide_id: request.slideId }),
+      body: JSON.stringify({ 
+        slide_id: request.slideId,
+        project_id: request.projectId || null,
+      }),
     },
     { timeoutMs: 60000 } // 60 second timeout for analysis
   );

@@ -828,10 +828,11 @@ function HomePage() {
           slideId: slide.id,
           patchBudget: 8000,
           magnification: 20,
+          projectId: currentProject.id,
         }).catch(() => {});  // Silent -- cached multi-model results already shown
       }
     },
-    [clearResults, analyze]
+    [clearResults, analyze, currentProject.id]
   );
 
   // Handle semantic search
@@ -1149,6 +1150,7 @@ function HomePage() {
       slideId: selectedSlide.id,
       patchBudget: 8000,
       magnification: 20,
+      projectId: currentProject.id,
     });
 
     // Record stats for the quick stats panel
@@ -1168,7 +1170,7 @@ function HomePage() {
 
     // Also run multi-model analysis (force=true to bypass cache when user explicitly clicks)
     handleMultiModelAnalyze(true);
-  }, [selectedSlide, analyze, toast, handleMultiModelAnalyze]);
+  }, [selectedSlide, analyze, toast, handleMultiModelAnalyze, currentProject.id]);
 
   // Retry multi-model analysis (always force)
   const handleRetryMultiModel = useCallback(() => {

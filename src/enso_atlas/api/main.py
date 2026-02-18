@@ -166,6 +166,7 @@ def _check_cuda() -> bool:
 class AnalyzeRequest(BaseModel):
     slide_id: str = Field(..., min_length=1, max_length=256)
     generate_report: bool = False
+    project_id: Optional[str] = Field(None, description="Project ID to scope embeddings lookup")
 
 
 class AnalyzeResponse(BaseModel):
@@ -1423,7 +1424,21 @@ def create_app(
             raise HTTPException(status_code=503, detail="Model not loaded")
 
         slide_id = request.slide_id
-        emb_path = embeddings_dir / f"{slide_id}.npy"
+        
+        # Resolve project-specific embeddings directory if project_id is given
+        _analysis_embeddings_dir = embeddings_dir
+        if request.project_id and project_registry:
+            proj_cfg = project_registry.get_project(request.project_id)
+            if proj_cfg and hasattr(proj_cfg, 'dataset') and proj_cfg.dataset:
+                proj_emb_dir = Path(proj_cfg.dataset.embeddings_dir)
+                # Resolve relative paths against _data_root's parent (project root)
+                if not proj_emb_dir.is_absolute():
+                    proj_emb_dir = _data_root.parent / proj_emb_dir
+                if proj_emb_dir.exists():
+                    _analysis_embeddings_dir = proj_emb_dir
+                    logger.info(f"analyze_slide: Using project embeddings dir: {_analysis_embeddings_dir}")
+        
+        emb_path = _analysis_embeddings_dir / f"{slide_id}.npy"
 
         if not emb_path.exists():
             raise HTTPException(status_code=404, detail=f"Slide {slide_id} not found")
@@ -1445,7 +1460,7 @@ def create_app(
             confidence = min(1.0 - 0.5 * (2.0 ** (-20.0 * margin)), 0.99)
 
         # Load coordinates if available for tissue classification
-        coord_path = embeddings_dir / f"{slide_id}_coords.npy"
+        coord_path = _analysis_embeddings_dir / f"{slide_id}_coords.npy"
         coords = None
         if coord_path.exists():
             coords = np.load(coord_path)

@@ -144,6 +144,7 @@ export interface AnalysisRequest {
   taskType?: string;
   patchBudget?: number;
   magnification?: number;
+  projectId?: string;  // Project ID for project-specific embeddings lookup
 }
 
 // Analysis response from backend
