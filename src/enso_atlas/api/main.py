@@ -5567,7 +5567,7 @@ DISCLAIMER: This is a research tool. All findings must be validated by qualified
 
     class BatchEmbedRequest(BaseModel):
         """Request for batch re-embedding of multiple slides."""
-        level: int = Field(default=0, ge=0, le=1, description="Resolution level (0=full res, 1=downsampled)")
+        level: int = Field(default=0, ge=0, le=0, description="Resolution level fixed to 0 (dense full-resolution)")
         force: bool = Field(default=True, description="Force re-embedding even if cached")
         slide_ids: Optional[List[str]] = Field(default=None, description="Specific slide IDs (None = all slides)")
         concurrency: int = Field(default=1, ge=1, le=4, description="Concurrent embedding workers (1-4)")
