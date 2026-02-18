@@ -105,15 +105,16 @@ export function InlineProgress({
   currentStep,
   className,
 }: InlineProgressProps) {
-  const progressPercent = ((currentStep + 1) / steps.length) * 100;
-  const currentLabel = steps[currentStep] || steps[0];
+  const safeStep = Math.min(Math.max(currentStep, 0), Math.max(steps.length - 1, 0));
+  const progressPercent = Math.min(100, ((safeStep + 1) / Math.max(steps.length, 1)) * 100);
+  const currentLabel = steps[safeStep] || steps[0] || "Processing...";
 
   return (
     <div className={cn("space-y-2", className)}>
       <div className="flex items-center justify-between text-xs">
         <span className="text-gray-600 font-medium">{currentLabel}</span>
         <span className="text-gray-400">
-          Step {currentStep + 1} of {steps.length}
+          Step {safeStep + 1} of {steps.length}
         </span>
       </div>
       <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">

@@ -130,7 +130,7 @@ export function useAnalysis(): UseAnalysisReturn {
         isAnalyzing: false,
         analysisResult: result,
         report: result.report || null,
-        analysisStep: ANALYSIS_STEPS.length, // Completed
+        analysisStep: Math.max(ANALYSIS_STEPS.length - 1, 0),
         analysisStepId: null,
       }));
       return result;
