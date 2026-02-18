@@ -406,6 +406,11 @@ export function MultiModelPredictionPanel({
   const { currentProject } = useProject();
   const cancerTypeLabel = currentProject.cancer_type || "Cancer";
 
+  // Prefer the prop (from API / project config) over the static fallback
+  const modelsToPreview = (availableModels && availableModels.length > 0)
+    ? availableModels.map((m) => ({ id: m.id, displayName: m.name, description: m.description }))
+    : AVAILABLE_MODELS;
+
   // Update elapsed time during embedding
   useEffect(() => {
     if (!embeddingProgress?.startTime) {
@@ -523,7 +528,7 @@ export function MultiModelPredictionPanel({
             <p className="text-xs text-gray-500 max-w-[250px] mx-auto">
               {embeddingProgress?.message || (isEmbedding 
                 ? "DINOv2 is processing tissue patches (may take 2-3 min for new slides)"
-                : "Processing 5 TransMIL models in parallel"
+                : `Processing ${modelsToPreview.length} TransMIL models in parallel`
               )}
             </p>
             {isEmbedding && elapsedTime > 0 && (
@@ -598,7 +603,7 @@ export function MultiModelPredictionPanel({
               Multi-Model Ensemble Ready
             </p>
             <p className="text-xs text-gray-500 max-w-[280px] mx-auto leading-relaxed">
-              Run analysis to get predictions from {AVAILABLE_MODELS.length} specialized TransMIL models{currentProject.dataset_source ? ` trained on ${currentProject.dataset_source} ${cancerTypeLabel.toLowerCase()} data` : ""}.
+              Run analysis to get predictions from {modelsToPreview.length} specialized TransMIL models{currentProject.dataset_source ? ` trained on ${currentProject.dataset_source} ${cancerTypeLabel.toLowerCase()} data` : ""}.
             </p>
           </div>
 
@@ -607,7 +612,7 @@ export function MultiModelPredictionPanel({
             <p className="text-2xs font-semibold text-gray-400 uppercase tracking-wide px-1">
               Available Models Preview
             </p>
-            {AVAILABLE_MODELS.map((model) => (
+            {modelsToPreview.map((model) => (
               <PlaceholderModelCard
                 key={model.id}
                 modelName={model.displayName}

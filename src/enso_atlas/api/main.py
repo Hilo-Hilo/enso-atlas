@@ -1184,6 +1184,13 @@ def create_app(
                             mpp = float(mpp_x)
                 except Exception as e:
                     logger.warning(f"Could not read slide {slide_id}: {e}")
+            elif num_patches is not None and num_patches > 0:
+                # No WSI on disk — estimate dimensions from patch count.
+                # Assume a roughly square grid of 256×256 px patches (level 0).
+                import math
+                grid_side = int(math.ceil(math.sqrt(num_patches)))
+                estimated_px = grid_side * 256
+                dims = SlideDimensions(width=estimated_px, height=estimated_px)
 
             has_level0 = False
             if _fallback_embeddings_dir.name == "level0":
@@ -1193,6 +1200,12 @@ def create_app(
                 level0_dir = _fallback_embeddings_dir / "level0"
                 if level0_dir.exists():
                     has_level0 = (level0_dir / f"{slide_id}.npy").exists()
+                elif project_id and _fallback_embeddings_dir != embeddings_dir:
+                    # Project-specific embeddings dir (e.g. data/luad/embeddings)
+                    # that isn't named "level0" and has no level0/ subdirectory.
+                    # Treat these as level 0 embeddings (full-resolution patches).
+                    emb_check = _fallback_embeddings_dir / f"{slide_id}.npy"
+                    has_level0 = emb_check.exists()
 
             slides.append(SlideInfo(
                 slide_id=slide_id,
