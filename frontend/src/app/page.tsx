@@ -512,6 +512,21 @@ function HomePage() {
     fetchSlideList();
   }, [fetchSlideList]);
 
+  // Reset selected models and clear cached results when project changes
+  useEffect(() => {
+    // Reset selected models to empty (ModelPicker will populate based on new project)
+    setSelectedModels([]);
+    // Clear any cached analysis results from previous project
+    setMultiModelResult(null);
+    setIsCachedResult(false);
+    setCachedResultTimestamp(null);
+    // Clear selected slide
+    setSelectedSlide(null);
+    setSlideIndex(0);
+    // Clear heatmap model selection
+    setHeatmapModel(null);
+  }, [currentProject.id]);
+
   // Auto-select slide from URL query params (e.g. /?slide=TCGA-... from Slide Manager)
   useEffect(() => {
     const slideId = searchParams.get("slide");

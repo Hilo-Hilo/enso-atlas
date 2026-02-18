@@ -139,6 +139,13 @@ export function ModelPicker({
     fetchModels();
   }, [currentProject.id]);
 
+  // Auto-select all models when models are loaded and selectedModels is empty
+  useEffect(() => {
+    if (apiModels.length > 0 && selectedModels.length === 0) {
+      onSelectionChange(apiModels);
+    }
+  }, [apiModels, selectedModels.length, onSelectionChange]);
+
   // Track which models have been previously run on the selected slide
   const [previouslyRanModels, setPreviouslyRanModels] = useState<Set<string>>(new Set());
 
