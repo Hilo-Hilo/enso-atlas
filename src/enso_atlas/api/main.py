@@ -480,7 +480,7 @@ class MultiModelRequest(BaseModel):
     models: Optional[List[str]] = None  # None = run all models
     project_id: Optional[str] = Field(default=None, description="Project ID to scope models to project's classification_models")
     return_attention: bool = False
-    level: int = Field(default=1, ge=0, le=1, description="Resolution level: 0=full res, 1=downsampled")
+    level: int = Field(default=0, ge=0, le=0, description="Resolution level is fixed to 0 (full resolution, dense)")
     force: bool = Field(default=False, description="Bypass cache and force fresh analysis")
 
 
@@ -5112,13 +5112,12 @@ DISCLAIMER: This is a research tool. All findings must be validated by qualified
         """
         Extract patches and generate embeddings for a slide on-demand.
         
-        For level 0 (full resolution), this starts a background task and returns
-        a task_id for polling. For level 1, embedding is done inline.
-        
-        Supports:
-        - level=0: Full resolution (5-30K patches, 5-20 min, background task)
-        - level=1: Downsampled resolution (100-500 patches, ~30s, inline)
-        - async=true: Force background task mode (for level 1 as well)
+        Enforces level 0 (full resolution, dense) and starts a background task
+        with task_id polling.
+
+        Policy:
+        - level=0 only (dense full-resolution embeddings)
+        - async mode for background execution
         
         Returns immediately with task_id for background tasks.
         Poll /api/embed-slide/status/{task_id} for progress.
@@ -5133,8 +5132,8 @@ DISCLAIMER: This is a research tool. All findings must be validated by qualified
         if not slide_id:
             raise HTTPException(status_code=400, detail="slide_id required")
         
-        if level not in [0, 1]:
-            raise HTTPException(status_code=400, detail="level must be 0 or 1")
+        if level != 0:
+            raise HTTPException(status_code=400, detail="level must be 0 (dense full-resolution policy)")
         
         # Level-specific embedding paths
         # If embeddings_dir is already the level0 dir and level==0, use it directly
@@ -5299,7 +5298,7 @@ DISCLAIMER: This is a research tool. All findings must be validated by qualified
             width, height = level_dims
             patch_size = 224
             stride = 224
-            # No patch limit — embed all tissue patches regardless of slide size
+            # No patch limit — embed all level-0 grid patches regardless of slide size
             max_patches = float('inf')
             
             task_manager.update_task(task_id,
@@ -5324,13 +5323,9 @@ DISCLAIMER: This is a research tool. All findings must be validated by qualified
                     patch = patch.convert("RGB")
                     
                     patch_array = np.array(patch)
-                    mean_val = patch_array.mean()
-                    std_val = patch_array.std()
-                    
-                    # Relaxed thresholds for more patches (was mean<235, std>15)
-                    if mean_val < 245 and std_val > 10:
-                        patches.append(patch_array)
-                        coords.append([x0, y0])
+                    # Dense policy: keep all grid patches at level 0.
+                    patches.append(patch_array)
+                    coords.append([x0, y0])
                     
                     processed += 1
                     
@@ -5453,7 +5448,7 @@ DISCLAIMER: This is a research tool. All findings must be validated by qualified
             width, height = level_dims
             patch_size = 224
             stride = 224
-            # No patch limit — embed all tissue patches
+            # No patch limit — embed all level-0 grid patches
             max_patches = float('inf')
             
             patches = []
@@ -5468,13 +5463,9 @@ DISCLAIMER: This is a research tool. All findings must be validated by qualified
                     patch = patch.convert("RGB")
                     
                     patch_array = np.array(patch)
-                    mean_val = patch_array.mean()
-                    std_val = patch_array.std()
-                    
-                    # Relaxed thresholds for more patches (was mean<235, std>15)
-                    if mean_val < 245 and std_val > 10:
-                        patches.append(patch_array)
-                        coords.append([x0, y0])
+                    # Dense policy: keep all grid patches at level 0.
+                    patches.append(patch_array)
+                    coords.append([x0, y0])
                     
                     if len(patches) >= max_patches:
                         break
@@ -5707,7 +5698,7 @@ DISCLAIMER: This is a research tool. All findings must be validated by qualified
                 width, height = level_dims
                 patch_size = 224
                 stride = 224
-                # No patch limit — embed all tissue patches
+                # No patch limit — embed all level-0 grid patches
                 max_patches = float('inf')
 
                 patches = []
@@ -5722,12 +5713,9 @@ DISCLAIMER: This is a research tool. All findings must be validated by qualified
                         patch = patch.convert("RGB")
 
                         patch_array = np.array(patch)
-                        mean_val = patch_array.mean()
-                        std_val = patch_array.std()
-
-                        if mean_val < 245 and std_val > 10:
-                            patches.append(patch_array)
-                            coords.append([x0, y0])
+                        # Dense policy: keep all grid patches at level 0.
+                        patches.append(patch_array)
+                        coords.append([x0, y0])
 
                         if len(patches) >= max_patches:
                             break
@@ -5879,6 +5867,8 @@ DISCLAIMER: This is a research tool. All findings must be validated by qualified
 
         slide_id = request.slide_id
         level = request.level
+        if level != 0:
+            raise HTTPException(status_code=400, detail="level must be 0 (dense full-resolution policy)")
 
         allowed_model_ids = await _resolve_project_model_ids(request.project_id)
         if request.models is not None:

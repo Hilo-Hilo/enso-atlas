@@ -1361,7 +1361,7 @@ export async function getAvailableModels(): Promise<AvailableModelsResponse> {
  */
 export async function embedSlide(
   slideId: string,
-  level: number = 1,
+  level: number = 0,
   force: boolean = false
 ): Promise<{ status: string; numPatches: number; message: string; level: number }> {
   const response = await fetchApi<{
@@ -1396,7 +1396,7 @@ export async function analyzeSlideMultiModel(
   slideId: string,
   models?: string[],
   returnAttention: boolean = false,
-  level: number = 1,  // 0 = full resolution, 1 = downsampled
+  level: number = 0,  // fixed to full-resolution policy
   force: boolean = false,  // bypass cache
   projectId?: string  // scope models to project's classification_models
 ): Promise<MultiModelResponse> {
@@ -1924,7 +1924,7 @@ export interface EmbedSlideResponse {
  */
 export async function embedSlideAsync(
   slideId: string,
-  level: number = 1,
+  level: number = 0,
   force: boolean = false
 ): Promise<EmbedSlideResponse> {
   const response = await fetchApi<EmbedSlideResponse>(
@@ -2001,7 +2001,7 @@ export async function pollEmbeddingTask(
  */
 export async function embedSlideWithPolling(
   slideId: string,
-  level: number = 1,
+  level: number = 0,
   force: boolean = false,
   onProgress?: (status: { phase: "embedding" | "complete"; progress: number; message: string }) => void
 ): Promise<{ status: string; numPatches: number; message: string; level: number }> {

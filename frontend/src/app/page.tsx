@@ -329,7 +329,7 @@ function HomePage() {
   // Slide QC metrics state
   const [slideQCMetrics, setSlideQCMetrics] = useState<SlideQCMetrics | null>(null);
   const [selectedModels, setSelectedModels] = useState<string[]>([]);
-  const [resolutionLevel, setResolutionLevel] = useState<number>(1); // 0 = full res, 1 = downsampled
+  const [resolutionLevel, setResolutionLevel] = useState<number>(0); // policy default: 0 = full res, dense
   const [forceReembed, setForceReembed] = useState(false);
   const [heatmapModel, setHeatmapModel] = useState<string | null>(null);
   const [heatmapLevel, setHeatmapLevel] = useState<number>(2); // 0-4, default 2 (512px)
