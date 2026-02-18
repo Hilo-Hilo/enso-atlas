@@ -1087,10 +1087,27 @@ def create_app(
                 if slides or not project_id:
                     return slides
                 logger.info(f"DB returned 0 slides for project {project_id}, falling through to flat-file scan")
+                # If project_id is not in the registry at all, return empty fast
+                if project_registry and not project_registry.get_project(project_id):
+                    logger.info(f"Project {project_id} not in registry, returning empty")
+                    return []
             except Exception as e:
                 logger.warning(f"DB query failed, falling back to flat-file scan: {e}")
 
-        # ---- Slow fallback: flat-file scan (original implementation) ----
+        # If project_id is not in the registry, return empty immediately
+        if project_id and project_registry and not project_registry.get_project(project_id):
+            return []
+
+        # ---- Slow fallback: flat-file scan (with caching) ----
+        # Cache flat-file scan results per project for 60s to avoid re-scanning
+        _cache_key = project_id or "__global__"
+        if not hasattr(list_slides, "_cache"):
+            list_slides._cache = {}
+        _cached = list_slides._cache.get(_cache_key)
+        if _cached and (time.time() - _cached["ts"]) < 60:
+            logger.info(f"Returning cached flat-file scan for {_cache_key} ({len(_cached['data'])} slides)")
+            return _cached["data"]
+
         # When project_id is given and we have the registry, determine the
         # correct embeddings and slides directories for that project.
         _fallback_embeddings_dir = embeddings_dir
@@ -1219,6 +1236,9 @@ def create_app(
                 mpp=mpp,
             ))
 
+        # Cache the result
+        list_slides._cache[_cache_key] = {"data": slides, "ts": time.time()}
+        logger.info(f"Flat-file scan for {_cache_key}: {len(slides)} slides (cached for 60s)")
         return slides
 
     @app.get("/api/slides/search")
