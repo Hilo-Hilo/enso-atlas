@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { cn, truncateText } from "@/lib/utils";
 import { getThumbnailUrl } from "@/lib/api";
+import { useProject } from "@/contexts/ProjectContext";
 import type { SlideInfo, ExtendedSlideInfo } from "@/types";
 import {
   Star,
@@ -87,10 +88,20 @@ function SlideCard({
   onAddToGroup: () => void;
   onDelete: () => void;
 }) {
+  const { currentProject } = useProject();
   const [showMenu, setShowMenu] = React.useState(false);
   const [imageError, setImageError] = React.useState(false);
   const [isImageLoaded, setIsImageLoaded] = React.useState(false);
   const menuRef = React.useRef<HTMLDivElement>(null);
+  
+  // Get display labels from project context
+  const positiveLabel = currentProject.positive_class 
+    ? currentProject.positive_class.charAt(0).toUpperCase() + currentProject.positive_class.slice(1)
+    : "Positive";
+  const negativeLabel = currentProject.classes?.find(c => c !== currentProject.positive_class)
+    ? (currentProject.classes.find(c => c !== currentProject.positive_class) as string).charAt(0).toUpperCase() + 
+      (currentProject.classes.find(c => c !== currentProject.positive_class) as string).slice(1)
+    : "Negative";
 
   // Close menu when clicking outside
   React.useEffect(() => {
@@ -198,7 +209,7 @@ function SlideCard({
               variant={slide.label === "1" ? "success" : "danger"}
               size="sm"
             >
-              {slide.label === "1" ? "Sensitive" : "Resistant"}
+              {slide.label === "1" ? positiveLabel : negativeLabel}
             </Badge>
           </div>
         )}

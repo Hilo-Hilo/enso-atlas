@@ -128,7 +128,7 @@ export async function generatePdfReport(options: PdfExportOptions): Promise<Blob
   doc.setFont("helvetica", "bold");
   doc.text("Task:", margin + 90, yPos + 6);
   doc.setFont("helvetica", "normal");
-  doc.text(report.task || "Platinum Sensitivity Prediction", margin + 105, yPos + 6);
+  doc.text(report.task || "Pathology Analysis", margin + 105, yPos + 6);
 
   yPos += 28;
 

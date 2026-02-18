@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { cn, truncateText, formatDate } from "@/lib/utils";
+import { useProject } from "@/contexts/ProjectContext";
 import type { SlideInfo, ExtendedSlideInfo, SlideFilters } from "@/types";
 import {
   Star,
@@ -140,8 +141,18 @@ function SlideRow({
   onAddToGroup: () => void;
   onDelete: () => void;
 }) {
+  const { currentProject } = useProject();
   const [showMenu, setShowMenu] = React.useState(false);
   const menuRef = React.useRef<HTMLDivElement>(null);
+
+  // Get display labels from project context
+  const positiveLabel = currentProject.positive_class 
+    ? currentProject.positive_class.charAt(0).toUpperCase() + currentProject.positive_class.slice(1)
+    : "Positive";
+  const negativeLabel = currentProject.classes?.find(c => c !== currentProject.positive_class)
+    ? (currentProject.classes.find(c => c !== currentProject.positive_class) as string).charAt(0).toUpperCase() + 
+      (currentProject.classes.find(c => c !== currentProject.positive_class) as string).slice(1)
+    : "Negative";
 
   React.useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -196,7 +207,7 @@ function SlideRow({
             variant={slide.label === "1" ? "success" : "danger"}
             size="sm"
           >
-            {slide.label === "1" ? "Sensitive" : "Resistant"}
+            {slide.label === "1" ? positiveLabel : negativeLabel}
           </Badge>
         ) : (
           <span className="text-gray-400 text-sm">—</span>
