@@ -538,7 +538,7 @@ function HomePage() {
             name: m.displayName,
             description: m.description,
             auc: m.auc ?? 0,
-            nSlides: m.nTrainingSlides ?? 0,
+            nSlides: 0,  // Not available from this endpoint
             category: m.category,
             positiveLabel: m.positiveLabel ?? "Positive",
             negativeLabel: m.negativeLabel ?? "Negative",
