@@ -973,12 +973,25 @@ def create_app(
     @app.get("/health")
     async def health_check():
         """Health check endpoint."""
+        # Build per-project slide counts if registry is available
+        slides_by_project = {}
+        if project_registry:
+            for proj in (project_registry.list_projects() if hasattr(project_registry, 'list_projects') else []):
+                pid = proj.id if hasattr(proj, 'id') else proj.get('id', '')
+                if pid:
+                    try:
+                        proj_slides = await list_slides(project_id=pid)
+                        slides_by_project[pid] = len(proj_slides)
+                    except Exception:
+                        pass
+        total_slides = sum(slides_by_project.values()) if slides_by_project else len(available_slides)
         return {
             "status": "healthy",
             "version": "0.1.0",
             "model_loaded": classifier is not None,
             "cuda_available": _check_cuda(),
-            "slides_available": len(available_slides),
+            "slides_available": total_slides,
+            "slides_by_project": slides_by_project if slides_by_project else None,
             "db_available": db_available,
             "uptime": time.time() - _STARTUP_TIME,
         }
@@ -1627,8 +1640,9 @@ def create_app(
                     if _bproj and _bproj.classes:
                         _b_pos = _bproj.positive_class.upper() if _bproj.positive_class else _bproj.classes[-1].upper()
                         _b_neg = [c for c in _bproj.classes if c.lower() != _b_pos.lower()][0].upper() if len(_bproj.classes) > 1 else "NEGATIVE"
-                label = _b_pos if score > 0.5 else _b_neg
-                confidence = abs(score - 0.5) * 2
+                _b_threshold = classifier.threshold
+                label = _b_pos if score >= _b_threshold else _b_neg
+                confidence = abs(score - _b_threshold) * 2
 
                 # Determine uncertainty level and review requirement
                 if confidence < 0.3:
@@ -2481,7 +2495,16 @@ def create_app(
 
         embeddings = np.load(emb_path)
         score, attention = classifier.predict(embeddings)
-        label = "responder" if score > 0.5 else "non-responder"
+        threshold = classifier.threshold
+        # Use project-aware labels (same logic as /api/analyze)
+        _pos_label = "responder"
+        _neg_label = "non-responder"
+        if request.project_id and project_registry:
+            _proj = project_registry.get_project(request.project_id)
+            if _proj and _proj.classes:
+                _pos_label = _proj.positive_class if _proj.positive_class else _proj.classes[-1]
+                _neg_label = [c for c in _proj.classes if c.lower() != _pos_label.lower()][0] if len(_proj.classes) > 1 else "negative"
+        label = _pos_label if score >= threshold else _neg_label
 
         # Load patient context
         patient_ctx = _load_patient_context(slide_id)
@@ -2651,20 +2674,20 @@ def create_app(
                 ],
             }
             
-            # Significance based on label prediction (generic - not cancer-type specific)
+            # Significance based on label prediction (generic - uses positive/negative keys)
             significance_templates = {
-                "responder": {
-                    "tumor": "Tumor morphology patterns in this region are associated with favorable outcomes in the training cohort",
-                    "stroma": "Stromal composition in this area correlates with improved treatment outcomes",
-                    "inflammatory": "Inflammatory infiltrate pattern suggests favorable tumor microenvironment for treatment response",
+                "positive": {
+                    "tumor": "Tumor morphology patterns in this region are associated with the positive prediction in the training cohort",
+                    "stroma": "Stromal composition in this area correlates with the predicted outcome",
+                    "inflammatory": "Inflammatory infiltrate pattern suggests a tumor microenvironment consistent with the prediction",
                     "necrosis": "Necrotic pattern may indicate tissue changes relevant to prognosis",
                     "normal": "Preserved tissue architecture in adjacent regions may indicate better overall tissue health",
                 },
-                "non-responder": {
-                    "tumor": "Tumor morphology in this region shows patterns associated with less favorable outcomes",
-                    "stroma": "Stromal characteristics suggest possible treatment resistance mechanisms",
-                    "inflammatory": "Inflammatory pattern may indicate tumor microenvironment associated with less favorable response",
-                    "necrosis": "Necrotic patterns in this configuration are associated with less favorable outcomes",
+                "negative": {
+                    "tumor": "Tumor morphology in this region shows patterns associated with the predicted outcome",
+                    "stroma": "Stromal characteristics suggest mechanisms consistent with the prediction",
+                    "inflammatory": "Inflammatory pattern may indicate a tumor microenvironment associated with the predicted outcome",
+                    "necrosis": "Necrotic patterns in this configuration are associated with the predicted outcome",
                     "normal": "Limited tumor involvement in this area provides context for overall assessment",
                 },
             }
@@ -2676,8 +2699,8 @@ def create_app(
             # Add coordinate context
             morphology += f" at position ({coords[0]:,}, {coords[1]:,})"
             
-            # Select significance
-            label_key = label if label in significance_templates else "non-responder"
+            # Select significance based on whether prediction matches positive class
+            label_key = "positive" if label.lower() == _pos_label.lower() else "negative"
             sig_templates = significance_templates.get(label_key, {})
             significance = sig_templates.get(tissue_type, 
                 f"High model attention (weight: {attention:.3f}) indicates this region contributes significantly to the prediction")
@@ -4791,6 +4814,21 @@ DISCLAIMER: This is a research tool. All findings must be validated by qualified
         models = multi_model_inference.get_available_models()
 
         if project_id:
+            # Validate project exists
+            project_exists = False
+            if project_registry and project_registry.get_project(project_id):
+                project_exists = True
+            if not project_exists:
+                try:
+                    # Check DB as well
+                    db_models = await db.get_project_models(project_id)
+                    if db_models is not None:
+                        project_exists = True
+                except Exception:
+                    pass
+            if not project_exists:
+                return AvailableModelsResponse(models=[])
+
             allowed_ids = set()
             try:
                 allowed_ids = set(await db.get_project_models(project_id))
