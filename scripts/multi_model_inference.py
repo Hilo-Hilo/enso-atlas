@@ -121,6 +121,7 @@ MODEL_TEMPERATURES = {
     "survival_5y": 2.5,          # Very extreme outputs, needs heavy smoothing
     "survival_3y": 2.0,          # Extreme outputs
     "survival_1y": 2.5,          # Very extreme outputs
+    "lung_stage": 1.0,           # New model, default temperature
 }
 
 

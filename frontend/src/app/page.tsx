@@ -1013,7 +1013,7 @@ function HomePage() {
       }));
 
       // Then run multi-model analysis with the correct level
-      const result = await analyzeSlideMultiModel(selectedSlide.id, selectedModels, false, resolutionLevel, forceRefresh);
+      const result = await analyzeSlideMultiModel(selectedSlide.id, selectedModels, false, resolutionLevel, forceRefresh, currentProject.id);
       setMultiModelResult(result);
       
       // Success toast

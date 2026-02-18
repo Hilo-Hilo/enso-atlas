@@ -1374,7 +1374,8 @@ export async function analyzeSlideMultiModel(
   models?: string[],
   returnAttention: boolean = false,
   level: number = 1,  // 0 = full resolution, 1 = downsampled
-  force: boolean = false  // bypass cache
+  force: boolean = false,  // bypass cache
+  projectId?: string  // scope models to project's classification_models
 ): Promise<MultiModelResponse> {
   const backend = await fetchApi<BackendMultiModelResponse>(
     "/api/analyze-multi",
@@ -1383,6 +1384,7 @@ export async function analyzeSlideMultiModel(
       body: JSON.stringify({
         slide_id: slideId,
         models: (models === undefined ? null : models),
+        project_id: projectId || null,
         return_attention: returnAttention,
         level: level,
         force: force,

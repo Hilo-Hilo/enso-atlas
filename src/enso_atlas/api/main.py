@@ -5441,7 +5441,12 @@ DISCLAIMER: This is a research tool. All findings must be validated by qualified
                     # Build a response from cached results
                     cached_predictions = {}
                     cached_by_cat: Dict[str, list] = {}
+                    # Determine allowed models: explicit list > project scope > all
                     requested_models = set(request.models) if request.models else None
+                    if requested_models is None and request.project_id and project_registry:
+                        _proj_cfg = project_registry.get_project(request.project_id)
+                        if _proj_cfg and _proj_cfg.classification_models:
+                            requested_models = set(_proj_cfg.classification_models)
 
                     for row in cached:
                         mid = row["model_id"]
@@ -5483,13 +5488,32 @@ DISCLAIMER: This is a research tool. All findings must be validated by qualified
                 # Cache lookup failed; continue with fresh analysis
                 logger.warning(f"Cache lookup failed for {slide_id}, running fresh: {e}")
         
+        # Resolve project-specific embeddings directory if project_id is given
+        _analysis_embeddings_dir = embeddings_dir
+        if request.project_id and project_registry:
+            proj_cfg = project_registry.get_project(request.project_id)
+            if proj_cfg and hasattr(proj_cfg, 'dataset') and proj_cfg.dataset:
+                proj_emb_dir = Path(proj_cfg.dataset.embeddings_dir)
+                # Resolve relative paths against _data_root's parent (project root)
+                if not proj_emb_dir.is_absolute():
+                    proj_emb_dir = _data_root.parent / proj_emb_dir
+                if proj_emb_dir.exists():
+                    _analysis_embeddings_dir = proj_emb_dir
+                    logger.info(f"Using project embeddings dir: {_analysis_embeddings_dir}")
+        
         # Determine embedding path based on level
-        # embeddings_dir may already point to level0 (auto-detected at startup)
+        # _analysis_embeddings_dir may already point to level0 (auto-detected at startup)
         if level == 0:
-            # Try embeddings_dir directly first (it may already be level0)
-            emb_path = embeddings_dir / f"{slide_id}.npy"
+            # Try _analysis_embeddings_dir directly first (it may already be level0)
+            emb_path = _analysis_embeddings_dir / f"{slide_id}.npy"
             if not emb_path.exists():
                 # Try explicit level0 subdir
+                level0_dir = _analysis_embeddings_dir / "level0"
+                emb_path = level0_dir / f"{slide_id}.npy"
+            # Also try the default embeddings_dir as fallback
+            if not emb_path.exists():
+                emb_path = embeddings_dir / f"{slide_id}.npy"
+            if not emb_path.exists():
                 level0_dir = embeddings_dir / "level0"
                 emb_path = level0_dir / f"{slide_id}.npy"
             
@@ -5506,9 +5530,10 @@ DISCLAIMER: This is a research tool. All findings must be validated by qualified
                     }
                 )
         else:
-            # Default level: use current embeddings_dir (which may already be level0)
-            # Also check for level1 subdir under the data/embeddings root
-            emb_path = embeddings_dir / f"{slide_id}.npy"
+            # Default level: use project-specific or global embeddings_dir
+            emb_path = _analysis_embeddings_dir / f"{slide_id}.npy"
+            if not emb_path.exists() and _analysis_embeddings_dir != embeddings_dir:
+                emb_path = embeddings_dir / f"{slide_id}.npy"
             if not emb_path.exists():
                 level1_dir = _data_root / "embeddings" / "level1"
                 level1_emb_path = level1_dir / f"{slide_id}.npy"
