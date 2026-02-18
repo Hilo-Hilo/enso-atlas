@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState, useCallback, useEffect, useRef } from "react";
+import React, { useState, useCallback, useEffect, useRef, useMemo } from "react";
+import { useProject } from "@/contexts/ProjectContext";
 import {
   Bot,
   Brain,
@@ -315,8 +316,7 @@ function WorkflowStep({
           {predictions ? (
             <div className="grid grid-cols-2 gap-2">
               {Object.entries(predictions).map(([id, pred]) => {
-                const isPos = pred.label === "responder" || pred.label === "positive" ||
-                  pred.label === "sensitive" || pred.label.toLowerCase().includes("sensitive");
+                const isPos = isPositiveLabel(pred.label);
                 return (
                   <div key={id} className="bg-white rounded p-2 border">
                     <div className="font-medium text-xs truncate">{pred.model_name}</div>
@@ -338,8 +338,7 @@ function WorkflowStep({
               <div className="text-xs font-medium text-gray-500 mb-1">Similar Cases:</div>
               <div className="space-y-1">
                 {similarCases.slice(0, 3).map((c, i) => {
-                  const caseIsPos = c.label === "responder" || c.label === "sensitive" || 
-                    c.label === "positive" || (c.label && c.label.toLowerCase().includes("sensitive"));
+                  const caseIsPos = c.label ? isPositiveLabel(c.label) : false;
                   return (
                   <div key={i} className="flex items-center gap-2 text-xs text-gray-600">
                     <span className="truncate font-mono">{c.slide_id}</span>
@@ -482,6 +481,16 @@ export function AIAssistantPanel({
   onHighlightRegion,
   className,
 }: AIAssistantPanelProps) {
+  // Project-aware positive class detection
+  const { currentProject } = useProject();
+  const positiveClassLower = useMemo(() => 
+    (currentProject.positive_class || "").toLowerCase(), [currentProject.positive_class]);
+  const isPositiveLabel = useCallback((label: string) => {
+    const lower = label.toLowerCase();
+    if (positiveClassLower && lower === positiveClassLower) return true;
+    return lower === "responder" || lower === "positive" || lower === "sensitive" || lower.includes("sensitive");
+  }, [positiveClassLower]);
+
   // State
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);

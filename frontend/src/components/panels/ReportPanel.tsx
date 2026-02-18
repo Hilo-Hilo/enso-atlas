@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
+import { useProject } from "@/contexts/ProjectContext";
 import {
   Card,
   CardHeader,
@@ -125,6 +126,14 @@ export function ReportPanel({
   progressMessage = "Generating clinical report...",
   onRetry,
 }: ReportPanelProps) {
+  const { currentProject } = useProject();
+  const positiveClassLower = useMemo(() => (currentProject.positive_class || "").toLowerCase(), [currentProject.positive_class]);
+  const isPositiveLabel = (label: string) => {
+    const lower = label.toLowerCase();
+    if (positiveClassLower && lower === positiveClassLower) return true;
+    return lower.includes("responder") && !lower.includes("non") || lower === "sensitive" || lower === "positive";
+  };
+
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
     new Set(["decisionSupport", "summary", "evidence"])
   );
@@ -476,11 +485,9 @@ export function ReportPanel({
                         {example.label && (
                           <Badge
                             variant={
-                              example.label.toLowerCase().includes("responder") || example.label.toLowerCase() === "sensitive"
+                              isPositiveLabel(example.label)
                                 ? "success"
-                                : example.label.toLowerCase().includes("non") || example.label.toLowerCase() === "resistant"
-                                ? "danger"
-                                : "default"
+                                : "danger"
                             }
                             size="sm"
                           >

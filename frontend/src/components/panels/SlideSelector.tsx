@@ -443,9 +443,9 @@ export function SlideSelector({
                 <div className="col-span-2">
                   <Badge
                     variant={
-                      selectedSlide.label === "1" || selectedSlide.label.toLowerCase() === "sensitive" || selectedSlide.label.toLowerCase().includes("responder")
+                      selectedSlide.label.toLowerCase() === (currentProject.positive_class || "").toLowerCase() || selectedSlide.label === "1" || selectedSlide.label.toLowerCase() === "sensitive" || selectedSlide.label.toLowerCase().includes("responder")
                         ? "success"
-                        : selectedSlide.label === "0" || selectedSlide.label.toLowerCase() === "resistant" || selectedSlide.label.toLowerCase().includes("non")
+                        : selectedSlide.label.toLowerCase() === (currentProject.classes?.find(c => c !== currentProject.positive_class) || "").toLowerCase() || selectedSlide.label === "0" || selectedSlide.label.toLowerCase() === "resistant" || selectedSlide.label.toLowerCase().includes("non")
                         ? "danger"
                         : "default"
                     }

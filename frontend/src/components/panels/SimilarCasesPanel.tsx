@@ -25,16 +25,27 @@ import {
 import type { SimilarCase } from "@/types";
 import { useProject } from "@/contexts/ProjectContext";
 
-// Helper to classify case outcome
-function classifyOutcome(label?: string): "responder" | "non-responder" | "unknown" {
+// Helper to classify case outcome (project-aware)
+function classifyOutcome(label?: string, positiveClass?: string, negativeClass?: string): "responder" | "non-responder" | "unknown" {
   if (!label) return "unknown";
   const lower = label.toLowerCase();
-  if (lower.includes("positive") || lower.includes("responder") && !lower.includes("non")) {
+  // Check against project-specific positive/negative classes first
+  if (positiveClass && lower === positiveClass.toLowerCase()) {
+    return "responder";
+  }
+  if (negativeClass && lower === negativeClass.toLowerCase()) {
+    return "non-responder";
+  }
+  // Fallback to generic label patterns
+  if (lower.includes("positive") || (lower.includes("responder") && !lower.includes("non"))) {
     return "responder";
   }
   if (lower.includes("negative") || lower.includes("non")) {
     return "non-responder";
   }
+  // Check for numeric labels (1 = positive, 0 = negative)
+  if (lower === "1" || lower === "sensitive") return "responder";
+  if (lower === "0" || lower === "resistant") return "non-responder";
   return "unknown";
 }
 
@@ -69,11 +80,11 @@ export function SimilarCasesPanel({
   const positiveLabel = currentProject.positive_class || currentProject.classes?.[1] || "Positive";
   const negativeLabel = currentProject.classes?.find(c => c !== currentProject.positive_class) || currentProject.classes?.[0] || "Negative";
 
-  // Group cases by outcome
+  // Group cases by outcome (project-aware)
   const groupedCases = useMemo<GroupedCases>(() => {
     return cases.reduce<GroupedCases>(
       (acc, c) => {
-        const outcome = classifyOutcome(c.label);
+        const outcome = classifyOutcome(c.label, positiveLabel, negativeLabel);
         if (outcome === "responder") acc.responders.push(c);
         else if (outcome === "non-responder") acc.nonResponders.push(c);
         else acc.unknown.push(c);
@@ -81,7 +92,7 @@ export function SimilarCasesPanel({
       },
       { responders: [], nonResponders: [], unknown: [] }
     );
-  }, [cases]);
+  }, [cases, positiveLabel, negativeLabel]);
 
   const visibleCases = showAll ? cases : cases.slice(0, 5);
 
