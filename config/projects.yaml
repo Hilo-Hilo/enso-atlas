@@ -32,8 +32,8 @@ classification_models:
     model_dir: "luad_transmil_stage"
     display_name: "Tumor Stage"
     description: "Predicts pathologic stage (early vs advanced)"
-    auc: 0.0
-    n_slides: 0
+    auc: 0.648
+    n_slides: 130
     category: "lung_cancer"
     positive_label: "Advanced (III/IV)"
     negative_label: "Early (I/II)"
