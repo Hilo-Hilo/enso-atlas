@@ -666,10 +666,6 @@ def create_app(
                             candidates_dirs.append(p)
                 except Exception:
                     pass
-                        if p not in candidates_dirs:
-                            candidates_dirs.append(p)
-                except Exception:
-                    pass
 
         exts = [".svs", ".tiff", ".tif", ".ndpi", ".mrxs", ".vms", ".scn"]
         for d in candidates_dirs:
