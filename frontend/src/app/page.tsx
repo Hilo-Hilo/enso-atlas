@@ -431,6 +431,19 @@ function HomePage() {
   // Effective analysis result: demo overlay takes precedence when active
   const analysisResult = demoAnalysisResult ?? hookAnalysisResult;
 
+  // UX gating: hide low-signal evidence by default
+  const EVIDENCE_SIGNIFICANCE_THRESHOLD = 0.6;
+  const MIN_SIGNIFICANT_EVIDENCE_PATCHES = 2;
+  const significantEvidencePatches = useMemo(() => {
+    const patches = analysisResult?.evidencePatches ?? [];
+    const significant = patches.filter(
+      (p) => (p.attentionWeight ?? 0) >= EVIDENCE_SIGNIFICANCE_THRESHOLD
+    );
+    return significant.length >= MIN_SIGNIFICANT_EVIDENCE_PATCHES ? significant : [];
+  }, [analysisResult]);
+
+  const showMultiModelPanel = scopedProjectModels.length > 1;
+
   // Report state from agent workflow (AI Assistant). This hydrates the main Clinical Report panel.
   const [agentReport, setAgentReport] = useState<StructuredReport | null>(null);
   const report = agentReport ?? generatedReport;
@@ -1282,9 +1295,15 @@ function HomePage() {
       );
     }
 
-    // Also run multi-model analysis (force=true to bypass cache when user explicitly clicks)
-    handleMultiModelAnalyze(true);
-  }, [selectedSlide, analyze, toast, handleMultiModelAnalyze, currentProject.id]);
+    // Only run multi-model analysis when this project actually has multiple scoped models.
+    if (scopedProjectModels.length > 1) {
+      // force=true to bypass cache when user explicitly clicks
+      handleMultiModelAnalyze(true);
+    } else {
+      setMultiModelResult(null);
+      setMultiModelError(null);
+    }
+  }, [selectedSlide, analyze, toast, handleMultiModelAnalyze, currentProject.id, scopedProjectModels.length]);
 
   // Retry multi-model analysis (always force)
   const handleRetryMultiModel = useCallback(() => {
@@ -1315,7 +1334,7 @@ function HomePage() {
     (direction: "prev" | "next") => {
       if (!zoomedPatch || !analysisResult) return;
 
-      const patches = analysisResult.evidencePatches;
+      const patches = significantEvidencePatches;
       const currentIndex = patches.findIndex((p) => p.id === zoomedPatch.id);
 
       if (direction === "prev" && currentIndex > 0) {
@@ -1324,7 +1343,7 @@ function HomePage() {
         setZoomedPatch(patches[currentIndex + 1]);
       }
     },
-    [zoomedPatch, analysisResult]
+    [zoomedPatch, analysisResult, significantEvidencePatches]
   );
 
   // Handle similar case click - switch to viewing that slide
@@ -1878,26 +1897,28 @@ function HomePage() {
         />
       </div>
 
-      {/* Multi-Model Analysis Results */}
-      <div data-demo="multi-model-panel">
-        <MultiModelPredictionPanel
-          multiModelResult={multiModelResult}
-          isLoading={isAnalyzingMultiModel}
-          processingTime={multiModelResult?.processingTimeMs}
-          error={multiModelError}
-          onRetry={handleRetryMultiModel}
-          embeddingProgress={embeddingProgress}
-          isCached={isCachedResult}
-          cachedAt={cachedResultTimestamp}
-          onReanalyze={selectedSlide ? handleReanalyze : undefined}
-          availableModels={scopedProjectModels.length > 0 ? scopedProjectModels : undefined}
-        />
-      </div>
+      {/* Multi-Model Analysis Results (only for projects with >1 scoped model) */}
+      {showMultiModelPanel && (
+        <div data-demo="multi-model-panel">
+          <MultiModelPredictionPanel
+            multiModelResult={multiModelResult}
+            isLoading={isAnalyzingMultiModel}
+            processingTime={multiModelResult?.processingTimeMs}
+            error={multiModelError}
+            onRetry={handleRetryMultiModel}
+            embeddingProgress={embeddingProgress}
+            isCached={isCachedResult}
+            cachedAt={cachedResultTimestamp}
+            onReanalyze={selectedSlide ? handleReanalyze : undefined}
+            availableModels={scopedProjectModels.length > 0 ? scopedProjectModels : undefined}
+          />
+        </div>
+      )}
 
-      {/* Evidence Patches */}
+      {/* Evidence Patches (significance-gated to reduce low-signal clutter) */}
       <div ref={evidencePanelRef} tabIndex={-1} className="focus:outline-none focus:ring-2 focus:ring-clinical-500 focus:ring-offset-2 rounded-lg" data-demo="evidence-panel">
         <EvidencePanel
-          patches={analysisResult?.evidencePatches ?? []}
+          patches={significantEvidencePatches}
           isLoading={isAnalyzing}
           onPatchClick={handlePatchClick}
           onPatchZoom={handlePatchZoom}
