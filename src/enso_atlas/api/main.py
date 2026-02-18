@@ -1080,7 +1080,12 @@ def create_app(
                     ))
                 elapsed_ms = (time.time() - t0) * 1000
                 logger.info(f"/api/slides returned {len(slides)} slides from DB in {elapsed_ms:.0f}ms")
-                return slides
+                # If DB returned 0 slides for a specific project, fall through
+                # to flat-file scan — the project's embeddings may not be in
+                # the DB yet but exist on disk.
+                if slides or not project_id:
+                    return slides
+                logger.info(f"DB returned 0 slides for project {project_id}, falling through to flat-file scan")
             except Exception as e:
                 logger.warning(f"DB query failed, falling back to flat-file scan: {e}")
 
