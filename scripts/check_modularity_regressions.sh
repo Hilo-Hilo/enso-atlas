@@ -12,4 +12,5 @@ fi
 "${PYTEST_CMD[@]}" \
   tests/test_model_scope.py \
   tests/test_frontend_heatmap_proxy_scoping.py \
+  tests/test_heatmap_grid_alignment.py \
   -q

@@ -30,6 +30,7 @@ from .model_scope import (
     is_model_allowed_for_scope,
     resolve_project_model_scope,
 )
+from .heatmap_grid import compute_heatmap_grid_coverage
 from collections import deque
 
 import numpy as np
@@ -6020,6 +6021,7 @@ DISCLAIMER: This is a research tool. All findings must be validated by qualified
                     _slide_dims = (int(_ca[:, 0].max()) + patch_size_c, int(_ca[:, 1].max()) + patch_size_c)
                 else:
                     _slide_dims = (patch_size_c, patch_size_c)
+            _coverage = compute_heatmap_grid_coverage(_slide_dims[0], _slide_dims[1], patch_size=224)
             logger.info(f"Serving cached heatmap for {slide_id}/{model_id}")
             return FileResponse(
                 str(cache_path),
@@ -6029,8 +6031,8 @@ DISCLAIMER: This is a research tool. All findings must be validated by qualified
                     "X-Model-Name": MODEL_CONFIGS[model_id]["display_name"],
                     "X-Slide-Width": str(_slide_dims[0]),
                     "X-Slide-Height": str(_slide_dims[1]),
-                    "X-Coverage-Width": str(int(np.ceil(_slide_dims[0] / 224)) * 224),
-                    "X-Coverage-Height": str(int(np.ceil(_slide_dims[1] / 224)) * 224),
+                    "X-Coverage-Width": str(_coverage.coverage_width),
+                    "X-Coverage-Height": str(_coverage.coverage_height),
                     "Access-Control-Expose-Headers": "X-Model-Id, X-Model-Name, X-Slide-Width, X-Slide-Height, X-Coverage-Width, X-Coverage-Height",
                 }
             )
@@ -6115,18 +6117,16 @@ DISCLAIMER: This is a research tool. All findings must be validated by qualified
             # Generate a patch-resolution heatmap: 1 pixel = 1 patch (224x224).
             # This produces crisp discrete patches when rendered with image-rendering: pixelated.
             coords_list = [tuple(map(int, c)) for c in coords_arr]
-            slide_w, slide_h = slide_dims
-            
-            # Compute grid dimensions in patch units
-            grid_w = int(np.ceil(slide_w / patch_size))
-            grid_h = int(np.ceil(slide_h / patch_size))
-            
+            _coverage = compute_heatmap_grid_coverage(slide_dims[0], slide_dims[1], patch_size=patch_size)
+            grid_w = _coverage.grid_width
+            grid_h = _coverage.grid_height
+
             logger.info(f"Model heatmap patch-resolution: {grid_w}x{grid_h} (1 pixel per {patch_size}px patch)")
-            
+
             heatmap_rgba = evidence_gen.create_heatmap(
-                attention, 
-                coords_list, 
-                slide_dims, 
+                attention,
+                coords_list,
+                slide_dims,
                 thumbnail_size=(grid_w, grid_h),
                 smooth=False,
                 blur_kernel=1,
@@ -6150,15 +6150,15 @@ DISCLAIMER: This is a research tool. All findings must be validated by qualified
                     logger.warning(f"Failed to cache heatmap: {cache_err}")
             
             return StreamingResponse(
-                buf, 
+                buf,
                 media_type="image/png",
                 headers={
                     "X-Model-Id": model_id,
                     "X-Model-Name": MODEL_CONFIGS[model_id]["display_name"],
                     "X-Slide-Width": str(slide_dims[0]),
                     "X-Slide-Height": str(slide_dims[1]),
-                    "X-Coverage-Width": str(grid_w * patch_size),
-                    "X-Coverage-Height": str(grid_h * patch_size),
+                    "X-Coverage-Width": str(_coverage.coverage_width),
+                    "X-Coverage-Height": str(_coverage.coverage_height),
                     "Access-Control-Expose-Headers": "X-Model-Id, X-Model-Name, X-Slide-Width, X-Slide-Height, X-Coverage-Width, X-Coverage-Height",
                 }
             )
