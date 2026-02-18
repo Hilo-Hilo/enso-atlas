@@ -523,6 +523,8 @@ function HomePage() {
     setMultiModelResult(null);
     setIsCachedResult(false);
     setCachedResultTimestamp(null);
+    // Clear single-model analysis results to avoid stale data from previous project
+    clearResults();
     // Clear selected slide
     setSelectedSlide(null);
     setSlideIndex(0);
@@ -550,7 +552,7 @@ function HomePage() {
           setProjectAvailableModels([]);
         });
     }
-  }, [currentProject.id]);
+  }, [currentProject.id, clearResults]);
 
   // Auto-select slide from URL query params (e.g. /?slide=TCGA-... from Slide Manager)
   useEffect(() => {
