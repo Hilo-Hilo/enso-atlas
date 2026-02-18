@@ -25,6 +25,11 @@ from .batch_tasks import batch_task_manager, BatchTaskStatus, BatchTask, BatchSl
 from . import database as db
 from .projects import ProjectRegistry
 from .project_routes import router as project_router, set_registry as set_project_registry
+from .model_scope import (
+    filter_models_for_scope,
+    is_model_allowed_for_scope,
+    resolve_project_model_scope,
+)
 from collections import deque
 
 import numpy as np
@@ -4936,36 +4941,16 @@ DISCLAIMER: This is a research tool. All findings must be validated by qualified
         models = multi_model_inference.get_available_models()
 
         if project_id:
-            # Validate project exists
-            project_exists = False
-            if project_registry and project_registry.get_project(project_id):
-                project_exists = True
-            if not project_exists:
-                try:
-                    # Check DB as well - only count as existing if there are actual models
-                    db_models = await db.get_project_models(project_id)
-                    if db_models:  # Non-empty list means project exists in DB
-                        project_exists = True
-                except Exception:
-                    pass
-            if not project_exists:
+            scope = await resolve_project_model_scope(
+                project_id,
+                project_registry=project_registry,
+                get_project_models=db.get_project_models,
+                logger=logger,
+            )
+            if not scope.project_exists:
                 return AvailableModelsResponse(models=[])
 
-            allowed_ids = set()
-            try:
-                allowed_ids = set(await db.get_project_models(project_id))
-            except Exception as e:
-                logger.warning(f"DB model query failed for {project_id}: {e}")
-
-            # Fall through to YAML config if DB returned empty
-            if not allowed_ids and project_registry:
-                proj_cfg = project_registry.get_project(project_id)
-                if proj_cfg and proj_cfg.classification_models:
-                    allowed_ids = set(proj_cfg.classification_models)
-                    logger.info(f"Using YAML classification_models for {project_id}: {allowed_ids}")
-
-            if allowed_ids:
-                models = [m for m in models if m.get("id", m.get("model_id")) in allowed_ids]
+            models = filter_models_for_scope(models, scope.allowed_model_ids)
 
         return AvailableModelsResponse(models=models)
 
@@ -5971,8 +5956,6 @@ DISCLAIMER: This is a research tool. All findings must be validated by qualified
         - survival_3y
         - survival_1y
         """
-        import torch
-        
         if multi_model_inference is None:
             raise HTTPException(status_code=503, detail="Multi-model inference not initialized")
         
@@ -5981,6 +5964,24 @@ DISCLAIMER: This is a research tool. All findings must be validated by qualified
                 status_code=400, 
                 detail=f"Unknown model: {model_id}. Available: {list(MODEL_CONFIGS.keys())}"
             )
+
+        if project_id:
+            scope = await resolve_project_model_scope(
+                project_id,
+                project_registry=project_registry,
+                get_project_models=db.get_project_models,
+                logger=logger,
+            )
+            if not scope.project_exists:
+                raise HTTPException(status_code=404, detail=f"Unknown project_id: {project_id}")
+            if not is_model_allowed_for_scope(model_id, scope):
+                raise HTTPException(
+                    status_code=403,
+                    detail=(
+                        f"Model '{model_id}' is not assigned to project '{project_id}'. "
+                        f"Use /api/models?project_id={project_id} to fetch allowed model IDs."
+                    ),
+                )
         
         # Resolve project-specific embeddings directory if project_id is given
         _model_heatmap_embeddings_dir = embeddings_dir
