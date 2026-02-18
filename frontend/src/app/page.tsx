@@ -50,7 +50,6 @@ const WSIViewer = nextDynamic(
 );
 
 // Fallback heatmap models -- derived from shared model config
-const DEFAULT_HEATMAP_MODELS = AVAILABLE_MODELS.map((m) => ({ id: m.id, name: m.displayName }));
 
 // Mobile Panel Tab Component
 type MobilePanelTab = "slides" | "results";
@@ -535,7 +534,7 @@ function HomePage() {
     if (currentProject.id && currentProject.id !== "default") {
       getProjectAvailableModels(currentProject.id)
         .then((models) => {
-          setProjectAvailableModels(models.map(m => ({
+          const mapped = models.map(m => ({
             id: m.id,
             name: m.displayName,
             description: m.description,
@@ -545,11 +544,15 @@ function HomePage() {
             positiveLabel: m.positiveLabel ?? "Positive",
             negativeLabel: m.negativeLabel ?? "Negative",
             available: true,
-          })));
+          }));
+          setProjectAvailableModels(mapped);
+          // Keep heatmap model project-scoped: default to first model for this project.
+          setHeatmapModel(mapped[0]?.id ?? null);
         })
         .catch((err) => {
           console.warn("Failed to fetch project models for preview:", err);
           setProjectAvailableModels([]);
+          setHeatmapModel(currentProject.prediction_target ?? null);
         });
     }
   }, [currentProject.id, clearResults]);
@@ -1644,8 +1647,11 @@ function HomePage() {
   const dziUrl = selectedSlide ? getDziUrl(selectedSlide.id, currentProject?.id) : undefined;
   
   // Build heatmap data with selected model
-  const heatmapData = selectedSlide ? {
-    imageUrl: getHeatmapUrl(selectedSlide.id, heatmapModel || (AVAILABLE_MODELS[0]?.id ?? "treatment_response"), heatmapLevel, debouncedAlphaPower, currentProject?.id),
+  const effectiveHeatmapModel =
+    heatmapModel ?? projectAvailableModels[0]?.id ?? currentProject?.prediction_target ?? null;
+
+  const heatmapData = selectedSlide && effectiveHeatmapModel ? {
+    imageUrl: getHeatmapUrl(selectedSlide.id, effectiveHeatmapModel, heatmapLevel, debouncedAlphaPower, currentProject?.id),
     minValue: 0,
     maxValue: 1,
     colorScale: "viridis" as const,
@@ -2049,7 +2055,7 @@ function HomePage() {
                 heatmapAlphaPower={heatmapAlphaPower}
                 onHeatmapAlphaPowerChange={setHeatmapAlphaPower}
                 onHeatmapModelChange={setHeatmapModel}
-                availableModels={AVAILABLE_MODELS.length > 0 ? AVAILABLE_MODELS.map(m => ({ id: m.id, name: m.displayName })) : DEFAULT_HEATMAP_MODELS}
+                availableModels={projectAvailableModels.length > 0 ? projectAvailableModels.map(m => ({ id: m.id, name: m.name })) : []}
                 onControlsReady={(controls) => { viewerControlsRef.current = controls; }}
                 onZoomChange={setViewerZoom}
                 annotations={annotations}
