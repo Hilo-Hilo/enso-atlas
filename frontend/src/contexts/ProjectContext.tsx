@@ -52,10 +52,13 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
         if (projectList.length > 0) {
           setProjects(projectList);
 
-          // Restore previously selected project from localStorage
+          // URL ?project= param takes priority, then localStorage, then first
+          const urlParams = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
+          const urlProjectId = urlParams?.get("project");
           const savedId = typeof window !== "undefined" ? localStorage.getItem(STORAGE_KEY) : null;
-          const saved = savedId ? projectList.find((p) => p.id === savedId) : null;
-          setCurrentProject(saved ?? projectList[0]);
+          const fromUrl = urlProjectId ? projectList.find((p) => p.id === urlProjectId) : null;
+          const fromStorage = savedId ? projectList.find((p) => p.id === savedId) : null;
+          setCurrentProject(fromUrl ?? fromStorage ?? projectList[0]);
         } else {
           // No projects returned — use default
           setProjects([DEFAULT_PROJECT]);
