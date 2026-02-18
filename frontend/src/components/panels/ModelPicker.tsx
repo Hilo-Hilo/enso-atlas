@@ -114,6 +114,12 @@ export function ModelPicker({
   useEffect(() => {
     // Skip fetch until a real project is loaded (avoids 404 on "default")
     if (!currentProject.id || currentProject.id === "default") return;
+    
+    // Clear old models first to prevent race condition with auto-select
+    setApiModels([]);
+    setApiModelDetails([]);
+    setUsingCachedModels(false);
+    
     const fetchModels = async () => {
       try {
         // Try the new config-driven endpoint first
