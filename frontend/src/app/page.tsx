@@ -884,12 +884,21 @@ function HomePage() {
           currentProject.classes?.[0] ||
           "Negative";
 
+        const allowedModelIds = new Set<string>([
+          ...scopedProjectModels.map((m) => m.id),
+          ...(currentProject.prediction_target ? [currentProject.prediction_target] : []),
+        ]);
+
         const predictions: Record<string, import("@/types").ModelPrediction> = {};
         const cancerSpecific: import("@/types").ModelPrediction[] = [];
         const generalPathology: import("@/types").ModelPrediction[] = [];
         let latestTimestamp: string | null = null;
 
         for (const r of cachedResult.results) {
+          // Never render cross-project model IDs from stale cache payloads.
+          if (!allowedModelIds.has(r.model_id)) {
+            continue;
+          }
           const meta = MODEL_META[r.model_id];
           const category =
             meta?.category ||
@@ -921,15 +930,17 @@ function HomePage() {
           }
         }
 
-        setMultiModelResult({
-          slideId: slide.id,
-          predictions,
-          byCategory: { cancerSpecific, generalPathology },
-          nPatches: 0,
-          processingTimeMs: 0,
-        });
-        setIsCachedResult(true);
-        setCachedResultTimestamp(latestTimestamp);
+        if (Object.keys(predictions).length > 0) {
+          setMultiModelResult({
+            slideId: slide.id,
+            predictions,
+            byCategory: { cancerSpecific, generalPathology },
+            nPatches: 0,
+            processingTimeMs: 0,
+          });
+          setIsCachedResult(true);
+          setCachedResultTimestamp(latestTimestamp);
+        }
 
         // Auto-run single-model analysis to populate evidence patches + semantic search
         analyze({
@@ -1204,13 +1215,42 @@ function HomePage() {
         forceRefresh,
         currentProject.id
       );
-      setMultiModelResult(result);
+
+      const allowedModelIds = new Set<string>(
+        modelIdsForAnalysis.length > 0
+          ? modelIdsForAnalysis
+          : [
+              ...scopedProjectModels.map((m) => m.id),
+              ...(currentProject.prediction_target ? [currentProject.prediction_target] : []),
+            ]
+      );
+
+      const filteredPredictions = Object.fromEntries(
+        Object.entries(result.predictions).filter(([modelId]) => allowedModelIds.has(modelId))
+      );
+      const filteredCancerSpecific = result.byCategory.cancerSpecific.filter((p) =>
+        allowedModelIds.has(p.modelId)
+      );
+      const filteredGeneralPathology = result.byCategory.generalPathology.filter((p) =>
+        allowedModelIds.has(p.modelId)
+      );
+
+      const scopedResult: MultiModelResponse = {
+        ...result,
+        predictions: filteredPredictions,
+        byCategory: {
+          cancerSpecific: filteredCancerSpecific,
+          generalPathology: filteredGeneralPathology,
+        },
+      };
+
+      setMultiModelResult(scopedResult);
       
       // Success toast
       toast.removeToast(toastId);
       toast.success(
         "Analysis Complete",
-        `Analyzed ${result.nPatches} patches with ${(result.byCategory.cancerSpecific?.length ?? 0) + (result.byCategory.generalPathology?.length ?? 0)} models`
+        `Analyzed ${scopedResult.nPatches} patches with ${(scopedResult.byCategory.cancerSpecific?.length ?? 0) + (scopedResult.byCategory.generalPathology?.length ?? 0)} models`
       );
       
     } catch (err) {
