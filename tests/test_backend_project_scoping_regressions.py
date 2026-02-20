@@ -6,6 +6,11 @@ def _main_source() -> str:
     return main_py.read_text()
 
 
+def _report_tasks_source() -> str:
+    report_tasks_py = Path(__file__).resolve().parents[1] / "src" / "enso_atlas" / "api" / "report_tasks.py"
+    return report_tasks_py.read_text()
+
+
 def test_models_and_multi_analysis_share_project_model_resolution():
     src = _main_source()
     assert "allowed_ids = await _resolve_project_model_ids(project_id)" in src
@@ -36,3 +41,15 @@ def test_report_paths_resolve_project_specific_embeddings_before_processing():
     src = _main_source()
     assert "report_embeddings_dir = _resolve_project_embeddings_dir(" in src
     assert "_report_embeddings_dir = _resolve_project_embeddings_dir(" in src
+
+
+def test_async_report_preflight_is_project_scoped():
+    main_src = _main_source()
+    task_src = _report_tasks_source()
+
+    assert "existing_task = report_task_manager.get_task_by_slide(slide_id, request.project_id)" in main_src
+    assert "task = report_task_manager.create_task(slide_id, request.project_id)" in main_src
+
+    assert "project_id: Optional[str] = None" in task_src
+    assert "def get_task_by_slide(self, slide_id: str, project_id: Optional[str] = None)" in task_src
+    assert "task.project_id == project_id" in task_src
