@@ -512,6 +512,8 @@ export function AIAssistantPanel({
   const { currentProject } = useProject();
   const predictionTargetLabel = humanizeIdentifier(currentProject.prediction_target);
   const predictionTargetLabelLower = predictionTargetLabel.toLowerCase();
+  const positiveLabel = (currentProject.positive_class || currentProject.classes?.[1] || "positive").toLowerCase();
+  const negativeLabel = (currentProject.classes?.find((c) => c !== currentProject.positive_class) || currentProject.classes?.[0] || "negative").toLowerCase();
   const isTreatmentResponseTarget = /response|sensitivity|resistance|therapy|drug|chemo/i.test(
     currentProject.prediction_target || ""
   );
@@ -810,7 +812,7 @@ export function AIAssistantPanel({
     const questions: string[] = [];
 
     // Always include these basics
-    questions.push(`What is the predicted ${predictionTargetLabelLower}?`);
+    questions.push(`What ${predictionTargetLabelLower} does the model predict?`);
 
     // Add based on predictions
     const analyzeStep = steps.find((s) => s.step === "analyze");
@@ -819,19 +821,19 @@ export function AIAssistantPanel({
 
       const predKeys = Object.keys(preds);
       if (predKeys.length > 0) {
-        questions.push("Why was this prediction made?");
+        questions.push(`What evidence supports the ${predictionTargetLabelLower} prediction?`);
         const firstPred = preds[predKeys[0]];
         if (firstPred && firstPred.score < 0.5) {
           questions.push(
             isTreatmentResponseTarget
-              ? "What alternative treatments might work?"
-              : "What clinical implications should I consider?"
+              ? "What factors could support a different response profile?"
+              : `What clinical implications should I consider for ${predictionTargetLabelLower}?`
           );
         }
       }
 
       if (predKeys.some((k) => k.includes("survival"))) {
-        questions.push("What is the survival prognosis?");
+        questions.push("How does this relate to survival risk?");
       }
     }
 
@@ -849,6 +851,16 @@ export function AIAssistantPanel({
 
     return questions.slice(0, 4);
   }, [steps, topEvidence, predictionTargetLabelLower, isTreatmentResponseTarget]);
+
+  const standaloneQuestions = React.useMemo(
+    () => [
+      `What ${predictionTargetLabelLower} does this slide suggest?`,
+      `What features support ${negativeLabel} vs ${positiveLabel}?`,
+      "Show me the high-attention regions",
+      "How does this compare to similar cases?",
+    ],
+    [predictionTargetLabelLower, positiveLabel, negativeLabel]
+  );
 
   return (
     <div className={cn("flex flex-col h-full bg-white rounded-lg shadow-sm", className)}>
@@ -1023,12 +1035,7 @@ export function AIAssistantPanel({
                   {sessionId ? "Ask a Question" : "Quick Questions (No analysis needed)"}
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  {(sessionId ? suggestedQuestions : [
-                    "What is the prognosis?",
-                    `What is the predicted ${predictionTargetLabelLower}?`,
-                    "Show me the high-attention regions",
-                    "How does this compare to similar cases?",
-                  ]).map((q, i) => (
+                  {(sessionId ? suggestedQuestions : standaloneQuestions).map((q, i) => (
                     <button
                       key={i}
                       onClick={() => {
