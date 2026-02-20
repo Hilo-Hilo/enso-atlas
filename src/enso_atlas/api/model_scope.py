@@ -28,15 +28,14 @@ async def resolve_project_model_scope(
     get_project_models: Callable[[str], Awaitable[Iterable[str]]],
     logger: Any = None,
 ) -> ProjectModelScope:
-    """Resolve allowed model IDs for a project.
+    """Resolve project existence and the project-scoped model allowlist.
 
-    Resolution order (for allowed models):
-    1) DB project_models assignments
-    2) YAML project.classification_models fallback
+    Allowed model IDs are resolved in this order:
+    1) DB ``project_models`` assignments
+    2) ``projects.yaml`` ``classification_models`` fallback
 
-    Project existence is true if either:
-    - project exists in registry, or
-    - DB has model assignments for the project
+    ``project_exists`` is true when either the registry contains ``project_id``
+    or DB assignments exist for that project.
     """
 
     project_cfg = project_registry.get_project(project_id) if project_registry else None
@@ -88,11 +87,11 @@ def require_model_allowed_for_scope(
     *,
     project_id: str,
 ) -> None:
-    """Enforce project-scoped model access for heatmap/model endpoints.
+    """Enforce project-scoped model access for model-specific endpoints.
 
     Raises:
-        HTTPException(404): when project_id is unknown
-        HTTPException(403): when model_id is not assigned to the project
+        HTTPException(404): ``project_id`` does not resolve to a known project.
+        HTTPException(403): ``model_id`` is outside the project's allowlist.
     """
 
     if not scope.project_exists:

@@ -1,5 +1,6 @@
 "use client";
 
+// Main app page with project-scoped state resets, model hydration, and data fetches.
 import React, { useState, useCallback, useEffect, useRef, useMemo, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import nextDynamic from "next/dynamic";

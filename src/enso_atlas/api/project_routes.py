@@ -1,8 +1,8 @@
-"""
-Project-aware API routes for Enso Atlas.
+"""Project-aware API routes for Enso Atlas.
 
 Provides endpoints to list, inspect, create, update, delete, and query
-projects. Existing read-only routes continue to work unchanged.
+projects. Project records are config-driven and point to modular, per-project
+paths (for example ``data/projects/<project_id>/...``).
 
 Routes:
     GET    /api/projects                           -- list all projects
@@ -126,8 +126,9 @@ async def create_project(body: CreateProjectRequest):
     """
     Create a new project.
 
-    Adds the project to projects.yaml and creates its data directories
-    (slides_dir, embeddings_dir). Returns the created project config.
+    Adds the project to projects.yaml and creates modular data directories
+    under the project's configured dataset paths (slides and embeddings).
+    Returns the created project config.
     """
     reg = get_registry()
 
@@ -190,8 +191,9 @@ async def get_project(project_id: str):
     """
     Get full details for a specific project.
 
-    Includes dataset paths, model configuration, threshold, class definitions,
-    foundation model info, feature toggles, and classification model metadata.
+    Includes modular dataset paths, model configuration, threshold, class
+    definitions, foundation model info, feature toggles, and classification
+    model metadata.
     """
     reg = get_registry()
     proj = reg.get_project(project_id)
@@ -290,8 +292,8 @@ async def upload_slide(project_id: str, file: UploadFile = File(...)):
     Upload a whole-slide image file to a project.
 
     Accepts WSI files (.svs, .tiff, .tif, .ndpi). The file is saved into the
-    project's slides_dir. If the database is available, the slide is also
-    registered in the slides table.
+    project-specific ``slides_dir`` configured in projects.yaml. If the
+    database is available, the slide is also registered in the slides table.
     """
     reg = get_registry()
     proj = reg.get_project(project_id)
@@ -595,9 +597,7 @@ async def get_project_available_models(project_id: str):
 
 @router.get("/{project_id}/status")
 async def get_project_status(project_id: str):
-    """
-    Get readiness status of a project — are the required models and data available?
-    """
+    """Get readiness status for a project's configured modular paths and models."""
     reg = get_registry()
     proj = reg.get_project(project_id)
     if proj is None:

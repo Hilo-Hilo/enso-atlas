@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-"""Validate per-project data path modularity constraints.
+"""Validate project modularity invariants for config and code.
 
-Fails with non-zero exit when project dataset paths leak into shared/legacy layouts.
+Fails with non-zero exit when project dataset paths leak into shared/legacy
+layouts or when known legacy path patterns reappear in modularized files.
 """
 
 from __future__ import annotations

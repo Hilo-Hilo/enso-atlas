@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Lightweight backend regression checks for project-scoped routing/model resolution."""
+"""Lightweight regression checks for project-scoped backend behavior.
+
+Asserts that key API paths in main.py still route model selection, embedding
+lookups, and label loading through project-aware resolution helpers.
+"""
 
 from pathlib import Path
 

@@ -1,13 +1,10 @@
 """
-Enso Atlas API - FastAPI Backend
+Enso Atlas API - FastAPI backend for project-scoped pathology workflows.
 
-Provides REST API endpoints for the professional frontend:
-- Slide analysis with MIL prediction
-- Evidence generation (heatmaps, patches)
-- Similar case retrieval (FAISS)
-- Report generation (MedGemma)
-- Patch embedding (Path Foundation)
-- Analysis history and audit trail
+This module serves slide analysis, report generation, embeddings, and WSI
+visualization endpoints. Most data-facing routes accept an optional
+``project_id`` that scopes dataset paths, model visibility, and labels to the
+active project configuration.
 """
 
 from pathlib import Path
@@ -765,7 +762,13 @@ def create_app(
         project_id: Optional[str],
         base_embeddings_dir: Optional[Path] = None,
     ) -> tuple[Optional[Path], list[Path]]:
-        """Return (embedding_path, searched_dirs) for a slide-level request."""
+        """Return ``(embedding_path, searched_dirs)`` for a slide request.
+
+        Uses project-scoped embedding roots when ``project_id`` is provided,
+        then checks level-specific candidate directories in deterministic order.
+        For level 0, searched directories may include legacy global level0
+        locations for migration compatibility.
+        """
         project_requested = project_id is not None
         resolved_base = base_embeddings_dir or _resolve_project_embeddings_dir(
             project_id,
@@ -882,11 +885,14 @@ def create_app(
         return None
 
     async def _resolve_project_model_ids(project_id: Optional[str]) -> Optional[set[str]]:
-        """Resolve allowed model ids for a project via shared model-scope helper.
+        """Resolve the allowed model IDs for a project.
 
-        Resolution order is centralized in model_scope.resolve_project_model_scope:
-        1) DB project_models assignments
-        2) YAML classification_models fallback
+        Returns ``None`` when no ``project_id`` is supplied. When a project is
+        supplied, resolution is delegated to ``resolve_project_model_scope``:
+        1) DB ``project_models`` assignments
+        2) ``config/projects.yaml`` ``classification_models`` fallback
+
+        Raises ``HTTPException(404)`` for unknown project IDs.
         """
         if not project_id:
             return None
@@ -1606,7 +1612,7 @@ def create_app(
         per_page: int = 20,
         project_id: Optional[str] = Query(None, description="Filter slides by project"),
     ):
-        """Search and filter slides with pagination."""
+        """Search and paginate slides, optionally scoped by ``project_id``."""
         # Get all slides first (reuse existing logic from list_slides)
         all_slides = await list_slides(project_id=project_id)
         
@@ -1765,7 +1771,11 @@ def create_app(
 
     @app.post("/api/analyze", response_model=AnalyzeResponse)
     async def analyze_slide(request: AnalyzeRequest):
-        """Analyze a slide and return prediction with evidence."""
+        """Analyze one slide and return prediction, evidence, and similar cases.
+
+        When ``request.project_id`` is provided, embeddings, labels, and similar
+        case candidates are restricted to that project scope.
+        """
         if classifier is None:
             raise HTTPException(status_code=503, detail="Model not loaded")
 
@@ -1918,17 +1928,10 @@ def create_app(
     @app.post("/api/analyze-batch", response_model=BatchAnalyzeResponse)
     async def analyze_batch(request: BatchAnalyzeRequest):
         """
-        Analyze multiple slides in batch for clinical workflow efficiency.
+        Analyze multiple slides in one request for clinical triage workflows.
 
-        This endpoint processes multiple slides at once and returns:
-        - Individual results for each slide
-        - Summary statistics across all slides
-        - Priority ordering (uncertain cases flagged first)
-
-        Clinical use cases:
-        - Review incoming cases for a day/week
-        - Triage cases by prediction confidence
-        - Identify cases requiring human review
+        Returns per-slide outputs and a summary block. If ``project_id`` is
+        provided, embeddings and response labels are resolved from that project.
         """
         import time
         start_time = time.time()
@@ -2116,16 +2119,10 @@ def create_app(
     @app.post("/api/analyze-batch/async", response_model=AsyncBatchResponse)
     async def analyze_batch_async(request: AsyncBatchRequest, background_tasks: BackgroundTasks):
         """
-        Start async batch analysis with progress tracking and cancellation support.
+        Start asynchronous batch analysis with progress and cancellation support.
 
-        Returns a task_id immediately. Poll /api/analyze-batch/status/{task_id} for progress.
-        Use POST /api/analyze-batch/cancel/{task_id} to cancel a running analysis.
-
-        Benefits over synchronous batch:
-        - Real-time progress ("Analyzing slide 3/10...")
-        - Cancellation support for long batches
-        - Better handling of partial failures
-        - Non-blocking for large batches
+        Returns a ``task_id`` immediately. If ``project_id`` is provided, model
+        allowlists, embeddings, and labels are enforced for that project scope.
         """
         if classifier is None:
             raise HTTPException(status_code=503, detail="Model not loaded")
@@ -2775,10 +2772,12 @@ def create_app(
         slide_id: str,
         project_id: Optional[str] = None,
     ) -> Optional[Dict[str, Any]]:
-        """Load patient context from labels for a slide.
+        """Load patient context from CSV labels for a slide.
 
-        Project-scoped requests must only read the configured project labels file.
-        Global fallback labels are allowed only for non-project requests.
+        Project requests only read the configured project labels file.
+        Non-project requests can fall back to legacy global labels.csv paths.
+        Returns ``None`` when labels are missing, non-CSV, or the slide has no
+        patient fields.
         """
         _require_project(project_id)
         labels_path = _project_labels_path(project_id)
@@ -2863,7 +2862,11 @@ def create_app(
 
     @app.post("/api/report", response_model=ReportResponse)
     async def generate_report(request: ReportRequest):
-        """Generate a structured report for a slide using MedGemma."""
+        """Generate a structured report for a slide using project-scoped data.
+
+        ``project_id`` controls which embeddings, labels, and cancer context are
+        used during report generation.
+        """
         if classifier is None:
             raise HTTPException(status_code=503, detail="Model not loaded")
 
@@ -3224,10 +3227,10 @@ should incorporate all available clinical, pathological, and molecular data."""
     @app.post("/api/report/async", response_model=AsyncReportResponse)
     async def generate_report_async(request: AsyncReportRequest, background_tasks: BackgroundTasks):
         """
-        Start async report generation for a slide.
-        
-        Returns a task_id immediately. Poll /api/report/status/{task_id} for progress.
-        Report generation typically takes 20-60 seconds depending on model warmup.
+        Start asynchronous report generation for a slide.
+
+        Returns a task ID immediately. Task reuse and deduplication are scoped
+        by ``(slide_id, project_id)``.
         """
         slide_id = request.slide_id
 
@@ -3868,11 +3871,10 @@ DISCLAIMER: This is a research tool. All findings must be validated by qualified
         blur: int = Query(default=31, ge=3, le=101, description="Blur kernel size (odd number, higher=smoother)"),
         project_id: Optional[str] = Query(default=None, description="Project ID to scope embeddings lookup")
     ):
-        """Get the attention heatmap for a slide as PNG.
-        
-        Uses CPU-only inference to avoid CUDA driver compatibility issues.
-        Level controls output resolution: 0=2048, 1=1024, 2=512, 3=256, 4=128 pixels.
-        Smooth enables Gaussian blur interpolation for cleaner visualization.
+        """Get a PNG attention heatmap for a slide.
+
+        ``project_id`` scopes embedding lookup and slide-path resolution. Level 0
+        embeddings and coordinate files are required for truthful localization.
         """
         # Map level to thumbnail size (level 0 = highest res, level 4 = lowest/fastest)
         LEVEL_SIZES = {0: 2048, 1: 1024, 2: 512, 3: 256, 4: 128}
@@ -4087,14 +4089,14 @@ DISCLAIMER: This is a research tool. All findings must be validated by qualified
         top_patches: int = 3,
         project_id: Optional[str] = Query(default=None, description="Project ID to scope embeddings lookup")
     ):
-        """Find similar slides from the reference cohort.
+        """Find similar slides from the scoped reference cohort.
 
-        Uses FAISS over **L2-normalized mean slide embeddings** and returns
-        top-k by **cosine similarity** (implemented as inner product).
+        Uses FAISS over L2-normalized mean slide embeddings and returns top-k by
+        cosine similarity. When ``project_id`` is supplied, candidates are
+        filtered to slides assigned to that project.
 
-        Notes:
-        - `top_patches` is kept for backwards compatibility but is not used in
-          the slide-mean similarity method.
+        ``top_patches`` is retained for backward compatibility but is unused in
+        the slide-mean similarity method.
         """
         if slide_mean_index is None:
             raise HTTPException(status_code=503, detail="Similarity index not available")
@@ -4668,7 +4670,11 @@ DISCLAIMER: This is a research tool. All findings must be validated by qualified
     logger.info(f"Slides directory: {slides_dir}")
 
     def get_slide_and_dz(slide_id: str, project_id: Optional[str] = None):
-        """Get or create OpenSlide and DeepZoomGenerator for a slide."""
+        """Get or create cached OpenSlide/DeepZoom objects for a slide.
+
+        Cache keys include ``project_id`` so identical slide IDs can safely
+        resolve from different project-specific data paths.
+        """
         cache_key = f"{project_id or '__any__'}::{slide_id}"
         if cache_key in wsi_cache:
             return wsi_cache[cache_key]
@@ -4700,7 +4706,7 @@ DISCLAIMER: This is a research tool. All findings must be validated by qualified
         slide_id: str,
         project_id: Optional[str] = Query(None, description="Optional project id to resolve project-specific WSI paths"),
     ):
-        """Get/HEAD Deep Zoom Image descriptor for OpenSeadragon."""
+        """Get or HEAD-check a DZI descriptor with optional project scoping."""
         _require_project(project_id)
         result = get_slide_and_dz(slide_id, project_id=project_id)
         if result is None:
@@ -4750,7 +4756,7 @@ DISCLAIMER: This is a research tool. All findings must be validated by qualified
         tile_spec: str,
         project_id: Optional[str] = Query(None, description="Optional project id to resolve project-specific WSI paths"),
     ):
-        """Serve a single DZI tile image."""
+        """Serve one DZI tile image from a project-aware WSI path."""
         _require_project(project_id)
         result = get_slide_and_dz(slide_id, project_id=project_id)
         if result is None:
@@ -4806,11 +4812,10 @@ DISCLAIMER: This is a research tool. All findings must be validated by qualified
         size: int = 256,
         project_id: Optional[str] = Query(None, description="Optional project id to resolve project-specific WSI paths"),
     ):
-        """Get a thumbnail of the whole slide.
+        """Get a whole-slide thumbnail with optional project scoping.
 
-        Thumbnails are cached to disk for performance. If WSI is unavailable,
-        returns an in-memory fallback image (embeddings-only placeholder) so
-        clients never render broken image icons.
+        Thumbnails are disk-cached by project and size. If a WSI is unavailable,
+        an in-memory placeholder is returned so clients avoid broken images.
         """
         size = max(64, min(size, 1024))
         _require_project(project_id)
@@ -5285,18 +5290,12 @@ DISCLAIMER: This is a research tool. All findings must be validated by qualified
     @app.get("/api/models", response_model=AvailableModelsResponse)
     async def list_available_models(project_id: Optional[str] = Query(None, description="Filter models by project")):
         """
-        List all available TransMIL models.
+        List available TransMIL models, optionally filtered by ``project_id``.
 
-        Returns model metadata including:
-        - Model ID and display name
-        - Description of what the model predicts
-        - Training AUC score (model reliability)
-        - Number of training slides
-        - Category (cancer-specific or general_pathology)
-
-        When project_id is provided, model visibility is resolved via:
-        1) project_models DB assignments, then
-        2) projects.yaml classification_models fallback.
+        Returned metadata includes model ID, display name, labels, category,
+        and training summary fields. Project filtering resolves visibility via:
+        1) ``project_models`` DB assignments, then
+        2) ``projects.yaml`` ``classification_models`` fallback.
         """
         if multi_model_inference is None:
             raise HTTPException(status_code=503, detail="Multi-model inference not initialized")
@@ -6031,21 +6030,12 @@ DISCLAIMER: This is a research tool. All findings must be validated by qualified
     @app.post("/api/analyze-multi", response_model=MultiModelResponse)
     async def analyze_slide_multi(request: MultiModelRequest):
         """
-        Analyze a slide with multiple TransMIL models.
+        Run multi-model inference for one slide.
 
-        This endpoint runs all (or selected) trained models on a slide:
-
-        **Ovarian Cancer Specific:**
-        - Platinum Sensitivity (AUC 0.907): Predicts platinum chemotherapy response
-        - 5-Year Survival (AUC 0.697): Predicts 5-year overall survival
-        - 3-Year Survival (AUC 0.645): Predicts 3-year overall survival
-        - 1-Year Survival (AUC 0.639): Predicts 1-year overall survival
-
-        **General Pathology:**
-        - Tumor Grade (AUC 0.752): Predicts high vs low tumor grade
-
-        Use the `models` parameter to select specific models, or leave empty for all.
-        Set `level=0` for full-resolution analysis (requires pre-generated level 0 embeddings).
+        ``request.models`` can select a subset; otherwise all allowed models are
+        run. When ``request.project_id`` is supplied, model selection is
+        validated against that project's allowlist and embeddings directory.
+        Level 0 embeddings are required.
         """
         import time
         start_time = time.time()
@@ -6265,14 +6255,10 @@ DISCLAIMER: This is a research tool. All findings must be validated by qualified
         ),
         project_id: Optional[str] = Query(default=None, description="Project ID to scope embeddings lookup")
     ):
-        """Get the attention heatmap for a specific TransMIL model.
-        
-        Available models:
-        - platinum_sensitivity
-        - tumor_grade  
-        - survival_5y
-        - survival_3y
-        - survival_1y
+        """Get a model-specific attention heatmap for one slide.
+
+        When ``project_id`` is provided, the model must be assigned to that
+        project and embeddings are loaded from project-scoped paths.
         """
         if multi_model_inference is None:
             raise HTTPException(status_code=503, detail="Multi-model inference not initialized")

@@ -52,7 +52,11 @@ class BatchSlideResult:
 
 @dataclass
 class BatchTask:
-    """Represents a background batch analysis task."""
+    """Represents a background batch analysis task.
+
+    Stores project-resolved positive/negative labels so summaries use the same
+    label vocabulary as the project that started the task.
+    """
     task_id: str
     slide_ids: List[str]
     status: BatchTaskStatus = BatchTaskStatus.PENDING

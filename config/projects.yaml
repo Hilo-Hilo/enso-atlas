@@ -1,11 +1,17 @@
-# Enso Atlas Project Configuration
+# Enso Atlas multi-project configuration (source of truth)
 #
-# Each project defines a cancer type / prediction target with its own
-# foundation model, classification models, feature toggles, and dataset paths.
+# File structure:
+# - foundation_models: global embedding model definitions.
+# - classification_models: global prediction model definitions with compatibility metadata.
+# - projects: per-cancer/per-task configurations that reference the global model catalogs.
 #
-# Foundation models produce embeddings of a specific dimension. Classification
-# models (TransMIL) are trained on those embeddings and must match the
-# foundation model's output dimension.
+# To add a new cancer type or task:
+# 1) Add or reference a foundation model under foundation_models.
+# 2) Add classification model entries under classification_models.
+# 3) Add a project under projects with dataset paths under data/projects/<project_id>/...
+#    and list the project's allowed classification_models.
+#
+# Keep path/layout conventions aligned with TECHNICAL_SPECIFICATION.md.
 
 # Global foundation model definitions (referenced by projects)
 foundation_models:

@@ -1,8 +1,8 @@
-"""
-Config-driven Project System for Enso Atlas.
+"""Config-driven project registry for Enso Atlas.
 
-Supports multiple cancer types / prediction targets via a YAML configuration.
-Each project defines its own dataset paths, model configs, classes, and thresholds.
+``config/projects.yaml`` is the source of truth for project definitions,
+foundation models, and classification models. This module loads that config
+into typed objects used by API routing and path resolution.
 
 Usage:
     registry = ProjectRegistry("config/projects.yaml")

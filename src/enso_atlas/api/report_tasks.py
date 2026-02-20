@@ -24,7 +24,11 @@ class ReportTaskStatus(Enum):
 
 @dataclass
 class ReportTask:
-    """Represents a background report generation task."""
+    """Represents a background report generation task.
+
+    ``project_id`` is stored so active-task lookup and deduplication can be
+    scoped to ``(slide_id, project_id)``.
+    """
     task_id: str
     slide_id: str
     project_id: Optional[str] = None
@@ -56,7 +60,7 @@ class ReportTask:
 
 
 class ReportTaskManager:
-    """Manages background report generation tasks with thread safety."""
+    """Manages background report tasks with project-scoped deduplication."""
     
     def __init__(self, max_concurrent: int = 2):
         self.tasks: Dict[str, ReportTask] = {}

@@ -1,5 +1,5 @@
-// Enso Atlas - API Client
-// Backend communication utilities with robust error handling
+// Enso Atlas API client.
+// Backend communication utilities with robust error handling and optional project_id scoping.
 
 import type {
   Tag,
