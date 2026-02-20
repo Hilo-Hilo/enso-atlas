@@ -1337,20 +1337,43 @@ def create_app(
                             }
 
         # When filtering by project, only include slides whose embeddings
-        # exist in the project's embeddings directory.
+        # exist in that project's configured embeddings directory.
+        # IMPORTANT: never fall back to global slides for project-scoped requests.
         if proj_cfg:
-            # Scan the project-specific embeddings directory
-            _project_slide_ids = []
-            if _fallback_embeddings_dir.exists():
-                for f in sorted(_fallback_embeddings_dir.glob("*.npy")):
+            if not _fallback_embeddings_dir.exists():
+                logger.info(
+                    "Project '%s' embeddings dir missing (%s); returning 0 slides (no global fallback)",
+                    project_id,
+                    _fallback_embeddings_dir,
+                )
+                list_slides._cache[_cache_key] = {"data": [], "ts": time.time()}
+                return []
+
+            # Support both flat dirs (<dir>/*.npy) and nested level0 dirs
+            # (<dir>/level0/*.npy) while remaining strictly project-scoped.
+            _project_slide_ids_set: set[str] = set()
+            _candidate_emb_dirs = [_fallback_embeddings_dir]
+            if _fallback_embeddings_dir.name != "level0":
+                _candidate_emb_dirs.append(_fallback_embeddings_dir / "level0")
+
+            for _emb_dir in _candidate_emb_dirs:
+                if not _emb_dir.exists():
+                    continue
+                for f in sorted(_emb_dir.glob("*.npy")):
                     if not f.name.endswith("_coords.npy"):
-                        _project_slide_ids.append(f.stem)
-            fallback_slide_ids = _project_slide_ids
+                        _project_slide_ids_set.add(f.stem)
+
+            fallback_slide_ids = sorted(_project_slide_ids_set)
         else:
             fallback_slide_ids = available_slides
 
         for slide_id in fallback_slide_ids:
             emb_path = _fallback_embeddings_dir / f"{slide_id}.npy"
+            if proj_cfg and not emb_path.exists():
+                level0_emb_path = _fallback_embeddings_dir / "level0" / f"{slide_id}.npy"
+                if level0_emb_path.exists():
+                    emb_path = level0_emb_path
+
             num_patches = None
             if emb_path.exists():
                 try:

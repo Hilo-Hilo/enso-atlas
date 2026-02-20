@@ -36,3 +36,10 @@ def test_report_paths_resolve_project_specific_embeddings_before_processing():
     src = _main_source()
     assert "report_embeddings_dir = _resolve_project_embeddings_dir(" in src
     assert "_report_embeddings_dir = _resolve_project_embeddings_dir(" in src
+
+
+def test_project_scoped_slides_fail_closed_when_embeddings_are_missing_or_empty():
+    src = _main_source()
+    assert "returning 0 slides (no global fallback)" in src
+    assert "list_slides._cache[_cache_key] = {\"data\": [], \"ts\": time.time()}" in src
+    assert "_candidate_emb_dirs = [_fallback_embeddings_dir]" in src
