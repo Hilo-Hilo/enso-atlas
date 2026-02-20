@@ -25,7 +25,7 @@
 | Segment | Time | Duration |
 |---|---|---|
 | Hook + Problem statement | 0:00-0:20 | 20s |
-| Live workflow: WSI selection, tile viewing, run analysis, prediction | 0:20-0:55 | 35s |
+| Live workflow: project switch (ovarian -> lung), WSI selection, tile viewing, run analysis | 0:20-0:55 | 35s |
 | Heatmap visualization | 0:55-1:20 | 25s |
 | Semantic search (MedSigLIP) | 1:20-1:40 | 20s |
 | Similar case retrieval | 1:40-2:00 | 20s |
@@ -51,13 +51,14 @@
 ### 0:20-0:55 -- Live workflow (select/upload WSI -> tiles -> run analysis -> prediction)
 
 **Narration**
-"Here is a live case workflow. We select a whole-slide image from the case list, load its tiled viewer, and run analysis. The model returns a treatment-response prediction with confidence and supporting evidence."
+"Here is a live case workflow. We switch projects from ovarian to lung to show multi-cancer support, select a whole-slide image, load its tiled viewer, and run analysis. The model returns a project-specific prediction with confidence and supporting evidence."
 
 **Screen actions**
-- Open **Slide Manager** or left case list and select a WSI (or show quick upload if available)
+- Open project selector and switch from **ovarian-platinum** to **lung-stage**
+- Open **Slide Manager** or left case list and select a lung WSI (or show quick upload if available)
 - Pan/zoom in OpenSeadragon to show tile loading
 - Click **Run Analysis**
-- Highlight prediction card (class + confidence)
+- Highlight prediction card (class + confidence) and mention project-specific labels
 
 ---
 
@@ -137,7 +138,7 @@
 ### Pre-record
 - [ ] Backend healthy (`GET /api/health`)
 - [ ] Frontend loaded and responsive
-- [ ] Demo slide pre-selected and cached
+- [ ] Ovarian and lung demo slides pre-selected and cached
 - [ ] One MedGemma report pre-generated (backup for timing)
 - [ ] Semantic search query tested (`tumor infiltrating lymphocytes`)
 - [ ] Similar-case panel verified
@@ -160,3 +161,4 @@
 - If live inference is slow, use cached results and state that the flow is identical in production.
 - Prioritize required challenge coverage over extra UI features.
 - Keep claims factual and aligned with repo metrics.
+- Explicitly show project switching (ovarian -> lung) at least once to demonstrate multi-project isolation and multi-cancer capability.

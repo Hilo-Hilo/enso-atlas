@@ -2,8 +2,8 @@
 
 ## A Modular, Model-Agnostic Pathology Evidence Platform
 
-**Version:** 2.1.0
-**Date:** February 2025
+**Version:** 2.2.0
+**Date:** February 20, 2026
 **Authors:** Enso Labs
 **Classification:** Technical Documentation -- Hackathon Submission / Investor Review
 
@@ -41,7 +41,7 @@ Enso Atlas is a modular, model-agnostic pathology evidence platform for on-premi
 
 The platform is built around four independently swappable layers: a **foundation model layer** (any patch-level embedding model), a **classification layer** (any attention-based MIL architecture), an **evidence layer** (heatmaps, retrieval, semantic search, outlier detection), and a **UI layer** (WSI viewer, annotations, reports). Hospitals bring their own foundation models, train task-specific classification heads, and deploy within existing infrastructure. No code changes are required to add new cancer types, swap models, or adjust feature sets. Everything is driven by a single YAML configuration file.
 
-The current deployment uses Google's HAI-DEF models (Path Foundation, MedGemma 4B, MedSigLIP) with five TransMIL classifiers for ovarian cancer treatment-response prediction. The HAI-DEF models are interchangeable examples. The platform itself is the primary contribution: an on-premise system that makes any pathology AI model deployable, interpretable, and usable in clinical workflows.
+The current deployment uses Google's HAI-DEF models (Path Foundation, MedGemma 4B, MedSigLIP) across two active projects: ovarian platinum-response prediction and lung adenocarcinoma stage classification. The HAI-DEF models are interchangeable examples. The platform itself is the primary contribution: an on-premise system that makes any pathology AI model deployable, interpretable, and usable in clinical workflows.
 
 The platform addresses a gap in precision oncology: determining which patients will respond to specific chemotherapy regimens before treatment begins. Treatment response can currently only be assessed after multiple cycles of therapy, exposing non-responding patients to unnecessary toxicity and delays in receiving effective alternatives. Enso Atlas provides morphology-based predictions from standard H&E-stained tissue slides already collected during routine clinical care.
 
@@ -73,18 +73,18 @@ Enso Atlas is a modular platform, not a single-purpose tool. Every component can
 - **Structured Reporting:** Pluggable LLM report generation (demonstrated with MedGemma 4B) with JSON-first prompting, safety validation, and template-based fallback
 - **Agentic Workflow:** Seven-step AI agent with visible reasoning, SSE streaming, and session memory for follow-up questions
 - **Pathologist Annotations:** SVG-based drawing tools (circle, rectangle, freehand, point) on the OpenSeadragon viewer with full CRUD persistence to PostgreSQL
-- **Batch Analysis:** Async batch processing with model selection, embedding level (L0/L1), force re-embed, real-time progress tracking, and cancellation support
+- **Batch Analysis:** Async batch processing with model selection, project scoping, force re-embed, real-time progress tracking, and cancellation support
 - **PDF Export:** PDF reports for clinical documentation and tumor board presentations
 - **On-Premise by Design:** Docker Compose deployment with air-gapped mode, no cloud dependencies at runtime, and full audit trail for HIPAA alignment
 
-### Demo Configuration: Ovarian Cancer with Google HAI-DEF
+### Demo Configuration: Multi-Project Deployment with Google HAI-DEF
 
 The current deployment demonstrates the platform with:
 - **Foundation model:** Google Path Foundation (384-dim, ViT-S)
-- **Classification:** 5 TransMIL models (platinum sensitivity AUC 0.907, tumor grade, survival prediction)
+- **Classification:** 6 TransMIL models across two projects (`ovarian-platinum` + `lung-stage`)
 - **Reports:** MedGemma 4B (4 billion parameter medical LLM)
-- **Semantic search:** MedSigLIP (medical SigLIP vision-language model)
-- **Dataset:** 208 TCGA ovarian cancer slides with clinical labels
+- **Semantic search:** MedSigLIP (enabled per project via feature flags)
+- **Datasets:** Project-scoped TCGA cohorts under `data/projects/{project-id}/...`
 
 This configuration is one example. Replacing the foundation model, training new classification heads for a different cancer type, or swapping the report generator requires zero code changes, only YAML configuration and model weights.
 
@@ -95,7 +95,7 @@ The platform is organized into four abstraction layers, each independently repla
 | Layer | Role | Currently Demonstrated With | Swap By |
 |---|---|---|---|
 | **Foundation Model** | Patch-level embedding (N x D vectors) | Path Foundation (384-dim) | Register new model in YAML, re-embed slides |
-| **Classification** | Slide-level prediction from embeddings | TransMIL (5 models) | Train new MIL head, drop in weights, register in YAML |
+| **Classification** | Slide-level prediction from embeddings | TransMIL (6 project-scoped models) | Train new MIL head, drop in weights, register in YAML |
 | **Evidence** | Heatmaps, retrieval, outlier detection, semantic search, few-shot | FAISS + MedSigLIP + LogisticRegression | Foundation model change propagates automatically |
 | **Reporting** | Structured clinical reports | MedGemma 4B | Any LLM with JSON output; template fallback always available |
 
@@ -123,19 +123,14 @@ Any of these can be replaced with alternative models serving the same role. The 
 
 ## 1.4 Clinical Validation (Demo Configuration)
 
-The demo configuration predicts platinum-based chemotherapy sensitivity in high-grade serous ovarian carcinoma from standard H&E tissue slides. These results are from a specific foundation model, classification head, and dataset configuration:
+The active demo deployment includes two project-specific prediction programs using the same core platform:
 
-| Metric | Value |
-|---|---|
-| Best single-model AUC (full dataset) | 0.879 |
-| Full-dataset AUC (all 208 slides) | 0.907 |
-| Optimized threshold (Youden J) | 0.9229 |
-| Sensitivity | 84.6% |
-| Specificity | 91.2% |
-| Training cohort | 208 TCGA ovarian cancer slides |
-| Class ratio | 139 non-responders : 13 responders |
-| Embedding model | Path Foundation (ViT-S, 384-dim) |
-| Classification model | TransMIL (3.2M parameters) |
+| Project | Primary Endpoint | Cohort | Best Reported AUC | Threshold |
+|---|---|---|---|---|
+| `ovarian-platinum` | Platinum chemotherapy response | 208 TCGA ovarian slides | 0.907 | 0.9229 |
+| `lung-stage` | Early (I/II) vs advanced (III/IV) stage | 130 TCGA lung adenocarcinoma slides | 0.648 | 0.5 |
+
+Both projects use Path Foundation embeddings (384-dim) and TransMIL classification heads, with project-scoped labels, models, and feature flags resolved from `config/projects.yaml`. 
 
 These results are specific to the demo configuration. The same platform infrastructure (heatmaps, evidence patches, similar cases, outlier detection, structured reports) works identically with any foundation model and classification head. A hospital deploying a breast cancer HER2 predictor or lung cancer subtype classifier would get the same evidence chain, interpretability tools, and reporting pipeline.
 
@@ -304,13 +299,13 @@ graph TB
 - **Path Foundation:** TensorFlow SavedModel producing 384-dim patch embeddings (CPU-only due to Blackwell TF incompatibility)
 - **MedGemma 4B:** Transformers-based causal LM for structured report generation (GPU, bfloat16, ~8 GB VRAM)
 - **MedSigLIP:** SigLIP vision-language model for text-to-patch semantic search (GPU, fp16, ~800 MB VRAM)
-- **TransMIL:** Five PyTorch Transformer-based MIL classifiers with attention extraction (GPU, ~200 MB total)
+- **TransMIL:** Six project-scoped PyTorch Transformer-based MIL classifiers with attention extraction (GPU, ~240 MB total)
 - **FAISS:** Facebook AI Similarity Search for slide-level (cosine via IndexFlatIP) and patch-level (L2) retrieval
 - **scikit-learn:** LogisticRegression for few-shot patch classification on Path Foundation embeddings
 
 ### Storage Layer
 - **PostgreSQL 16:** Patients, slides, metadata, analysis results, embedding tasks, projects, junction tables, annotations (schema v5)
-- **File System:** Pre-computed .npy embeddings (level 0 and level 1), .npy coordinate files, .svs whole-slide images
+- **File System:** Project-scoped pre-computed .npy embeddings (level 0 dense), .npy coordinate files, and .svs whole-slide images
 - **Model Storage:** HuggingFace cache + local checkpoints in `models/` directory
 - **Heatmap Cache:** Disk-based PNG cache (`data/embeddings/heatmap_cache/`) for per-model attention heatmaps
 
@@ -319,7 +314,7 @@ graph TB
 ```mermaid
 flowchart LR
     subgraph "Offline Pipeline"
-        WSI[WSI .svs File] --> PATCH[Patch Extraction<br/>224x224 @ Level 0/1]
+        WSI[WSI .svs File] --> PATCH[Patch Extraction<br/>224x224 @ Level 0 (dense)]
         PATCH --> TISSUE[Tissue Masking<br/>Background Removal]
         TISSUE --> PF_EMB[Path Foundation<br/>Embedding]
         PF_EMB --> NPY[.npy Files<br/>N x 384]
@@ -442,7 +437,7 @@ The demo deployment uses three Google HAI-DEF models. The following subsections 
 
 Path Foundation is Google's histopathology foundation model, based on a DINOv2-style self-supervised learning architecture trained on millions of pathology images. It produces 384-dimensional feature vectors from 224x224 pixel tissue patches. In the demo configuration, these embeddings are the universal tissue representation for:
 
-1. TransMIL slide-level classification (5 models)
+1. TransMIL slide-level classification (project-scoped model set)
 2. FAISS similar-case retrieval (slide-mean cosine similarity)
 3. Outlier tissue detection (centroid distance analysis)
 4. Few-shot patch classification (LogisticRegression on embeddings)
@@ -463,7 +458,7 @@ Path Foundation is Google's histopathology foundation model, based on a DINOv2-s
 
 ### Patching Strategy
 
-Whole-slide images are divided into non-overlapping 224x224 pixel patches at either level 0 (full resolution, typically 40x) or level 1 (downsampled). The patching process includes tissue masking:
+Whole-slide images are divided into non-overlapping 224x224 pixel patches at level 0 (full resolution, typically 40x) using a dense grid policy. The patching process includes tissue masking for offline pipelines:
 
 1. **Grid Generation:** Regular grid with step size 224 pixels
 2. **Tissue Detection:** Pixels with mean intensity < 245 and standard deviation > 10 are considered tissue (relaxed thresholds for maximum patch coverage)
@@ -620,7 +615,7 @@ graph TD
 
 ## 4.3 Multi-Model Inference
 
-The platform supports any number of classification models per project. The demo includes five specialized TransMIL models trained for different prediction targets:
+The platform supports any number of classification models per project. The current deployment exposes six TransMIL models across ovarian and lung projects:
 
 | Model ID | Display Name | Category | AUC | Training Slides |
 |---|---|---|---|---|
@@ -629,8 +624,9 @@ The platform supports any number of classification models per project. The demo 
 | `survival_5y` | 5-Year Survival | Ovarian Cancer | 0.697 | 965 |
 | `survival_3y` | 3-Year Survival | Ovarian Cancer | 0.645 | 1,106 |
 | `survival_1y` | 1-Year Survival | Ovarian Cancer | 0.639 | 1,135 |
+| `lung_stage` | Tumor Stage | Lung Cancer | 0.648 | 130 |
 
-Multi-model inference runs all models sequentially on the same embeddings in ~100-250ms (GPU). Results are cached to PostgreSQL's `analysis_results` table for instant retrieval on subsequent views (~0.8ms).
+Multi-model inference runs only the models allowed for the request scope (`project_id`) and caches results to PostgreSQL's `analysis_results` table for instant retrieval on subsequent views (~0.8ms).
 
 ## 4.4 Threshold Optimization
 
@@ -671,7 +667,7 @@ The FastAPI application is created via `create_app()` in `src/enso_atlas/api/mai
 
 ```
 1.  MIL Classifier (TransMIL checkpoint)            ~2s
-2.  Multi-Model Inference (5 models)                 ~5s
+2.  Multi-Model Inference (project-scoped models)     ~5s
 3.  Evidence Generator (FAISS index)                 ~3s
 4.  Path Foundation Embedder Init (lazy, CPU)        ~0s
 5.  MedGemma Reporter (GPU, bfloat16)               ~30s
@@ -716,7 +712,7 @@ The FastAPI application is created via `create_app()` in `src/enso_atlas/api/mai
 
 | Method | Path | Description |
 |---|---|---|
-| `GET` | `/api/slides` | List all slides (with ?project_id= filtering) |
+| `GET` | `/api/slides` | List slides (`?project_id=` filters to project-assigned slides) |
 | `GET` | `/api/slides/search` | Search slides with filtering and pagination |
 | `GET` | `/api/slides/{id}/dzi` | DZI XML for OpenSeadragon |
 | `GET` | `/api/slides/{id}/dzi_files/{level}/{tile}` | DZI tile image |
@@ -732,21 +728,23 @@ The FastAPI application is created via `create_app()` in `src/enso_atlas/api/mai
 
 | Method | Path | Description |
 |---|---|---|
-| `POST` | `/api/analyze` | Single-slide prediction with evidence |
-| `POST` | `/api/analyze-multi` | Multi-model ensemble (5 models, with caching) |
+| `POST` | `/api/analyze` | Single-slide prediction with evidence (`project_id` in request body scopes labels/dataset) |
+| `POST` | `/api/analyze-multi` | Multi-model ensemble (project-scoped model set, with caching) |
 | `POST` | `/api/analyze-uncertainty` | MC Dropout uncertainty quantification |
-| `POST` | `/api/analyze-batch` | Synchronous batch analysis |
-| `POST` | `/api/analyze-batch/async` | Async batch with model selection, level, force re-embed |
+| `POST` | `/api/analyze-batch` | Synchronous batch analysis (`project_id` body field scopes model execution) |
+| `POST` | `/api/analyze-batch/async` | Async batch with model selection and `project_id` scoping (stores project-resolved labels) |
 | `GET` | `/api/analyze-batch/status/{task_id}` | Batch progress |
-| `POST` | `/api/analyze-batch/cancel/{task_id}` | Cancel running batch |
+| `POST` | `/api/analyze-batch/cancel/{task_id}` | Cancel running batch task |
 | `GET` | `/api/analyze-batch/tasks` | List all batch tasks |
+
+**Endpoint note:** The canonical multi-model endpoint is `POST /api/analyze-multi` (not `/api/analyze/multi-model`).
 
 ### Embedding
 
 | Method | Path | Description |
 |---|---|---|
 | `POST` | `/api/embed` | Embed base64-encoded patches |
-| `POST` | `/api/embed-slide` | On-demand slide embedding (level 0 or 1) |
+| `POST` | `/api/embed-slide` | On-demand slide embedding (level 0 dense-only policy) |
 | `GET` | `/api/embed-slide/status/{task_id}` | Embedding task progress |
 | `GET` | `/api/embed-slide/tasks` | List embedding tasks |
 | `POST` | `/api/embed-slides/batch` | Batch re-embedding (all or selected slides) |
@@ -758,8 +756,8 @@ The FastAPI application is created via `create_app()` in `src/enso_atlas/api/mai
 
 | Method | Path | Description |
 |---|---|---|
-| `GET` | `/api/similar` | Similar case search (slide-mean cosine FAISS) |
-| `POST` | `/api/semantic-search` | MedSigLIP text-to-patch search |
+| `GET` | `/api/similar` | Similar case search (slide-mean cosine FAISS, filtered by `project_id` slide set) |
+| `POST` | `/api/semantic-search` | MedSigLIP text-to-patch search (`project_id` scopes embedding lookup) |
 | `POST` | `/api/search/visual` | Image-to-image FAISS search |
 | `POST` | `/api/classify-region` | Tissue type classification at coordinates |
 
@@ -767,8 +765,8 @@ The FastAPI application is created via `create_app()` in `src/enso_atlas/api/mai
 
 | Method | Path | Description |
 |---|---|---|
-| `GET` | `/api/heatmap/{slide_id}` | Default attention heatmap (configurable level, smooth, blur) |
-| `GET` | `/api/heatmap/{slide_id}/{model_id}` | Per-model heatmap (disk-cached PNG, coverage-aligned) |
+| `GET` | `/api/heatmap/{slide_id}` | Default attention heatmap (`project_id` query scopes embedding source) |
+| `GET` | `/api/heatmap/{slide_id}/{model_id}` | Per-model heatmap (project-gated model access, disk-cached PNG) |
 
 ### Outlier Detection and Few-Shot Classification
 
@@ -852,6 +850,27 @@ The FastAPI application is created via `create_app()` in `src/enso_atlas/api/mai
 | `GET` | `/api/groups` | List groups |
 | `POST` | `/api/groups` | Create group |
 
+## 5.3 Project Scope Resolution and Isolation Guarantees
+
+Multi-project safety is enforced as a first-class backend contract. The API never assumes global model or dataset visibility when a `project_id` is present.
+
+### Scope resolution pipeline
+
+1. **Model scope resolution** uses `_resolve_project_model_ids()` to centralize project model visibility rules.
+2. **Embedding path resolution** uses `_resolve_embedding_path()` to enforce level-0 dense-only routing and deterministic search order.
+3. **Model authorization** is enforced in `model_scope.py` through `require_model_allowed_for_scope()`, returning explicit 403/404 responses for cross-project access attempts.
+4. **Batch analysis scoping** in `batch_tasks.py` stores project-resolved label pairs passed by the API (`positive_label` / `negative_label`).
+5. **Report generation scoping** in `report_tasks.py` carries `project_id` through async task payloads so report content remains project-aware.
+6. **Similar-case retrieval** (`GET /api/similar`) filters candidates to the requesting project's slide set before returning matches.
+
+### Frontend isolation behavior
+
+- `ModelPicker` prunes stale model IDs after project switches to prevent cross-project residue in selections.
+- `projectAvailableModelsScopeId` in `frontend/src/app/page.tsx` guards model caches against leakage between projects.
+- Panels render project-aware copy (`prediction_target`, class labels, and display strings) from project config rather than hardcoded ovarian defaults.
+
+These checks provide defense in depth across config, API, task queues, and UI state.
+
 ---
 
 # 6. Agentic Workflow
@@ -921,7 +940,7 @@ sequenceDiagram
 {
   "step": "analyze",
   "status": "complete",
-  "message": "Ran 5 models on 6,234 patches",
+  "message": "Ran project-scoped models on 6,234 patches",
   "reasoning": "Model predictions:\n- Platinum Sensitivity: sensitive (score: 0.94)...",
   "data": {"predictions": {}, "top_evidence": []},
   "timestamp": "2025-02-06T23:57:42.123Z",
@@ -1271,47 +1290,37 @@ foundation_models:
   path_foundation:
     name: "Path Foundation"
     embedding_dim: 384
-    description: "Google Health pathology foundation model (ViT-S, 384-dim)"
-  dinov2:
-    name: "DINOv2"
-    embedding_dim: 768
-  uni:
-    name: "UNI"
-    embedding_dim: 1024
-  conch:
-    name: "CONCH"
-    embedding_dim: 512
 
 classification_models:
   platinum_sensitivity:
     model_dir: "transmil_v2"
-    display_name: "Platinum Sensitivity"
     auc: 0.907
-    n_slides: 199
     category: "ovarian_cancer"
-    positive_label: "Sensitive"
-    negative_label: "Resistant"
     compatible_foundation: "path_foundation"
-  # ... (5 models total)
+  lung_stage:
+    model_dir: "luad_transmil_stage"
+    auc: 0.648
+    category: "lung_cancer"
+    compatible_foundation: "path_foundation"
 
 projects:
   ovarian-platinum:
-    name: "Ovarian Cancer - Platinum Sensitivity"
-    cancer_type: Ovarian Cancer
     prediction_target: platinum_sensitivity
-    classes: ["resistant", "sensitive"]
-    positive_class: sensitive
-    foundation_model: path_foundation
-    classification_models:
-      - platinum_sensitivity
-      - tumor_grade
-      - survival_5y
-      - survival_3y
-      - survival_1y
-    features:
-      medgemma_reports: true
-      medsiglip_search: true
+    dataset:
+      slides_dir: data/projects/ovarian-platinum/slides
+      embeddings_dir: data/projects/ovarian-platinum/embeddings
+      labels_file: data/projects/ovarian-platinum/labels.csv
+    classification_models: [platinum_sensitivity, tumor_grade, survival_5y, survival_3y, survival_1y]
     threshold: 0.9229
+
+  lung-stage:
+    prediction_target: tumor_stage
+    dataset:
+      slides_dir: data/projects/lung-stage/slides
+      embeddings_dir: data/projects/lung-stage/embeddings
+      labels_file: data/projects/lung-stage/labels.json
+    classification_models: [lung_stage]
+    threshold: 0.5
 ```
 
 ## 9.2 ProjectRegistry Backend
@@ -1501,7 +1510,7 @@ Attention heatmaps are generated from TransMIL attention weights and rendered as
 
 ### Per-Model Heatmaps
 
-Each of the 5 TransMIL models produces its own attention heatmap:
+Each project-scoped TransMIL model produces its own attention heatmap (6 models in the current deployment):
 - Endpoint: `GET /api/heatmap/{slide_id}/{model_id}`
 - Format: PNG with RGBA (transparent background)
 - Resolution: 1 pixel per 224px patch (grid_w x grid_h)
@@ -1589,7 +1598,7 @@ This section provides step-by-step instructions for deploying Enso Atlas in a ho
 | GPU | None required (Apple MPS or integrated) |
 | OS | macOS 14+ / Ubuntu 22.04+ / Windows WSL2 |
 
-With 16 GB, the system runs Path Foundation (CPU, ~2 GB), TransMIL (5 models, ~200 MB), MedSigLIP (~3 GB), and PostgreSQL (~200 MB). MedGemma 4B (~8 GB bfloat16) will fit but leaves minimal headroom; report generation will be slow (~60-120s). For comfortable operation with MedGemma, 32 GB is recommended.
+With 16 GB, the system runs Path Foundation (CPU, ~2 GB), TransMIL (6 project-scoped models, ~240 MB), MedSigLIP (~3 GB), and PostgreSQL (~200 MB). MedGemma 4B (~8 GB bfloat16) will fit but leaves minimal headroom; report generation will be slow (~60-120s). For comfortable operation with MedGemma, 32 GB is recommended.
 
 ### Recommended: GPU Workstation
 
@@ -1618,8 +1627,7 @@ With 24 GB VRAM: MedGemma 4B (~8 GB) + MedSigLIP (~800 MB) + TransMIL (~200 MB) 
 | Data Type | Per-Slide Size | 200 Slides | 1,000 Slides |
 |---|---|---|---|
 | WSI files (.svs) | 1-3 GB | 200-600 GB | 1-3 TB |
-| Level 0 embeddings (.npy) | 5-15 MB | 1-3 GB | 5-15 GB |
-| Level 1 embeddings (.npy) | 0.1-1 MB | 20-200 MB | 100 MB-1 GB |
+| Level 0 dense embeddings (.npy) | 5-15 MB | 1-3 GB | 5-15 GB |
 | Heatmap cache (.png) | 10-50 KB each | 10-50 MB | 50-250 MB |
 | PostgreSQL | ~1 KB per slide | ~1 MB | ~5 MB |
 | HuggingFace model cache | N/A | ~15 GB | ~15 GB |
@@ -1723,7 +1731,7 @@ curl http://localhost:8003/api/db/status
 
 # Available models
 curl http://localhost:8003/api/models
-# Expected: 5 TransMIL models listed
+# Expected: 6 project-scoped TransMIL models listed
 
 # Open browser
 open http://localhost:3002
@@ -1790,28 +1798,24 @@ The `classification_models` section registers TransMIL (or other MIL) models. Ea
 
 ```yaml
 classification_models:
-  # Included model (platinum sensitivity)
   platinum_sensitivity:
     model_dir: "transmil_v2"          # Directory under outputs/
     display_name: "Platinum Sensitivity"
-    description: "Predicts response to platinum-based chemotherapy"
-    auc: 0.907                        # Validation AUC (displayed in UI)
-    n_slides: 199                     # Training set size (displayed in UI)
-    category: "ovarian_cancer"        # Groups models in the UI
-    positive_label: "Sensitive"       # Label when score > threshold
-    negative_label: "Resistant"       # Label when score <= threshold
-    compatible_foundation: "path_foundation"  # Must match foundation model
+    auc: 0.907
+    n_slides: 199
+    category: "ovarian_cancer"
+    positive_label: "Sensitive"
+    negative_label: "Resistant"
+    compatible_foundation: "path_foundation"
 
-  # Example: adding a custom model
-  her2_status:
-    model_dir: "transmil_her2"        # Directory to create
-    display_name: "HER2 Status"
-    description: "Predicts HER2 amplification from H&E"
-    auc: 0.82
-    n_slides: 500
-    category: "breast_cancer"
-    positive_label: "HER2+"
-    negative_label: "HER2-"
+  lung_stage:
+    model_dir: "luad_transmil_stage"
+    display_name: "Tumor Stage"
+    auc: 0.648
+    n_slides: 130
+    category: "lung_cancer"
+    positive_label: "Advanced (III/IV)"
+    negative_label: "Early (I/II)"
     compatible_foundation: "path_foundation"
 ```
 
@@ -1819,7 +1823,7 @@ classification_models:
 
 ```
 outputs/
-  transmil_her2/                  # Matches model_dir
+  luad_transmil_stage/            # Matches model_dir
     best_model.pt                 # PyTorch checkpoint (TransMIL state_dict)
     config.json                   # Optional: training hyperparameters
     threshold_config.json         # Optional: optimized threshold
@@ -1834,65 +1838,40 @@ Projects tie together a foundation model, one or more classification models, a d
 
 ```yaml
 projects:
-  # Existing ovarian cancer project
   ovarian-platinum:
     name: "Ovarian Cancer - Platinum Sensitivity"
     cancer_type: Ovarian Cancer
     prediction_target: platinum_sensitivity
     classes: ["resistant", "sensitive"]
     positive_class: sensitive
-    description: "Predicts platinum-based chemotherapy sensitivity in HGSOC"
     foundation_model: path_foundation
     dataset:
-      slides_dir: data/tcga_full/slides
-      embeddings_dir: data/embeddings/level0
-      labels_file: data/labels.csv
+      slides_dir: data/projects/ovarian-platinum/slides
+      embeddings_dir: data/projects/ovarian-platinum/embeddings
+      labels_file: data/projects/ovarian-platinum/labels.csv
       label_column: platinum_sensitivity
-    models:
-      embedder: path-foundation
-      mil_architecture: transmil
-      mil_checkpoint: models/transmil_best.pt
-      report_generator: medgemma-4b
-      semantic_search: medsiglip
     classification_models:
       - platinum_sensitivity
       - tumor_grade
       - survival_5y
       - survival_3y
       - survival_1y
-    features:
-      medgemma_reports: true         # Enable MedGemma report generation
-      medsiglip_search: true         # Enable MedSigLIP semantic search
-      semantic_search: true          # Enable text-to-patch search UI
     threshold: 0.9229
-    threshold_config: models/threshold_config.json
 
-  # Example: adding a new cancer type
-  breast-her2:
-    name: "Breast Cancer - HER2 Prediction"
-    cancer_type: Breast Cancer
-    prediction_target: her2_status
-    classes: ["negative", "positive"]
-    positive_class: positive
-    description: "Predicts HER2 amplification status from H&E slides"
+  lung-stage:
+    name: "Lung Adenocarcinoma - Stage Classification"
+    cancer_type: Lung Cancer
+    prediction_target: tumor_stage
+    classes: ["early", "advanced"]
+    positive_class: advanced
     foundation_model: path_foundation
     dataset:
-      slides_dir: data/breast/slides
-      embeddings_dir: data/breast/embeddings/level0
-      labels_file: data/breast/labels.csv
-      label_column: her2_status
-    models:
-      embedder: path-foundation
-      mil_architecture: transmil
-      mil_checkpoint: outputs/transmil_her2/best_model.pt
-      report_generator: medgemma-4b
-      semantic_search: medsiglip
+      slides_dir: data/projects/lung-stage/slides
+      embeddings_dir: data/projects/lung-stage/embeddings
+      labels_file: data/projects/lung-stage/labels.json
+      label_column: tumor_stage
     classification_models:
-      - her2_status
-    features:
-      medgemma_reports: true
-      medsiglip_search: true
-      semantic_search: true
+      - lung_stage
     threshold: 0.5
 ```
 
@@ -1940,8 +1919,8 @@ PATIENT-002,SLIDE-002.svs,non-responder,67,F,IV,High,Serous
 
 ```bash
 python scripts/embed_level0_pipelined.py \
-  --slides_dir data/breast/slides \
-  --output_dir data/breast/embeddings/level0 \
+  --slides_dir data/projects/breast-her2/slides \
+  --output_dir data/projects/breast-her2/embeddings \
   --patch_size 224 \
   --batch_size 512
 ```
@@ -1952,8 +1931,8 @@ This produces `{slide_id}.npy` (N x 384) and `{slide_id}_coords.npy` (N x 2) for
 
 ```bash
 python scripts/train_transmil.py \
-  --embeddings_dir data/breast/embeddings/level0 \
-  --labels_file data/breast/labels.csv \
+  --embeddings_dir data/projects/breast-her2/embeddings \
+  --labels_file data/projects/breast-her2/labels.csv \
   --output_dir outputs/transmil_her2 \
   --epochs 100 \
   --lr 2e-4 \
@@ -1969,8 +1948,8 @@ Alternatively, the fine-tuning script supports 5-fold cross-validation:
 
 ```bash
 python scripts/train_transmil_finetune.py \
-  --embeddings_dir data/breast/embeddings/level0 \
-  --labels_file data/breast/labels.csv \
+  --embeddings_dir data/projects/breast-her2/embeddings \
+  --labels_file data/projects/breast-her2/labels.csv \
   --output_dir outputs/transmil_her2 \
   --n_folds 5 \
   --epochs 100
@@ -1990,8 +1969,8 @@ outputs/transmil_her2/
 
 ```bash
 python scripts/optimize_threshold.py \
-  --embeddings_dir data/breast/embeddings/level0 \
-  --labels_file data/breast/labels.csv \
+  --embeddings_dir data/projects/breast-her2/embeddings \
+  --labels_file data/projects/breast-her2/labels.csv \
   --model_path outputs/transmil_her2/best_model.pt \
   --output outputs/transmil_her2/threshold_config.json
 ```
@@ -2063,8 +2042,8 @@ Changing foundation models requires re-embedding all slides and retraining all c
 **Option A: Copy files to the slides directory.**
 
 ```bash
-# Copy slides to the project's slides directory
-cp /path/to/new_slides/*.svs data/tcga_full/slides/
+# Copy slides to the target project's slides directory
+cp /path/to/new_slides/*.svs data/projects/ovarian-platinum/slides/
 
 # Trigger database repopulation to pick up new slides
 curl -X POST http://localhost:8003/api/db/repopulate
@@ -2073,8 +2052,8 @@ curl -X POST http://localhost:8003/api/db/repopulate
 **Option B: Upload via the API.**
 
 ```bash
-curl -X POST http://localhost:8003/api/projects/ovarian-platinum/upload \
-  -F "file=@/path/to/SLIDE-001.svs"
+curl -X POST http://localhost:8003/api/projects/lung-stage/upload \
+  -F "file=@/path/to/LUAD-001.svs"
 ```
 
 **Option C: Upload via the frontend.**
@@ -2115,14 +2094,14 @@ curl -X POST http://localhost:8003/api/embed-slides/batch \
 
 ```bash
 python scripts/embed_level0_pipelined.py \
-  --slides_dir data/tcga_full/slides \
-  --output_dir data/embeddings/level0 \
+  --slides_dir data/projects/ovarian-platinum/slides \
+  --output_dir data/projects/ovarian-platinum/embeddings \
   --batch_size 512
 ```
 
 ### 13.5.4 Adding Labels
 
-Create or update `data/labels.csv` (or the project-specific labels file):
+Create or update the project labels file (for example `data/projects/ovarian-platinum/labels.csv`):
 
 ```csv
 patient_id,slide_file,treatment_response,age,sex,stage,grade,histology
@@ -2634,42 +2613,38 @@ cat backup_20260210.sql | docker exec -i atlas-db psql -U postgres enso_atlas
 
 # 14. Data Pipeline
 
-## 14.1 TCGA Data
+## 14.1 Project-Scoped Datasets
 
-Training data: 208 TCGA ovarian cancer whole-slide images with platinum sensitivity labels, survival data, and demographics.
+Datasets are organized per project and declared centrally in `config/projects.yaml`. Current production projects include:
 
-## 14.2 Patch Extraction
+- `ovarian-platinum`: TCGA ovarian cohort for platinum response prediction
+- `lung-stage`: TCGA LUAD cohort for stage classification (early vs advanced)
 
-The pipelined extraction script (`scripts/embed_level0_pipelined.py`) uses producer/consumer:
+## 14.2 Canonical Data Layout
 
+```text
+data/
+  projects/
+    ovarian-platinum/
+      slides/
+      embeddings/
+      labels.csv
+    lung-stage/
+      slides/
+      embeddings/
+      labels.json
 ```
-CPU Thread                  GPU Thread
-(extract patches,    --->   (Path Foundation embed,
- tissue mask,                save .npy files)
- batch to queue)
-```
 
-### Tissue Masking
+The backend resolves all dataset paths from `config/projects.yaml`; no API endpoint should rely on flat global `data/tcga_full` assumptions.
 
-```python
-# Relaxed thresholds for maximum tissue coverage
-if mean_val < 245 and std_val > 10:
-    patches.append(patch_array)
-```
+## 14.3 Embedding Generation and Routing
 
-### Output Files
+The extraction script (`scripts/embed_level0_pipelined.py`) generates dense level-0 patch embeddings and coordinate arrays:
 
 - `{slide_id}.npy` -- Embedding array (N x 384)
-- `{slide_id}_coords.npy` -- Coordinate array (N x 2) with (x, y) at level 0
+- `{slide_id}_coords.npy` -- Coordinate array (N x 2)
 
-## 14.3 Multi-Level Embeddings
-
-| Level | Resolution | Typical Patches | Use Case |
-|---|---|---|---|
-| Level 0 | Full resolution (40x) | 3,000-8,000 | Production analysis |
-| Level 1 | Downsampled | 100-500 | Quick preview, development |
-
-The batch analysis panel allows users to select embedding level and force re-embedding.
+Runtime routing uses `_resolve_embedding_path()` to enforce level-0 dense-only lookup for analysis and heatmap workloads, preventing sparse/dense mixing across projects.
 
 ---
 
@@ -2741,7 +2716,7 @@ Every report includes mandatory safety statements. The PDF export includes a hea
 
 | Component | Duration |
 |---|---|
-| TransMIL Loading (5 models) | 2.1s |
+| TransMIL Loading (6 project-scoped models) | 2.1s |
 | MedGemma Loading + Warmup | ~90s |
 | MedSigLIP Loading | 9.7s |
 | FAISS Index Build (208 slides) | 3.2s |
@@ -2754,7 +2729,7 @@ Every report includes mandatory safety statements. The PDF export includes a hea
 |---|---|
 | Load embeddings (.npy) | 5-15ms |
 | TransMIL single model | 20-50ms |
-| Multi-model (5 models) | 100-250ms |
+| Multi-model (project-scoped model set) | 100-250ms |
 | Evidence patch selection (top-8) | <1ms |
 | FAISS similar case search | 2-5ms |
 | Heatmap generation (first, per-model) | 50-100ms |
@@ -2772,7 +2747,7 @@ Every report includes mandatory safety statements. The PDF export includes a hea
 |---|---|---|
 | MedGemma 4B | ~8 GB | bfloat16 |
 | MedSigLIP | ~800 MB | fp16 |
-| TransMIL (5 models) | ~200 MB | float32 |
+| TransMIL (6 project-scoped models) | ~240 MB | float32 |
 | FAISS Index | CPU only | float32 |
 | **Total GPU** | **~9 GB** | |
 
@@ -2785,16 +2760,14 @@ Every report includes mandatory safety statements. The PDF export includes a hea
 | Cached result lookup | 0.8ms |
 | Annotation CRUD | <2ms |
 
-## 16.5 TransMIL Model Performance
+## 16.5 Project Model Performance Snapshot
 
-| Metric | Value |
-|---|---|
-| Best single-model AUC (optimized threshold) | 0.879 |
-| Full-dataset AUC (platinum sensitivity) | 0.907 |
-| Optimized threshold (Youden J) | 0.9229 |
-| Sensitivity | 84.6% |
-| Specificity | 91.2% |
-| Cached result lookup | 0.8ms |
+| Project / Model | Metric | Value |
+|---|---|---|
+| Ovarian / `platinum_sensitivity` | AUC | 0.907 |
+| Ovarian / `platinum_sensitivity` | Threshold (Youden J) | 0.9229 |
+| Lung / `lung_stage` | AUC | 0.648 |
+| Cross-project cache lookup | Median latency | 0.8ms |
 
 ---
 
@@ -2809,7 +2782,7 @@ Enso Atlas supports on-premise deployment on consumer hardware. A modern Mac min
 | Model | Memory Required | Notes |
 |---|---|---|
 | Path Foundation | ~2 GB | TensorFlow on CPU -- works natively on Apple Silicon |
-| TransMIL (5 models) | ~200 MB | PyTorch MPS or CPU, 3.2M params each |
+| TransMIL (6 project-scoped models) | ~240 MB | PyTorch MPS or CPU, ~3.2M params each |
 | MedGemma 4B | ~8 GB (bfloat16) | Fits in 16 GB unified memory via MPS |
 | MedSigLIP | ~3 GB | SigLIP-so400m full model |
 | FAISS Index | ~50 MB | 208 slides, CPU-only |
@@ -2820,7 +2793,7 @@ Enso Atlas supports on-premise deployment on consumer hardware. A modern Mac min
 
 | Operation | DGX Spark (Blackwell) | Mac mini (M4 Pro) |
 |---|---|---|
-| Multi-model inference (5 models) | 100-250ms | 500ms-2s (MPS) |
+| Multi-model inference (project-scoped model set) | 100-250ms | 500ms-2s (MPS) |
 | MedGemma report generation | ~20s | 30-60s (MPS) |
 | Path Foundation embedding (64 patches) | 2.5s (CPU) | 3-5s (CPU) |
 | Heatmap generation | 50-100ms | 100-200ms |
@@ -2856,8 +2829,8 @@ For Mac mini deployment:
 ### Path Foundation CPU-Only
 TensorFlow does not support Blackwell GPUs. Embeddings are pre-computed offline.
 
-### Single Cancer Type in Demo
-The demo covers HGSOC platinum sensitivity only. The config-driven project system supports additional cancer types pending training data.
+### Limited Clinical Breadth
+The current deployment includes two production projects (ovarian platinum response and lung stage classification), but still needs broader multi-site validation and additional cancer programs.
 
 ### No FDA Clearance
 Research tool only. Predictions are uncalibrated raw sigmoid outputs.
@@ -2875,7 +2848,7 @@ First MedSigLIP embedding run for a slide takes ~12-14 minutes for ~6,680 patche
 - DICOM integration for PACS slide import
 
 ### Medium-Term (6-12 months)
-- Additional cancer types (lung, breast, colorectal)
+- Additional cancer programs beyond ovarian/lung (breast, colorectal, prostate)
 - Multimodal integration (H&E + IHC)
 - Federated learning
 - Active learning for efficient annotation
@@ -3021,15 +2994,19 @@ med-gemma-hackathon/
 |   +-- wsi/
 |       +-- processor.py
 +-- data/
-|   +-- labels.csv
+|   +-- projects/
+|   |   +-- ovarian-platinum/
+|   |   |   +-- slides/
+|   |   |   +-- embeddings/
+|   |   |   +-- labels.csv
+|   |   +-- lung-stage/
+|   |       +-- slides/
+|   |       +-- embeddings/
+|   |       +-- labels.json
 |   +-- embeddings/
-|   |   +-- level0/                        (208 x .npy files)
-|   |   +-- heatmap_cache/                 (cached PNG heatmaps)
-|   |   +-- medsiglip_cache/               (cached MedSigLIP embeddings)
-|   |   +-- thumbnail_cache/               (cached slide thumbnails)
-|   +-- tcga_full/
-|       +-- slides/                        (208 .svs files)
-|       +-- labels.csv
+|       +-- heatmap_cache/                 (cached PNG heatmaps)
+|       +-- medsiglip_cache/               (cached MedSigLIP embeddings)
+|       +-- thumbnail_cache/               (cached slide thumbnails)
 +-- outputs/                               (TransMIL training outputs)
 +-- tests/
 +-- docs/
@@ -3078,6 +3055,7 @@ Exact inner product search on L2-normalized mean embeddings (cosine similarity).
 | 1.0.0 | 2025-02-06 | Enso Labs | Initial specification |
 | 2.0.0 | 2025-02-10 | Enso Labs | Complete revamp: added outlier detector, few-shot classifier, patch grid overlay, canvas-based overlays, annotation system (SVG + PostgreSQL), batch embedding, heatmap caching, coverage-based alignment, real-time scale bar, resizable panels, dark mode, Mac mini feasibility, Tailscale Funnel, schema v5, 80+ API endpoints, updated architecture diagrams, all current features |
 | 2.1.0 | 2025-02-10 | Enso Labs | Reframed as modular platform architecture: added abstraction layer diagrams (foundation/classification/evidence/UI), emphasized plug-and-play model system, reframed HAI-DEF models as demo configuration rather than core value, added comprehensive Hospital Deployment Guide (13.1-13.10), strengthened config-driven project system documentation |
+| 2.2.0 | 2026-02-20 | Enso Labs | Updated for multi-project architecture (ovarian + lung): project-scoped API documentation (`/api/analyze-multi` canonical path), `project_id` scope enforcement, level-0 dense embedding routing, project isolation guarantees across backend/frontend/task queues, and project-based data layout (`data/projects/{project-id}/...`). |
 
 ---
 

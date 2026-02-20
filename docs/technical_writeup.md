@@ -1,4 +1,4 @@
-# Enso Atlas: AI-Powered Treatment Response Prediction for Ovarian Cancer
+# Enso Atlas: AI-Powered Project-Scoped Cancer Prediction (Ovarian + Lung)
 
 ## Technical Report
 
@@ -21,11 +21,11 @@ Existing biomarkers for treatment response prediction (BRCA status, HRD scores) 
 
 ### 1.3 Project Objective
 
-This project develops Enso Atlas, a deep learning system that predicts platinum-based chemotherapy response from digitized H&E-stained whole-slide images (WSIs) of ovarian cancer tissue. The system provides:
+This project develops Enso Atlas, a deep learning system that supports multiple project-specific endpoints from digitized H&E-stained whole-slide images (WSIs). The current deployment includes ovarian platinum-response and lung stage-classification workflows. The system provides:
 
-1. Multi-endpoint classification via 5 specialized TransMIL models (platinum sensitivity, tumor grade, 1/3/5-year survival)
+1. Multi-endpoint classification via 6 project-scoped TransMIL models (ovarian response/survival/grade + lung stage)
 2. Interpretable evidence through attention-weighted tissue regions and heatmaps
-3. Semantic tissue search via MedSigLIP for clinician-guided exploration
+3. Semantic tissue search via MedSigLIP for clinician-guided exploration (feature-flagged per project)
 4. Structured clinical reports via MedGemma 1.5 4B
 5. On-premise deployment with no PHI exposure
 
@@ -39,7 +39,7 @@ The system follows a multi-stage pipeline:
 
 ```
 WSI Input -> Tissue Detection -> Patch Extraction -> Path Foundation Embedding -> TransMIL -> Prediction + Evidence
-              (Otsu threshold)   (224x224, level 0)   (384-dim, ViT-S)          (5 models)   (heatmap, patches, report)
+              (Otsu threshold)   (224x224, level 0)   (384-dim, ViT-S)   (project-scoped models)   (heatmap, patches, report)
 ```
 
 **Stage 1: Feature Extraction**
@@ -49,6 +49,8 @@ Whole-slide images are tiled into non-overlapping 224x224 pixel patches at level
 **Stage 2: Multiple Instance Learning**
 
 The bag of patch embeddings is processed by TransMIL (Transformer-based Multiple Instance Learning), which uses self-attention with pyramid position encoding to learn spatial relationships between patches and aggregate them into slide-level predictions with per-patch attention weights.
+
+**Multi-Project Extension (PRs #57-#77):** Project definitions are now centralized in `config/projects.yaml`, including cancer type, prediction target, class labels, model assignments, dataset paths, feature flags, and thresholds. Backend and frontend components consume this config to enforce project isolation and prevent cross-project model leakage.
 
 ### 2.2 Foundation Models
 
@@ -104,17 +106,18 @@ All metrics reported with 5-fold stratified cross-validation (patient-level spli
 
 ### 3.1 Multi-Endpoint Classification
 
-Five specialized TransMIL models trained on TCGA Ovarian Cancer data:
+Six project-scoped TransMIL models are currently registered across ovarian and lung programs:
 
-| Model | AUC-ROC | Slides | Task |
+| Model ID | AUC-ROC | Slides | Task |
 |-------|---------|--------|------|
-| Platinum Sensitivity | 0.907 | 199 | Binary response prediction |
-| Tumor Grade | 0.752 | 918 | High vs. low grade |
-| 5-Year Survival | 0.697 | 965 | 5-year overall survival |
-| 3-Year Survival | 0.645 | 1,106 | 3-year overall survival |
-| 1-Year Survival | 0.639 | 1,135 | 1-year overall survival |
+| `platinum_sensitivity` | 0.907 | 199 | Ovarian platinum response |
+| `tumor_grade` | 0.752 | 918 | High vs. low grade |
+| `survival_5y` | 0.697 | 965 | 5-year overall survival |
+| `survival_3y` | 0.645 | 1,106 | 3-year overall survival |
+| `survival_1y` | 0.639 | 1,135 | 1-year overall survival |
+| `lung_stage` | 0.648 | 130 | Lung stage (early I/II vs advanced III/IV) |
 
-Best single-model AUC: 0.879 (full dataset evaluation).
+Best single-model AUC in current deployment: 0.907 (`platinum_sensitivity`).
 
 ### 3.2 Cross-Validation (Platinum Sensitivity)
 
@@ -152,7 +155,7 @@ The TransMIL attention mechanism reveals biologically plausible patterns. High-a
 
 - **Backend**: FastAPI + PostgreSQL (asyncpg), Docker, port 8003
 - **Frontend**: Next.js 14.2 + TypeScript + Tailwind CSS, port 3002
-- **Database**: PostgreSQL with config-driven project system (projects.yaml + junction tables)
+- **Database**: PostgreSQL with config-driven project system (`config/projects.yaml` + project junction tables)
 - **Hardware**: NVIDIA DGX Spark (ARM64, GB10 GPU, 128GB unified memory)
 
 ### 4.2 User Interface
@@ -186,7 +189,7 @@ Backend startup: ~3.5 minutes (model loading). Fully offline after initial setup
 ### Future Directions
 
 1. PyTorch Path Foundation port for GPU acceleration
-2. Multi-cancer type expansion
+2. Additional project expansion beyond ovarian and lung
 3. EHR/LIMS integration
 4. Stain normalization for cross-site robustness
 5. Prospective clinical validation
@@ -203,8 +206,8 @@ Backend startup: ~3.5 minutes (model loading). Fully offline after initial setup
 
 ---
 
-*Document Version: 2.0*
-*Last Updated: February 7, 2026*
+*Document Version: 2.1*
+*Last Updated: February 20, 2026*
 *Author: Hanson Wen, UC Berkeley*
 
 *Research prototype only. Not validated as a medical device. All predictions must be reviewed by qualified healthcare professionals.*

@@ -61,12 +61,6 @@ docker compose -f docker/docker-compose.yaml ps
 docker logs -f enso-atlas
 ```
 
-## Verify GPU Access
-
-```bash
-docker exec -it enso-atlas python -c "import torch; print('cuda:', torch.cuda.is_available()); print('gpus:', torch.cuda.device_count())"
-```
-
 ## Run the Frontend
 
 The frontend runs separately outside Docker:
@@ -83,15 +77,90 @@ npx next start -p 3002
 - Frontend: `http://<DGX_HOSTNAME_OR_IP>:3002`
 - Backend API docs: `http://<DGX_HOSTNAME_OR_IP>:8003/api/docs`
 
-## Data Layout
+## Project Configuration (Central Source of Truth)
 
-```
+All project definitions are managed in:
+
+- `config/projects.yaml`
+
+This file defines, per project:
+
+- cancer type
+- prediction target
+- class labels
+- enabled models
+- dataset paths
+- feature toggles
+- thresholds
+
+Current baseline config includes two projects and six TransMIL models total:
+
+- `ovarian-platinum`
+- `lung-stage`
+
+## Data Layout (Project-Scoped)
+
+```text
 data/
-  tcga_full/slides/          # 208 TCGA ovarian cancer WSIs (.svs)
-  embeddings/level0/         # Path Foundation 384-dim patch embeddings
-config/
-  projects.yaml              # Project definitions (writable for CRUD)
-models/                      # Trained TransMIL weights (5 models)
+  projects/
+    ovarian-platinum/
+      slides/
+      embeddings/
+      labels.csv
+    lung-stage/
+      slides/
+      embeddings/
+      labels.json
+```
+
+Do not use legacy flat layouts like `data/tcga_full/` for new runs.
+
+## Project Setup Examples
+
+### A) Ovarian project (`ovarian-platinum`)
+
+```bash
+mkdir -p data/projects/ovarian-platinum/{slides,embeddings}
+# Place ovarian .svs files in data/projects/ovarian-platinum/slides/
+# Ensure labels file exists at data/projects/ovarian-platinum/labels.csv
+```
+
+Generate embeddings:
+
+```bash
+python scripts/embed_level0_pipelined.py \
+  --slides_dir data/projects/ovarian-platinum/slides \
+  --output_dir data/projects/ovarian-platinum/embeddings \
+  --batch_size 512
+```
+
+### B) Lung stage project (`lung-stage`)
+
+```bash
+mkdir -p data/projects/lung-stage/{slides,embeddings}
+# Place LUAD .svs files in data/projects/lung-stage/slides/
+# Ensure labels file exists at data/projects/lung-stage/labels.json
+```
+
+Generate embeddings:
+
+```bash
+python scripts/embed_level0_pipelined.py \
+  --slides_dir data/projects/lung-stage/slides \
+  --output_dir data/projects/lung-stage/embeddings \
+  --batch_size 512
+```
+
+After updating slides/labels, repopulate metadata:
+
+```bash
+curl -X POST http://localhost:8003/api/db/repopulate
+```
+
+## Verify GPU Access
+
+```bash
+docker exec -it enso-atlas python -c "import torch; print('cuda:', torch.cuda.is_available()); print('gpus:', torch.cuda.device_count())"
 ```
 
 ## Stop
