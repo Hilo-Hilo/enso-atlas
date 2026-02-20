@@ -2069,10 +2069,10 @@ def create_app(
             description="Model IDs to run. If None, uses default classifier."
         )
         level: int = Field(
-            default=1,
+            default=0,
             ge=0,
             le=1,
-            description="Embedding resolution level (0=full, 1=downsampled)"
+            description="Embedding resolution level (default 0=full, dense; 1=downsampled)"
         )
         force_reembed: bool = Field(
             default=False,
@@ -2153,7 +2153,7 @@ def create_app(
         slide_ids: List[str],
         concurrency: int = 4,
         model_ids: Optional[List[str]] = None,
-        level: int = 1,
+        level: int = 0,
         force_reembed: bool = False,
         project_id: Optional[str] = None,
     ):
@@ -5278,7 +5278,7 @@ DISCLAIMER: This is a research tool. All findings must be validated by qualified
         import time
         
         slide_id = request.get("slide_id")
-        level = request.get("level", 1)
+        level = request.get("level", 0)
         force_reembed = request.get("force", False)
         use_async = request.get("async", level == 0)  # Default async for level 0
         
@@ -5299,10 +5299,6 @@ DISCLAIMER: This is a research tool. All findings must be validated by qualified
         emb_path = level_dir / f"{slide_id}.npy"
         coord_path = level_dir / f"{slide_id}_coords.npy"
         
-        # Also check legacy flat path (for backwards compatibility)
-        legacy_emb_path = embeddings_dir / f"{slide_id}.npy"
-        legacy_coord_path = embeddings_dir / f"{slide_id}_coords.npy"
-        
         # Check if embeddings already exist at this level
         if emb_path.exists() and coord_path.exists() and not force_reembed:
             emb = np.load(emb_path)
@@ -5313,18 +5309,7 @@ DISCLAIMER: This is a research tool. All findings must be validated by qualified
                 "num_patches": len(emb),
                 "message": f"Level {level} embeddings already exist"
             }
-        
-        # For level 1, check if legacy flat embeddings exist
-        if level == 1 and legacy_emb_path.exists() and legacy_coord_path.exists() and not force_reembed:
-            emb = np.load(legacy_emb_path)
-            return {
-                "status": "exists",
-                "slide_id": slide_id,
-                "level": level,
-                "num_patches": len(emb),
-                "message": f"Level {level} embeddings exist (legacy path)"
-            }
-        
+
         # Check if there's already a running task for this slide/level
         existing_task = task_manager.get_task_by_slide(slide_id, level)
         if existing_task:
@@ -5368,10 +5353,10 @@ DISCLAIMER: This is a research tool. All findings must be validated by qualified
                 "slide_id": slide_id,
                 "level": level,
                 "message": f"Embedding started in background. Poll /api/embed-slide/status/{task.task_id} for progress.",
-                "estimated_time_minutes": 15 if level == 0 else 1,
+                "estimated_time_minutes": 15,
             }
-        
-        # For level 1 without async, run inline (original behavior)
+
+        # Optional inline mode (async remains the default for level 0)
         return _run_embedding_inline(slide_id, level, slide_path, emb_path, coord_path)
 
     def _resolve_pathfoundation_local() -> Optional[str]:
@@ -5456,19 +5441,21 @@ DISCLAIMER: This is a research tool. All findings must be validated by qualified
             
             task_manager.update_task(task_id,
                 progress=10,
-                message=f"Extracting tissue patches from {width}x{height} region..."
+                message=f"Extracting 224x224 grid patches from {width}x{height} region..."
             )
-            
-            # Count total potential patches for progress
-            total_potential = max(1, ((height - patch_size) // stride) * ((width - patch_size) // stride))
+
+            # Count total potential patches for progress (inclusive grid coverage)
+            total_rows = max(0, ((height - patch_size) // stride) + 1)
+            total_cols = max(0, ((width - patch_size) // stride) + 1)
+            total_potential = max(1, total_rows * total_cols)
             
             patches = []
             coords = []
             processed = 0
             last_progress_update = time.time()
-            
-            for y in range(0, height - patch_size, stride):
-                for x in range(0, width - patch_size, stride):
+
+            for y in range(0, height - patch_size + 1, stride):
+                for x in range(0, width - patch_size + 1, stride):
                     x0 = int(x * downsample)
                     y0 = int(y * downsample)
                     
@@ -5487,7 +5474,7 @@ DISCLAIMER: This is a research tool. All findings must be validated by qualified
                         extraction_progress = min(processed / total_potential, 1.0) * 40
                         task_manager.update_task(task_id,
                             progress=10 + extraction_progress,
-                            message=f"Extracting patches: {len(patches)} tissue patches found ({processed}/{total_potential} checked)"
+                            message=f"Extracting patches: {len(patches)} grid patches extracted ({processed}/{total_potential} checked)"
                         )
                         last_progress_update = time.time()
                     
@@ -5501,7 +5488,7 @@ DISCLAIMER: This is a research tool. All findings must be validated by qualified
             if len(patches) == 0:
                 task_manager.update_task(task_id,
                     status=TaskStatus.FAILED,
-                    error="No tissue patches found in slide"
+                    error="No 224x224 grid patches found in slide"
                 )
                 return
             
@@ -5585,7 +5572,7 @@ DISCLAIMER: This is a research tool. All findings must be validated by qualified
             )
     
     def _run_embedding_inline(slide_id: str, level: int, slide_path: Path, emb_path: Path, coord_path: Path):
-        """Run embedding inline (original behavior for level 1)."""
+        """Run embedding inline."""
         import time
         start_time = time.time()
         
@@ -5606,9 +5593,9 @@ DISCLAIMER: This is a research tool. All findings must be validated by qualified
             
             patches = []
             coords = []
-            
-            for y in range(0, height - patch_size, stride):
-                for x in range(0, width - patch_size, stride):
+
+            for y in range(0, height - patch_size + 1, stride):
+                for x in range(0, width - patch_size + 1, stride):
                     x0 = int(x * downsample)
                     y0 = int(y * downsample)
                     
@@ -5628,7 +5615,7 @@ DISCLAIMER: This is a research tool. All findings must be validated by qualified
             slide.close()
             
             if len(patches) == 0:
-                raise HTTPException(status_code=400, detail="No tissue patches found in slide")
+                raise HTTPException(status_code=400, detail="No 224x224 grid patches found in slide")
             
             import os
             os.environ["CUDA_VISIBLE_DEVICES"] = ""
@@ -5855,8 +5842,8 @@ DISCLAIMER: This is a research tool. All findings must be validated by qualified
                 patches = []
                 coords = []
 
-                for y in range(0, height - patch_size, stride):
-                    for x in range(0, width - patch_size, stride):
+                for y in range(0, height - patch_size + 1, stride):
+                    for x in range(0, width - patch_size + 1, stride):
                         x0 = int(x * downsample)
                         y0 = int(y * downsample)
 
@@ -5879,7 +5866,7 @@ DISCLAIMER: This is a research tool. All findings must be validated by qualified
                     batch_embed_manager.add_result(task_id, BatchEmbedSlideResult(
                         slide_id=slide_id,
                         status="failed",
-                        error="No tissue patches found",
+                        error="No 224x224 grid patches found",
                     ))
                     continue
 
@@ -6127,6 +6114,9 @@ DISCLAIMER: This is a research tool. All findings must be validated by qualified
                         "searched_dirs": [str(d) for d in searched_dirs],
                     }
                 )
+            raise HTTPException(status_code=404, detail=f"Slide {slide_id} not found")
+
+        if not emb_path.exists():
             raise HTTPException(status_code=404, detail=f"Slide {slide_id} not found")
 
         embeddings = np.load(emb_path)
