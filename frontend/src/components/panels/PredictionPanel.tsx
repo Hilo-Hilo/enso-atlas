@@ -169,8 +169,8 @@ export function PredictionPanel({
     );
   }
 
-  // Determine responder status
-  const isResponder = prediction.score >= 0.5;
+  // Determine predicted class side (threshold-based binary decision)
+  const isPositivePrediction = prediction.score >= 0.5;
   const probabilityPercent = Math.round(prediction.score * 100);
 
   // Risk stratification
@@ -248,14 +248,14 @@ export function PredictionPanel({
         <div
           className={cn(
             "p-4 rounded-xl border-2 transition-all",
-            isResponder
+            isPositivePrediction
               ? "bg-responder-positive-bg border-responder-positive-border"
               : "bg-responder-negative-bg border-responder-negative-border"
           )}
         >
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
-              {isResponder ? (
+              {isPositivePrediction ? (
                 <CheckCircle className="h-6 w-6 text-responder-positive" />
               ) : (
                 <XCircle className="h-6 w-6 text-responder-negative" />
@@ -263,12 +263,12 @@ export function PredictionPanel({
               <span
                 className={cn(
                   "text-xl font-bold tracking-tight",
-                  isResponder
+                  isPositivePrediction
                     ? "text-responder-positive"
                     : "text-responder-negative"
                 )}
               >
-                {isResponder ? positiveLabel.toUpperCase() : negativeLabel.toUpperCase()}
+                {isPositivePrediction ? positiveLabel.toUpperCase() : negativeLabel.toUpperCase()}
               </span>
             </div>
             <Badge
@@ -299,7 +299,7 @@ export function PredictionPanel({
                 <span>Uncalibrated - do not interpret as true probability</span>
               </div>
               <p className="text-xs text-gray-600 leading-relaxed">
-                {isResponder
+                {isPositivePrediction
                   ? `Model predicts ${positiveLabel.toLowerCase()} for ${predictionTargetLabel.toLowerCase()} based on histopathological features.`
                   : `Model predicts ${negativeLabel.toLowerCase()} for ${predictionTargetLabel.toLowerCase()}. Correlate with clinical context before action.`}
               </p>
@@ -318,7 +318,7 @@ export function PredictionPanel({
 
           {/* Visual Probability Bar */}
           <div className="probability-bar">
-            {/* Non-responder zone (red) */}
+            {/* Lower-score zone (red) */}
             <div
               className="absolute left-0 top-0 h-full bg-gradient-to-r from-red-100 to-red-200"
               style={{ width: "50%" }}
@@ -332,7 +332,7 @@ export function PredictionPanel({
             <div
               className={cn(
                 "absolute top-0 h-full w-1.5 rounded-full shadow-md transition-all duration-700 ease-out",
-                isResponder ? "bg-status-positive" : "bg-status-negative"
+                isPositivePrediction ? "bg-status-positive" : "bg-status-negative"
               )}
               style={{ left: `calc(${probabilityPercent}% - 3px)` }}
             />

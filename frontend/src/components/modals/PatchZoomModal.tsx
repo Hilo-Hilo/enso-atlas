@@ -39,6 +39,8 @@ export function PatchZoomModal({
   const [zoomLevel, setZoomLevel] = React.useState(1);
   const { currentProject } = useProject();
   const predictionTargetLabel = humanizeIdentifier(currentProject.prediction_target).toLowerCase();
+  const positiveLabel = (currentProject.positive_class || currentProject.classes?.[1] || "positive").toLowerCase();
+  const negativeLabel = (currentProject.classes?.find((c) => c !== currentProject.positive_class) || currentProject.classes?.[0] || "negative").toLowerCase();
 
   // Sort patches by attention weight for rank
   const sortedPatches = [...allPatches].sort(
@@ -116,7 +118,7 @@ export function PatchZoomModal({
 
     const weight = patch.attentionWeight;
     if (weight >= 0.7) {
-      return `High attention region showing distinctive cellular patterns that strongly influence the model's prediction. This area contains morphological features characteristic of the predicted ${predictionTargetLabel} class.`;
+      return `High attention region showing distinctive cellular patterns that strongly influence the model's prediction. This area contains morphology relevant to ${predictionTargetLabel} assessment (e.g., ${negativeLabel} vs ${positiveLabel}).`;
     } else if (weight >= 0.4) {
       return "Moderate attention region with notable tissue architecture. The cellular composition and spatial arrangement in this patch contribute to the overall prediction confidence.";
     } else {
