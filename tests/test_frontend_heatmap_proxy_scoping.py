@@ -48,3 +48,12 @@ def test_slide_heatmap_proxy_preserves_backend_error_payload_for_ui_messages():
     assert "const errorBody = await response.text();" in src
     assert "return new NextResponse(" in src
     assert '"Content-Type": response.headers.get("Content-Type") || "application/json"' in src
+
+
+def test_page_heatmap_model_options_are_guarded_by_current_project_scope():
+    src = _read("frontend/src/app/page.tsx")
+
+    assert "projectAvailableModelsScopeId" in src
+    assert "projectAvailableModelsScopeId === currentProject.id" in src
+    assert "normalizedHeatmapModel" in src
+    assert "!scopedProjectModelIds.has(heatmapModel)" in src

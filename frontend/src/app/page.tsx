@@ -353,6 +353,7 @@ function HomePage() {
 
   // Project-specific available models for preview + heatmap controls
   const [projectAvailableModels, setProjectAvailableModels] = useState<import("@/types").AvailableModel[]>([]);
+  const [projectAvailableModelsScopeId, setProjectAvailableModelsScopeId] = useState<string | null>(null);
   const fallbackProjectModels = useMemo(
     () =>
       buildProjectFallbackAvailableModels({
@@ -368,8 +369,11 @@ function HomePage() {
       currentProject.classes,
     ]
   );
-  const scopedProjectModels =
-    projectAvailableModels.length > 0 ? projectAvailableModels : fallbackProjectModels;
+  const hasCurrentProjectModels =
+    projectAvailableModelsScopeId === currentProject.id && projectAvailableModels.length > 0;
+  const scopedProjectModels = hasCurrentProjectModels
+    ? projectAvailableModels
+    : fallbackProjectModels;
 
   // Embedding progress state for better UX during long operations
   const [embeddingProgress, setEmbeddingProgress] = useState<{
@@ -610,6 +614,7 @@ function HomePage() {
     setSlideIndex(0);
     // Clear current project model cache while refetching
     setProjectAvailableModels([]);
+    setProjectAvailableModelsScopeId(null);
     setHeatmapModel(fallbackProjectModels[0]?.id ?? currentProject.prediction_target ?? null);
 
     const fetchProjectModels = async () => {
@@ -624,6 +629,7 @@ function HomePage() {
         if (details.length > 0) {
           const mapped = details.map(mapDetailToAvailableModel);
           setProjectAvailableModels(mapped);
+          setProjectAvailableModelsScopeId(currentProject.id);
           setHeatmapModel(mapped[0]?.id ?? fallbackProjectModels[0]?.id ?? currentProject.prediction_target ?? null);
           return;
         }
@@ -636,6 +642,7 @@ function HomePage() {
       if (!cancelled) {
         // Keep safe project-derived fallback, never global hardcoded catalog
         setProjectAvailableModels([]);
+        setProjectAvailableModelsScopeId(currentProject.id);
         setHeatmapModel(fallbackProjectModels[0]?.id ?? currentProject.prediction_target ?? null);
       }
     };
@@ -1840,8 +1847,16 @@ function HomePage() {
   const dziUrl = selectedSlide ? getDziUrl(selectedSlide.id, currentProject?.id) : undefined;
   
   // Build heatmap data with selected model
+  const scopedProjectModelIds = useMemo(
+    () => new Set(scopedProjectModels.map((m) => m.id)),
+    [scopedProjectModels]
+  );
+  const normalizedHeatmapModel =
+    heatmapModel && scopedProjectModelIds.size > 0 && !scopedProjectModelIds.has(heatmapModel)
+      ? null
+      : heatmapModel;
   const effectiveHeatmapModel =
-    heatmapModel ?? scopedProjectModels[0]?.id ?? currentProject?.prediction_target ?? null;
+    normalizedHeatmapModel ?? scopedProjectModels[0]?.id ?? currentProject?.prediction_target ?? null;
 
   const heatmapData = selectedSlide && effectiveHeatmapModel ? {
     imageUrl: getHeatmapUrl(
@@ -2251,7 +2266,7 @@ function HomePage() {
                 onRegionClick={handlePatchClick}
                 targetCoordinates={targetCoordinates}
                 className="h-full"
-                heatmapModel={heatmapModel}
+                heatmapModel={normalizedHeatmapModel}
                 heatmapLevel={heatmapLevel}
                 onHeatmapLevelChange={setHeatmapLevel}
                 heatmapAlphaPower={heatmapAlphaPower}
