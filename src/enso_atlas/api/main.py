@@ -2608,13 +2608,22 @@ def create_app(
         slide_id: str,
         project_id: Optional[str] = None,
     ) -> Optional[Dict[str, Any]]:
-        """Load patient context from a project's labels file for a slide."""
+        """Load patient context from labels for a slide.
+
+        Project-scoped requests must only read the configured project labels file.
+        Global fallback labels are allowed only for non-project requests.
+        """
         _require_project(project_id)
         labels_path = _project_labels_path(project_id)
-        if labels_path is None:
-            labels_path = _data_root / "labels.csv"
-            if not labels_path.exists():
-                labels_path = embeddings_dir.parent / "labels.csv"
+
+        if project_id:
+            if labels_path is None:
+                return None
+        else:
+            if labels_path is None:
+                labels_path = _data_root / "labels.csv"
+                if not labels_path.exists():
+                    labels_path = embeddings_dir.parent / "labels.csv"
 
         if not labels_path.exists() or labels_path.suffix.lower() != ".csv":
             return None

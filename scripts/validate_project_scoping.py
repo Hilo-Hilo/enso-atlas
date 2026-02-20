@@ -56,6 +56,16 @@ def main() -> None:
         "_report_embeddings_dir = _resolve_project_embeddings_dir(",
         "Report generation resolves project-scoped embeddings dir",
     )
+    require(
+        src,
+        "if proj_cfg:\n            labels_path = _project_labels_path(project_id)\n        else:\n            labels_path = _data_root / \"labels.csv\"",
+        "Flat-file listing uses project labels path only when project_id is provided",
+    )
+    require(
+        src,
+        "if project_id:\n            if labels_path is None:\n                return None\n        else:\n            if labels_path is None:\n                labels_path = _data_root / \"labels.csv\"",
+        "Patient context global-label fallback only applies to non-project requests",
+    )
 
     print("\nAll project-scoping validation checks passed.")
 
