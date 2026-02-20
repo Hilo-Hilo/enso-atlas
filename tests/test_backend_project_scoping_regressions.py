@@ -84,3 +84,10 @@ def test_async_report_preflight_is_project_scoped():
     assert "project_id: Optional[str] = None" in task_src
     assert "def get_task_by_slide(self, slide_id: str, project_id: Optional[str] = None)" in task_src
     assert "task.project_id == project_id" in task_src
+
+
+def test_project_scoped_slides_fail_closed_when_embeddings_are_missing_or_empty():
+    src = _main_source()
+    assert "returning 0 slides (no global fallback)" in src
+    assert "list_slides._cache[_cache_key] = {\"data\": [], \"ts\": time.time()}" in src
+    assert "_candidate_emb_dirs = [_fallback_embeddings_dir]" in src
