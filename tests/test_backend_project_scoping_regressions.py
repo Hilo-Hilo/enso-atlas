@@ -36,3 +36,14 @@ def test_report_paths_resolve_project_specific_embeddings_before_processing():
     src = _main_source()
     assert "report_embeddings_dir = _resolve_project_embeddings_dir(" in src
     assert "_report_embeddings_dir = _resolve_project_embeddings_dir(" in src
+
+
+def test_flat_file_listing_uses_project_labels_without_global_fallback():
+    src = _main_source()
+    assert "if proj_cfg:\n            labels_path = _project_labels_path(project_id)\n        else:\n            labels_path = _data_root / \"labels.csv\"" in src
+
+
+def test_patient_context_global_label_fallback_is_non_project_only():
+    src = _main_source()
+    assert "labels_path = _project_labels_path(project_id)" in src
+    assert "if project_id:\n            if labels_path is None:\n                return None\n        else:\n            if labels_path is None:\n                labels_path = _data_root / \"labels.csv\"" in src
