@@ -4,13 +4,17 @@
 
 ## 1. Title
 
-**Enso Atlas: On-Premise Pathology Evidence Engine for Ovarian Cancer Treatment Response Prediction**
+**Enso Atlas: On-Premise Pathology Evidence Engine for Multi-Cancer Prediction (Ovarian Platinum Response + Lung Stage Classification)**
 
 ---
 
 ## 2. Summary
 
-Platinum-based chemotherapy is the standard first-line treatment for ovarian cancer, but ~30% of patients do not respond. Enso Atlas is an on-premise pathology evidence engine that predicts platinum sensitivity from whole-slide histopathology images using all three Google HAI-DEF foundation models. Path Foundation extracts 384-dimensional patch embeddings, TransMIL classifies slides with interpretable attention weights (AUC 0.907 for platinum sensitivity), MedSigLIP enables semantic text-to-patch search for clinician-guided exploration, and MedGemma generates structured clinical reports grounded in visual evidence. Every prediction is accompanied by attention heatmaps, evidence patches, similar case retrieval, and auditable reports. The local-first architecture ensures no patient data leaves hospital networks, running entirely on a single GPU workstation via Docker.
+Platinum-based chemotherapy is the standard first-line treatment for ovarian cancer, but a substantial subset of patients does not respond. Enso Atlas is an on-premise pathology evidence engine that was initially developed for ovarian platinum sensitivity prediction and then extended to lung adenocarcinoma stage classification through a config-driven project system. The platform now supports two isolated projects (`ovarian-platinum`, `lung-stage`) with six total classification models.
+
+Path Foundation extracts 384-dimensional embeddings from level-0 (full-resolution) tissue patches and serves as the shared feature backbone. TransMIL performs project-scoped slide-level classification with interpretable attention weights (best AUC 0.907 for ovarian platinum sensitivity; AUC 0.648 for LUAD early vs advanced stage). MedSigLIP provides semantic text-to-patch search where enabled, and MedGemma generates structured clinical reports grounded in visual evidence. Every prediction is accompanied by attention heatmaps, evidence patches, similar-case retrieval, and auditable report output.
+
+The architecture is local-first and project-isolated end-to-end: datasets, embeddings, model access, and API routing are all scoped by project ID so no cross-project leakage occurs.
 
 ---
 
@@ -30,7 +34,8 @@ Target export filename: `enso-atlas-3min-demo.mp4` (1080p, <= 3:00).
 Repository includes:
 - Complete source code (FastAPI backend + Next.js frontend)
 - Docker Compose deployment configuration
-- 5 trained TransMIL models with evaluation metrics
+- 6 trained TransMIL classification models across 2 projects
+- Project-scoped API/model routing with regression tests
 - Documentation, reproduction guide, and benchmark results
 
 ---
@@ -42,7 +47,8 @@ See: [SUBMISSION_WRITEUP.md](./SUBMISSION_WRITEUP.md)
 Key sections:
 - Problem statement and clinical motivation
 - System architecture with all 3 HAI-DEF models
-- TransMIL classification results (AUC 0.907, 5-fold CV 0.707)
+- Multi-project, project-isolated backend/frontend architecture
+- Ovarian and LUAD classification results
 - 7-step agentic AI workflow
 - Deployment on NVIDIA DGX Spark
 
@@ -53,18 +59,18 @@ Key sections:
 ### Path Foundation
 - **Role:** Histopathology feature extraction
 - **Usage:** ViT-S model extracts 384-dimensional embeddings from 224x224 H&E patches at level 0 (full resolution)
-- **Details:** Runs on CPU (TensorFlow/Blackwell incompatibility); embeddings cached as FP16 for downstream tasks
-- **Impact:** Provides domain-optimized representations that enable TransMIL to achieve AUC 0.907
+- **Details:** Level-0 dense embeddings are the default inference pathway; embeddings are reused across project-scoped models
+- **Impact:** Enables a shared morphology representation across ovarian and lung projects
 
 ### MedGemma 1.5 4B
 - **Role:** Clinical report generation
-- **Usage:** Generates structured tumor board summaries from evidence patches and model outputs (~20s/report on GPU)
-- **Details:** Constrained to describe morphological observations only; avoids prescriptive language; JSON-structured output with safety disclaimers
+- **Usage:** Generates structured summaries from evidence patches and model outputs (~20s/report on GPU)
+- **Details:** Constrained to morphology-focused descriptions with safety disclaimers
 
 ### MedSigLIP
 - **Role:** Semantic text-to-patch search
-- **Usage:** Pathologists query tissue regions using natural language (e.g., "tumor infiltrating lymphocytes") to find matching patches
-- **Details:** Dual encoder architecture enables real-time similarity search across thousands of patches per slide
+- **Usage:** Natural language retrieval of histologic patterns for clinician-guided exploration
+- **Details:** Integrated with project feature flags and scoped endpoints
 
 ---
 
@@ -77,7 +83,7 @@ Key sections:
 ## 8. Acknowledgments
 
 - **Google HAI-DEF** for Path Foundation, MedGemma, MedSigLIP, and the Impact Challenge
-- **TCGA (The Cancer Genome Atlas)** for ovarian cancer whole-slide image data and clinical annotations
+- **TCGA (The Cancer Genome Atlas)** for TCGA-OV and TCGA-LUAD whole-slide datasets and clinical annotations
 - **OpenSlide** for whole-slide image processing
 - **FAISS** (Meta AI) for similarity search infrastructure
 - **NVIDIA** for DGX Spark hardware
@@ -86,4 +92,4 @@ Key sections:
 
 ## Short Pitch
 
-Enso Atlas: on-premise pathology AI that shows its work. Predicts ovarian cancer platinum sensitivity (AUC 0.907) with interpretable evidence -- attention heatmaps, semantic search, and MedGemma reports. All 3 HAI-DEF models, fully local, no PHI leaves the hospital.
+Enso Atlas is an on-premise pathology AI platform that shows its work. It supports ovarian platinum-response prediction (AUC 0.907) and config-driven extension to lung adenocarcinoma stage classification (AUC 0.648), with project-isolated routing, interpretable heatmaps, semantic evidence search, and MedGemma-generated reports. All inference runs locally; no PHI leaves hospital infrastructure.

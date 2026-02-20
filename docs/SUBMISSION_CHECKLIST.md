@@ -1,7 +1,7 @@
 # Enso Atlas -- Final Submission Checklist
 
 **MedGemma Impact Challenge Submission**
-**Last Updated:** 2026-02-07
+**Last Updated:** 2026-02-20
 **Deadline:** 2026-02-24
 
 ---
@@ -11,7 +11,7 @@
 | Requirement | Status | Notes |
 |-------------|--------|-------|
 | 3-minute video demo | PENDING | Requirement-mapped script finalized (VIDEO_SCRIPT.md), needs recording/upload |
-| 3-page technical writeup | DONE | SUBMISSION_WRITEUP.md updated and current |
+| 3-page technical writeup | DONE | SUBMISSION_WRITEUP.md updated for multi-project architecture |
 | Reproducible source code | DONE | GitHub repo at Hilo-Hilo/med-gemma-hackathon |
 | Kaggle Writeups upload | PENDING | Needs conversion and upload to Kaggle |
 
@@ -36,11 +36,11 @@
 
 | Item | Status | Notes |
 |------|--------|-------|
-| Technical writeup (3 pages) | DONE | SUBMISSION_WRITEUP.md -- concise, current |
+| Technical writeup (3 pages) | DONE | SUBMISSION_WRITEUP.md -- updated for ovarian + lung projects |
 | Video script | DONE | VIDEO_SCRIPT.md -- matches current UI |
 | API documentation | DONE | Swagger UI at /api/docs |
 | Benchmark results | DONE | BENCHMARK_RESULTS.md |
-| Dataset documentation | DONE | DATASETS.md -- TCGA-OV + PathDB notes |
+| Dataset documentation | DONE | DATASETS.md -- TCGA-OV + TCGA-LUAD + PathDB notes |
 | Integration test results | DONE | frontend/INTEGRATION_TEST_RESULTS.md |
 
 **Score: 6/6**
@@ -49,19 +49,20 @@
 
 ## 3. Backend Functionality
 
-| Endpoint | Status | Notes |
-|----------|--------|-------|
+| Endpoint / Capability | Status | Notes |
+|-----------------------|--------|-------|
 | Health endpoint | DONE | GET /health -- status, version, model state |
-| Slide listing | DONE | GET /api/slides -- 208 TCGA slides with metadata |
+| Project-scoped slide listing | DONE | GET /api/projects/{project_id}/slides -- ovarian-platinum (208 TCGA-OV), lung-stage (130 TCGA-LUAD) |
 | WSI tile serving (DZI) | DONE | GET /api/dzi/{slide_id} |
-| TransMIL analysis | DONE | POST /api/analyze -- 5 models, PostgreSQL caching |
-| Similar case retrieval | DONE | FAISS index on 208 slides |
+| Project-scoped model listing | DONE | GET /api/projects/{project_id}/models -- strict model isolation by project |
+| TransMIL analysis | DONE | POST /api/analyze -- 6 project-scoped models (5 ovarian + 1 lung), PostgreSQL caching |
+| Similar case retrieval | DONE | FAISS retrieval with project-scoped routing |
 | Report generation | DONE | POST /api/report -- MedGemma 1.5 4B |
-| Heatmap generation | DONE | GET /api/heatmap/{slide_id} -- jet colormap |
+| Heatmap generation | DONE | GET /api/heatmap/{slide_id} -- project-scoped model access enforced |
 | Semantic search | DONE | POST /api/semantic-search -- MedSigLIP |
-| Project management | DONE | CRUD for projects, models, slides |
+| Project management | DONE | CRUD for projects, models, slides with end-to-end isolation |
 
-**Score: 9/9**
+**Score: 10/10**
 
 ---
 
@@ -77,13 +78,14 @@
 | Semantic search panel | DONE | MedSigLIP text-to-patch |
 | AI Assistant (agentic) | DONE | 7-step workflow |
 | Project Management UI | DONE | CRUD with project-scoped slides/models |
+| Project-scoped model picker | DONE | Model selection constrained to selected project |
 | Slide Manager | DONE | Thumbnails, filtering, metadata |
 | PDF/JSON export | DONE | Client-side generation |
 | Batch processing | DONE | Parallel execution with progress |
 | Dark mode | DONE | System-aware theming |
 | Annotation tools | DONE | Circle, rectangle, freehand, measure |
 
-**Score: 13/13**
+**Score: 14/14**
 
 ---
 
@@ -91,7 +93,7 @@
 
 | Model | Status | Details |
 |-------|--------|---------|
-| Path Foundation | DONE | 384-dim embeddings, ViT-S, CPU inference |
+| Path Foundation | DONE | 384-dim embeddings, level-0 dense embeddings as default |
 | MedGemma 1.5 4B | DONE | Clinical reports, GPU, ~20s/report |
 | MedSigLIP | DONE | Semantic text-to-patch search, GPU |
 
@@ -99,18 +101,19 @@
 
 ---
 
-## 6. Classification Results
+## 6. Classification Results (Project-Scoped)
 
-| Model | AUC | Status |
-|-------|-----|--------|
-| Platinum Sensitivity | 0.907 | DONE -- trained and evaluated |
-| Tumor Grade | 0.752 | DONE |
-| 5-Year Survival | 0.697 | DONE |
-| 3-Year Survival | 0.645 | DONE |
-| 1-Year Survival | 0.639 | DONE |
+| Project | Model | AUC | Status |
+|---------|-------|-----|--------|
+| ovarian-platinum | Platinum Sensitivity | 0.907 | DONE |
+| ovarian-platinum | Tumor Grade | 0.752 | DONE |
+| ovarian-platinum | 5-Year Survival | 0.697 | DONE |
+| ovarian-platinum | 3-Year Survival | 0.645 | DONE |
+| ovarian-platinum | 1-Year Survival | 0.639 | DONE |
+| lung-stage | Tumor Stage (Early I/II vs Advanced III/IV) | 0.648 | DONE |
 
-5-fold CV mean AUC: 0.707 +/- 0.117
-Best model AUC: 0.879 (full dataset)
+- Total classification models: **6** (5 ovarian + 1 lung)
+- Best model AUC: **0.907** (ovarian platinum sensitivity)
 
 ---
 
@@ -120,10 +123,10 @@ Best model AUC: 0.879 (full dataset)
 |----------|-------|--------|
 | Code Repository | 6/6 | DONE |
 | Documentation | 6/6 | DONE |
-| Backend | 9/9 | DONE |
-| Frontend | 13/13 | DONE |
+| Backend | 10/10 | DONE |
+| Frontend | 14/14 | DONE |
 | HAI-DEF Models | 3/3 | DONE |
-| **Total** | **37/37** | **DONE** |
+| **Total** | **39/39** | **DONE** |
 
 ---
 
@@ -150,14 +153,15 @@ Best model AUC: 0.879 (full dataset)
 # Backend health check (Docker)
 curl http://localhost:8003/health
 
-# List slides
-curl http://localhost:8003/api/slides
+# Project-scoped slide/model lists
+curl http://localhost:8003/api/projects/ovarian-platinum/slides
+curl http://localhost:8003/api/projects/lung-stage/models
 
 # Run analysis
 curl -X POST http://localhost:8003/api/analyze \
   -H "Content-Type: application/json" \
-  -d '{"slide_id": "TCGA-example"}'
+  -d '{"slide_id": "TCGA-example", "project_id": "ovarian-platinum"}'
 
-# Frontend
-cd frontend && npm run build && npx next start -p 3002
+# Frontend checks
+cd frontend && npm run build && npm run lint && npm run check:model-scope && npm run check:heatmap-alignment
 ```

@@ -48,7 +48,7 @@ We implement slide-level prediction with **TransMIL** (Transformer multiple-inst
 
 3. **Slide-level prediction with TransMIL**
    - Patch embeddings are aggregated to slide-level outputs.
-   - Multiple task heads are supported (platinum sensitivity, grade, 1/3/5-year survival).
+   - Multiple task heads are supported (ovarian platinum sensitivity, grade, 1/3/5-year survival, plus lung early-vs-advanced stage classification).
    - Attention weights are retained for explainability and heatmap visualization.
 
 4. **Evidence synthesis and reporting**
@@ -112,6 +112,7 @@ Enso Atlas is designed for realistic deployment constraints in healthcare enviro
 - **Containerized stack** simplifies deployment and maintenance.
 - **Evidence-first outputs** improve clinician trust compared with black-box predictors.
 - **Config-driven project system** supports extension to new cancers/tasks without rewriting core services.
+- **Demonstrated extensibility:** the same architecture was extended from ovarian response prediction to a lung adenocarcinoma stage project (`lung-stage`) using project configuration and scoped model registration.
 
 The impact is not just a higher AUC. The core contribution is a deployable architecture that combines foundational pathology embeddings, interpretable slide-level modeling, semantic evidence exploration, and report generation in one coherent platform.
 

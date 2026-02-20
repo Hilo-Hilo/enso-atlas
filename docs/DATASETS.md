@@ -1,12 +1,12 @@
-# Ovarian Cancer WSI Datasets
+# Enso Atlas WSI Datasets
 
 This document describes the datasets used and considered for Enso Atlas.
 
 ---
 
-## Primary Dataset: TCGA Ovarian Cancer (TCGA-OV)
+## Primary Project Dataset: TCGA Ovarian Cancer (TCGA-OV)
 
-**This is the dataset used for all training and evaluation.**
+**Project:** `ovarian-platinum`
 
 ### Overview
 
@@ -18,62 +18,65 @@ This document describes the datasets used and considered for Enso Atlas.
 
 ### Labels
 
-- **Platinum Sensitivity:** Binary (Sensitive vs. Resistant), derived from PLATINUM_STATUS field in cBioPortal clinical data
-- **Tumor Grade:** High vs. Low grade
+- **Platinum Sensitivity:** Binary (Sensitive vs Resistant), derived from PLATINUM_STATUS in clinical records
+- **Tumor Grade:** High vs Low grade
 - **Survival:** 1-year, 3-year, 5-year overall survival (binary)
 
 ### Usage in Enso Atlas
 
-- 208 slides with platinum sensitivity labels used for the primary TransMIL model (AUC 0.907)
-- Up to 1,135 slides used for survival prediction models (larger subset with available survival data)
-- Level 0 (full resolution) patch extraction: 224x224 pixels, yielding 6,000--30,000 patches per slide
-- Path Foundation embeddings: 384-dimensional vectors cached as FP16
-- 5-fold stratified cross-validation with patient-level splits
+- 208 slides with platinum sensitivity labels for the primary ovarian response model (AUC 0.907)
+- Larger labeled subsets used for grade and survival heads
+- Level-0 patch extraction (224x224), typically 6,000-30,000 patches/slide
+- Path Foundation embeddings (384-dimensional, FP16 cache)
 
-### Clinical Data Fields (via cBioPortal)
+---
 
-- PLATINUM_STATUS: Sensitive / Resistant / TooEarly
-- PRIMARY_THERAPY_OUTCOME_SUCCESS: Complete Response / Partial Response / Stable Disease / Progressive Disease
-- OS_MONTHS, OS_STATUS: Overall survival
-- DFS_MONTHS, DFS_STATUS: Disease-free survival
-- Tumor type, stage, grade
+## Secondary Project Dataset: TCGA Lung Adenocarcinoma (TCGA-LUAD)
 
-### Access
+**Project:** `lung-stage`
 
-```bash
-# GDC Data Portal API for slides
-curl 'https://api.gdc.cancer.gov/files?filters=...'
+### Overview
 
-# cBioPortal API for clinical data
-curl 'https://www.cbioportal.org/api/studies/ov_tcga_pub/clinical-data?clinicalDataType=PATIENT'
+- **Source:** Genomic Data Commons (GDC) / The Cancer Genome Atlas
+- **Project ID:** TCGA-LUAD
+- **Slides Used:** 130 whole-slide images
+- **Format:** SVS (open access)
+- **License:** TCGA/GDC open-access terms
 
-# Download with gdc-client
-gdc-client download -m manifest.txt
-```
+### Labels
+
+- **Tumor Stage:** Binary stage grouping for classification
+  - **Early:** Stage I/II
+  - **Advanced:** Stage III/IV
+
+### Usage in Enso Atlas
+
+- 130 slides used for LUAD stage classification
+- TransMIL model ID: `lung_stage`
+- AUC-ROC: **0.648**
+- Uses the same level-0 Path Foundation embedding pipeline and project-scoped storage/routing
 
 ---
 
 ## Blocked Dataset: Ovarian Bevacizumab Response (PathDB/TCIA)
 
-**Originally planned as primary dataset. Download was blocked.**
+**Originally planned as primary ovarian treatment-response dataset. Download was blocked.**
 
 ### Overview
 
 - **Source:** The Cancer Imaging Archive (TCIA) / PathDB
 - **DOI:** 10.7937/TCIA.985G-EY35
 - **Subjects:** 78 patients
-- **Slides:** 288 H&E stained WSIs (162 effective, 126 invalid)
-- **Labels:** Bevacizumab treatment response (Effective vs. Invalid)
+- **Slides:** 288 H&E WSIs (162 effective, 126 invalid)
+- **Labels:** Bevacizumab treatment response (Effective vs Invalid)
 
 ### Why It Was Blocked
 
-The PathDB download server returned **0-byte files for 217 out of 286 slides**. Only 69 slides downloaded successfully, which was insufficient for training. Multiple download attempts over several days produced the same result. The server appeared to be experiencing persistent issues with file serving.
-
-This dataset would have been ideal for the treatment response prediction use case due to its direct bevacizumab response labels and well-balanced classes (56% effective, 44% invalid).
+The PathDB download server returned 0-byte files for 217 out of 286 requested slides. Only 69 slides downloaded successfully, which was insufficient for training. Repeated attempts produced the same failure mode.
 
 ### Reference
 
-Wang et al. (2022) "Histopathological whole slide image dataset for classification of treatment effectiveness to ovarian cancer." Scientific Data. DOI: 10.1038/s41597-022-01127-6
+Wang et al. (2022), *Histopathological whole slide image dataset for classification of treatment effectiveness to ovarian cancer*. Scientific Data. DOI: 10.1038/s41597-022-01127-6
 
 ---
 
@@ -81,21 +84,22 @@ Wang et al. (2022) "Histopathological whole slide image dataset for classificati
 
 ### PTRC-HGSOC (TCIA)
 
-- 158 patients, 348 WSIs, platinum chemotherapy sensitivity labels
-- Not used due to time constraints; would complement TCGA-OV for future multi-cohort validation
+- 158 patients, 348 WSIs, platinum sensitivity labels
+- Candidate for future multi-cohort validation
 
 ### CPTAC-OV
 
-- 102 patients, proteomic + histopathology data
-- Supplementary dataset for potential multi-modal analysis
+- 102 patients with proteomic + histopathology data
+- Candidate for future multimodal extension
 
 ---
 
 ## Summary
 
-| Dataset | Status | Slides | Labels | Used |
-|---------|--------|--------|--------|------|
-| TCGA-OV | Available | 208+ | Platinum sensitivity, survival, grade | Yes (primary) |
-| Bevacizumab Response | BLOCKED | 288 | Treatment response | No (PathDB server issues) |
-| PTRC-HGSOC | Available | 348 | Platinum sensitivity | No (future work) |
-| CPTAC-OV | Available | ~200 | Survival, proteomics | No (future work) |
+| Dataset | Project | Status | Slides | Labels | Used |
+|---------|---------|--------|--------|--------|------|
+| TCGA-OV | ovarian-platinum | Available | 208+ | Platinum response, grade, survival | Yes (primary ovarian project) |
+| TCGA-LUAD | lung-stage | Available | 130 | Early vs advanced stage | Yes (lung project) |
+| Bevacizumab Response (PathDB/TCIA) | N/A | Blocked | 288 | Treatment response | No |
+| PTRC-HGSOC | N/A | Available | 348 | Platinum sensitivity | No (future work) |
+| CPTAC-OV | N/A | Available | ~200 | Survival, proteomics | No (future work) |

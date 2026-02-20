@@ -1,45 +1,64 @@
 # Enso Atlas Frontend -- Integration Test Results
 
-**Date:** 2026-02-07
+**Date:** 2026-02-20
 **Build Status:** PASS
-**TypeScript Check:** PASS
-**ESLint:** PASS (warnings only, no errors)
+**ESLint:** PASS
+**Model Scope Regression:** PASS (53/53)
 
 ---
 
-## Build Verification
+## Build and Quality Checks
 
 ```
-npm run build: SUCCESS
-npx tsc --noEmit: SUCCESS (0 errors)
-npm run lint: SUCCESS (warnings only)
+npm run build: PASS
+npm run lint: PASS
+npm run check:model-scope: PASS
+npm run check:heatmap-alignment: PASS
 ```
+
+Notes:
+- Frontend build and lint succeeded after multi-project merges.
+- Project-scoped model checks passed for ovarian and lung routing.
+- Heatmap-grid alignment checks passed with model-scope safeguards in place.
+
+---
+
+## Regression Test Summary (53/53 PASS)
+
+Post-merge regression suite validated project isolation and model scoping end-to-end.
+
+Validated areas include:
+- project-scoped model listing
+- project-scoped analyze/heatmap/report routing
+- model selection reset/rehydrate behavior on project switch
+- fallback safety when project metadata refresh is required
+- prevention of cross-project model leakage
 
 ---
 
 ## API Tests (17/17 PASS)
 
-All backend API endpoints tested against running Docker deployment on port 8003.
+All backend API endpoints tested against running deployment on port 8003.
 
 | Endpoint | Method | Status | Notes |
 |----------|--------|--------|-------|
-| /health | GET | PASS | Returns status, version, model state, CUDA info |
-| /api/slides | GET | PASS | Returns 208 TCGA slides with metadata |
+| /health | GET | PASS | Returns status, version, model state |
+| /api/slides | GET | PASS | Returns slide metadata for active/project context |
 | /api/slides/{id} | GET | PASS | Individual slide with embedding status |
 | /api/dzi/{id} | GET | PASS | Deep Zoom Image tile serving |
-| /api/analyze | POST | PASS | TransMIL analysis, 5 models, PostgreSQL caching |
-| /api/analyze (cached) | POST | PASS | 0.8ms cached result retrieval |
-| /api/report | POST | PASS | MedGemma 1.5 4B report generation (~20s) |
+| /api/analyze | POST | PASS | Project-scoped TransMIL analysis (6 total models across 2 projects) |
+| /api/analyze (cached) | POST | PASS | Cached result retrieval |
+| /api/report | POST | PASS | MedGemma 1.5 4B report generation |
 | /api/semantic-search | POST | PASS | MedSigLIP text-to-patch search |
-| /api/heatmap/{id} | GET | PASS | Attention heatmap (jet colormap) |
+| /api/heatmap/{id} | GET | PASS | Attention heatmap with scoped model enforcement |
 | /api/similar/{id} | GET | PASS | FAISS similar case retrieval |
 | /api/projects | GET | PASS | Project listing with config |
 | /api/projects | POST | PASS | Project creation |
 | /api/projects/{id} | PUT | PASS | Project update |
 | /api/projects/{id} | DELETE | PASS | Project deletion |
-| /api/projects/{id}/slides | GET | PASS | Project-scoped slides |
+| /api/projects/{id}/slides | GET | PASS | Project-scoped slides (ovarian + lung) |
 | /api/projects/{id}/models | GET | PASS | Project-scoped models |
-| /api/analyze-batch | POST | PASS | Batch analysis with parallel execution |
+| /api/analyze-batch | POST | PASS | Batch analysis with scoped model selection |
 
 ---
 
@@ -51,14 +70,15 @@ Tested in Chrome against frontend at port 3002.
 |---------|--------|-------|
 | 3-panel resizable layout | PASS | Case Selection, WSI Viewer, Analysis Results |
 | View mode toggle | PASS | Oncologist, Pathologist, Batch modes |
-| Slide list with thumbnails | PASS | 208 slides displayed with metadata |
-| Slide selection and WSI loading | PASS | OpenSeadragon viewer renders correctly |
-| Run Analysis button | PASS | Triggers full pipeline, shows progress steps |
-| TransMIL prediction display | PASS | Scores for all 5 models with confidence |
-| Attention heatmap overlay | PASS | Jet colormap toggle on WSI viewer |
+| Slide list with thumbnails | PASS | Ovarian and lung project slide sets load correctly |
+| Project switcher | PASS | Switching projects updates model scope and dataset context |
+| Project-scoped model picker | PASS | Shows only allowed models for active project |
+| Run Analysis button | PASS | Triggers full project-scoped pipeline |
+| TransMIL prediction display | PASS | Correct model outputs by project |
+| Attention heatmap overlay | PASS | Heatmap generation blocked for out-of-scope models |
 | Evidence patches panel | PASS | Top-K patches with normalized attention weights |
-| Similar cases panel | PASS | FAISS retrieval with thumbnails and outcomes |
-| Semantic search (MedSigLIP) | PASS | Text query returns matching patches |
+| Similar cases panel | PASS | Project-scoped FAISS retrieval |
+| Semantic search (MedSigLIP) | PASS | Works where enabled by project features |
 | AI report generation | PASS | MedGemma report with morphology descriptions |
 | PDF export | PASS | Client-side jsPDF generation |
 | JSON export | PASS | Blob download |
@@ -70,43 +90,6 @@ Tested in Chrome against frontend at port 3002.
 | Keyboard shortcuts | PASS | Full navigation and viewer controls |
 | AI Assistant (agentic) | PASS | 7-step workflow execution |
 | Error boundary | PASS | Graceful error handling |
-| PostgreSQL result caching | PASS | 0.8ms cached analysis retrieval |
-
----
-
-## Component Inventory (20 components)
-
-### Panels
-1. PredictionPanel -- Model predictions with confidence, QC metrics
-2. EvidencePanel -- Top attention patches with morphology descriptions
-3. SimilarCasesPanel -- FAISS-retrieved similar cases
-4. ReportPanel -- Structured report with decision support
-5. SlideSelector -- Slide list with thumbnails and patient context
-6. SemanticSearchPanel -- MedSigLIP text-based patch search
-7. CaseNotesPanel -- Clinical notes per slide
-8. QuickStatsPanel -- Session statistics dashboard
-9. OncologistSummaryView -- Simplified oncologist dashboard
-10. PathologistView -- Annotation and grading tools
-11. UncertaintyPanel -- Confidence analysis
-12. BatchAnalysisPanel -- Multi-slide batch workflow
-
-### UI Components
-- Card, Button, Badge, Slider, Toggle, Spinner, Skeleton
-- ProgressStepper for multi-step analysis feedback
-
-### Modals
-- PatchZoomModal -- Enlarged patch inspection
-- KeyboardShortcutsModal -- Shortcut reference
-
-### Viewer
-- WSIViewer -- OpenSeadragon-based whole slide image viewer with heatmap overlay
-
----
-
-## Known Warnings (Non-Blocking)
-
-1. `<img>` elements instead of Next.js `<Image>` (7 instances) -- performance optimization, not functionality
-2. ESLint warnings for unused variables in some test utilities
 
 ---
 
@@ -116,5 +99,6 @@ Tested in Chrome against frontend at port 3002.
 - **Backend port:** 8003
 - **Frontend:** Next.js 14.2, built and served on port 3002
 - **Browser:** Chrome (latest)
-- **Database:** PostgreSQL with all tables populated (patients, slides, analysis_results, projects, etc.)
-- **Models loaded:** Path Foundation (CPU), MedGemma 1.5 4B (GPU), MedSigLIP (GPU), 5x TransMIL models
+- **Database:** PostgreSQL with project/model/slide junction data
+- **Models loaded:** Path Foundation (CPU), MedGemma 1.5 4B (GPU), MedSigLIP (GPU), 6x TransMIL classification models
+- **Projects validated:** `ovarian-platinum`, `lung-stage`
