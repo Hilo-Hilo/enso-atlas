@@ -1334,9 +1334,11 @@ No code changes required. The entire process is configuration-driven:
 1. **Define the project** in `config/projects.yaml` (cancer type, classes, labels, thresholds)
 2. **Add slides** to the configured `slides_dir`
 3. **Generate embeddings:** `python scripts/embed_level0_pipelined.py --slides_dir ... --output_dir ...`
-4. **Train a classification model:** `python scripts/train_transmil.py --embeddings_dir ... --labels_file ...`
-5. **Register the model** under `classification_models` in `projects.yaml`
-6. **Restart the server.** The new project auto-loads in the frontend project switcher with all labels, models, and features configured
+4. **Validate level-0 layout:** `python scripts/validate_project_modularity.py --check-embedding-layout`
+   - `embeddings/level0/` must be synchronized with top-level `embeddings/*.npy` for project-scoped level-0 endpoints.
+5. **Train a classification model:** `python scripts/train_transmil.py --embeddings_dir ... --labels_file ...`
+6. **Register the model** under `classification_models` in `projects.yaml`
+7. **Restart the server.** The new project auto-loads in the frontend project switcher with all labels, models, and features configured
 
 The frontend renders entirely from project metadata: class names, positive/negative labels, model lists, feature availability, and threshold values all derive from the YAML. No frontend code is aware of specific cancer types or model names.
 
@@ -2200,7 +2202,7 @@ volumes:
 | `TRANSFORMERS_OFFLINE` | No | `0` | Set to `1` for air-gapped deployment |
 | `HF_HUB_OFFLINE` | No | `0` | Set to `1` for air-gapped deployment |
 | `NVIDIA_VISIBLE_DEVICES` | No | `all` | GPU device selection |
-| `NEXT_PUBLIC_API_URL` | No | `http://localhost:8003` | Frontend API URL |
+| `NEXT_PUBLIC_API_URL` | No | *(empty, same-origin `/api`)* | Frontend API URL (leave empty for public tunnel deployments) |
 | `EMBEDDINGS_DIR` | No | `data/embeddings` | Override embeddings directory |
 
 ### 13.6.3 Volume Mounts
@@ -2263,9 +2265,11 @@ ports:
   - "127.0.0.1:5433:5432"  # Bind to localhost only
 ```
 
-### 13.7.3 Tailscale Funnel (Optional Remote Access)
+### 13.7.3 Public Tunnel Access (Optional)
 
-For secure remote access without opening firewall ports or configuring VPNs:
+For temporary public/demo access without opening inbound firewall ports:
+
+#### Option A: Tailscale Funnel
 
 ```bash
 # Install Tailscale on the server
@@ -2274,16 +2278,23 @@ tailscale up
 
 # Expose the frontend publicly via HTTPS
 tailscale funnel 3002
-# Now accessible at https://your-server.ts.net/
+# Accessible at https://<node>.ts.net/
 ```
 
-Tailscale Funnel provides:
-- Automatic TLS certificates (no Let's Encrypt configuration)
-- Zero-config NAT traversal (works behind hospital firewalls)
-- Access control via Tailscale ACLs (restrict to specific users)
-- End-to-end encryption
+#### Option B: Cloudflare Tunnel (recommended for public demos)
 
-The backend API (port 8003) is NOT exposed via Funnel, only the frontend. API access is mediated through the Next.js proxy.
+```bash
+# Install cloudflared on the host and expose frontend
+cloudflared tunnel --url http://127.0.0.1:3002
+# Accessible at https://<name>.trycloudflare.com (or named tunnel host)
+```
+
+Operational rule for both options:
+- expose only frontend (`3002`), not backend (`8003`)
+- keep frontend API calls same-origin through Next.js proxy (`/api/...`)
+- leave `NEXT_PUBLIC_API_URL` empty for public tunnel deployments
+
+If `NEXT_PUBLIC_API_URL` is set to a private/Tailnet address (for example `http://100.x.y.z:8003`), public users can load the UI but backend calls fail with disconnected errors.
 
 ### 13.7.4 HIPAA Compliance Notes
 
@@ -2294,7 +2305,7 @@ Enso Atlas is designed for HIPAA alignment, though formal certification is the h
 | Access controls | Network-perimeter authentication; no built-in auth (delegate to hospital SSO/VPN) |
 | Audit trail | All analyses, reports, annotations, and exports logged with timestamps |
 | Data encryption at rest | Delegate to OS-level disk encryption (BitLocker, FileVault, LUKS) |
-| Data encryption in transit | HTTPS via Tailscale Funnel or reverse proxy; PostgreSQL SSL configurable |
+| Data encryption in transit | HTTPS via Tailscale/Cloudflare tunnel or reverse proxy; PostgreSQL SSL configurable |
 | Minimum necessary | Project-scoped slide/model access; no unnecessary data exposure |
 | Backup and recovery | PostgreSQL backup procedures (see Section 13.8) |
 | No cloud transmission | `TRANSFORMERS_OFFLINE=1` enforced; no telemetry; no outbound connections |
@@ -2878,7 +2889,7 @@ First MedSigLIP embedding run for a slide takes ~12-14 minutes for ~6,680 patche
 | `HF_HOME` | `/app/cache/huggingface` | HuggingFace cache |
 | `ENSO_CONFIG` | `/app/config/default.yaml` | Config file |
 | `NVIDIA_VISIBLE_DEVICES` | `all` | GPU selection |
-| `NEXT_PUBLIC_API_URL` | `http://localhost:8003` | Frontend API URL |
+| `NEXT_PUBLIC_API_URL` | *(empty, same-origin `/api`)* | Frontend API URL (recommended for public tunnel access) |
 
 ## Appendix B: File Tree
 

@@ -11,7 +11,7 @@ import argparse
 from importlib.util import module_from_spec, spec_from_file_location
 import sys
 from pathlib import Path
-from typing import List
+from typing import List, Set, Tuple
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SRC_DIR = REPO_ROOT / "src"
@@ -31,6 +31,118 @@ def _load_projects_module():
 _projects_module = _load_projects_module()
 PROJECTS_DATA_ROOT = _projects_module.PROJECTS_DATA_ROOT
 ProjectRegistry = _projects_module.ProjectRegistry
+
+
+def _resolve_repo_path(path_value: str) -> Path:
+    path = Path(path_value)
+    return path if path.is_absolute() else (REPO_ROOT / path)
+
+
+def _collect_embedding_ids(emb_dir: Path) -> Tuple[Set[str], Set[str]]:
+    """Return (embedding_ids, coord_ids) from top-level *.npy in a directory."""
+    embedding_ids: Set[str] = set()
+    coord_ids: Set[str] = set()
+
+    if not emb_dir.exists() or not emb_dir.is_dir():
+        return embedding_ids, coord_ids
+
+    for npy_file in emb_dir.glob("*.npy"):
+        stem = npy_file.stem
+        if stem.endswith("_coords"):
+            coord_ids.add(stem[: -len("_coords")])
+        else:
+            embedding_ids.add(stem)
+
+    return embedding_ids, coord_ids
+
+
+def _format_set_preview(values: Set[str], *, limit: int = 5) -> str:
+    if not values:
+        return "[]"
+    items = sorted(values)
+    preview = items[:limit]
+    suffix = " ..." if len(items) > limit else ""
+    return f"[{', '.join(preview)}{suffix}]"
+
+
+def validate_embedding_layout(config_path: Path) -> List[str]:
+    """Validate level-0 embedding synchronization for project-scoped datasets.
+
+    Guardrail intent:
+    - if project root embeddings exist, level0/ must also exist and mirror slide IDs
+    - every embedding file should have a matching *_coords.npy pair in both locations
+    """
+    errors: List[str] = []
+
+    registry = ProjectRegistry(config_path)
+    projects = registry.list_projects()
+    if not projects:
+        return [f"No projects found in {config_path}"]
+
+    for pid, project in projects.items():
+        configured_embeddings_dir = _resolve_repo_path(project.dataset.embeddings_dir)
+
+        if configured_embeddings_dir.name == "level0":
+            root_embeddings_dir = configured_embeddings_dir.parent
+            level0_dir = configured_embeddings_dir
+        else:
+            root_embeddings_dir = configured_embeddings_dir
+            level0_dir = configured_embeddings_dir / "level0"
+
+        if not root_embeddings_dir.exists():
+            errors.append(
+                f"{pid}: root embeddings directory missing: '{root_embeddings_dir}'"
+            )
+            continue
+
+        root_emb_ids, root_coord_ids = _collect_embedding_ids(root_embeddings_dir)
+        level0_emb_ids, level0_coord_ids = _collect_embedding_ids(level0_dir)
+
+        if root_emb_ids != root_coord_ids:
+            missing_coords = root_emb_ids - root_coord_ids
+            missing_embeddings = root_coord_ids - root_emb_ids
+            if missing_coords:
+                errors.append(
+                    f"{pid}: root embeddings missing coords for {len(missing_coords)} slides "
+                    f"{_format_set_preview(missing_coords)}"
+                )
+            if missing_embeddings:
+                errors.append(
+                    f"{pid}: root coords missing embeddings for {len(missing_embeddings)} slides "
+                    f"{_format_set_preview(missing_embeddings)}"
+                )
+
+        if root_emb_ids and not level0_dir.exists():
+            errors.append(
+                f"{pid}: level0 directory missing while root embeddings exist: '{level0_dir}'"
+            )
+            continue
+
+        if level0_emb_ids != level0_coord_ids:
+            missing_coords = level0_emb_ids - level0_coord_ids
+            missing_embeddings = level0_coord_ids - level0_emb_ids
+            if missing_coords:
+                errors.append(
+                    f"{pid}: level0 embeddings missing coords for {len(missing_coords)} slides "
+                    f"{_format_set_preview(missing_coords)}"
+                )
+            if missing_embeddings:
+                errors.append(
+                    f"{pid}: level0 coords missing embeddings for {len(missing_embeddings)} slides "
+                    f"{_format_set_preview(missing_embeddings)}"
+                )
+
+        # Synchronization check (root is canonical source in current deployment)
+        if root_emb_ids and root_emb_ids != level0_emb_ids:
+            only_in_root = root_emb_ids - level0_emb_ids
+            only_in_level0 = level0_emb_ids - root_emb_ids
+            errors.append(
+                f"{pid}: level0 sync mismatch (root={len(root_emb_ids)}, level0={len(level0_emb_ids)}; "
+                f"only_root={len(only_in_root)} {_format_set_preview(only_in_root)}; "
+                f"only_level0={len(only_in_level0)} {_format_set_preview(only_in_level0)})"
+            )
+
+    return errors
 
 
 def validate_project_paths(config_path: Path) -> List[str]:
@@ -148,6 +260,14 @@ def main() -> int:
         action="store_true",
         help="Skip static code-pattern checks",
     )
+    parser.add_argument(
+        "--check-embedding-layout",
+        action="store_true",
+        help=(
+            "Validate per-project level0 embedding synchronization against root embeddings "
+            "(useful after embedding refreshes or migrations)"
+        ),
+    )
     args = parser.parse_args()
 
     config_path = args.config if args.config.is_absolute() else (REPO_ROOT / args.config)
@@ -155,14 +275,16 @@ def main() -> int:
     errors = validate_project_paths(config_path)
     if not args.skip_code_scan:
         errors.extend(validate_code_patterns(REPO_ROOT))
+    if args.check_embedding_layout:
+        errors.extend(validate_embedding_layout(config_path))
 
     if errors:
-        print("❌ Project modularity validation failed:")
+        print("Project modularity validation failed:")
         for err in errors:
             print(f"  - {err}")
         return 1
 
-    print("✅ Project modularity validation passed")
+    print("Project modularity validation passed")
     return 0
 
 

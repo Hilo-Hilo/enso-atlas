@@ -281,7 +281,7 @@ med-gemma-hackathon/
 |   |   \-- lung-stage/
 |   |       |-- slides/
 |   |       |-- embeddings/
-|   |       \-- labels.csv
+|   |       \-- labels.json
 |-- models/            # Trained TransMIL weights
 |-- tests/             # Unit tests
 |-- docs/              # Documentation and screenshots
@@ -293,9 +293,18 @@ Per-project datasets follow a modular structure:
 
 - `data/projects/{project-id}/slides/`
 - `data/projects/{project-id}/embeddings/`
-- `data/projects/{project-id}/labels.csv`
+- `data/projects/{project-id}/labels.csv` or `labels.json`
 
 This replaces earlier flat dataset assumptions and enables independent project lifecycle management.
+
+**Level-0 reliability guardrail:** keep `data/projects/{project-id}/embeddings/level0/` synchronized with top-level `embeddings/*.npy` files (including `*_coords.npy`).
+After embedding updates or migrations, run:
+
+```bash
+python scripts/validate_project_modularity.py --check-embedding-layout
+```
+
+If this check fails, level-0 heatmaps and analysis can report missing level-0 embeddings even when flat embeddings exist.
 
 ---
 
@@ -306,7 +315,9 @@ This replaces earlier flat dataset assumptions and enables independent project l
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `CUDA_VISIBLE_DEVICES` | GPU selection | All GPUs |
-| `NEXT_PUBLIC_API_URL` | Frontend API URL | http://localhost:8003 |
+| `NEXT_PUBLIC_API_URL` | Frontend API URL | *(empty = same-origin `/api`)* |
+
+**Public deployment note:** for Cloudflare/Tailscale public hosting, keep `NEXT_PUBLIC_API_URL` empty so browsers call the same origin (`/api/...`). Hardcoding a private/Tailnet IP can cause "backend disconnected" for public users.
 
 ### Project Configuration
 

@@ -12,6 +12,15 @@
 #    and list the project's allowed classification_models.
 #
 # Keep path/layout conventions aligned with TECHNICAL_SPECIFICATION.md.
+#
+# Operational guardrails:
+# - Use project-scoped paths only: data/projects/<project_id>/{slides,embeddings,labels.*}
+# - Keep top-level embeddings (*.npy + *_coords.npy) synchronized with embeddings/level0/
+#   to preserve strict level-0 endpoint behavior (/api/analyze-multi, heatmap APIs).
+# - After embedding updates/migrations, run:
+#     python scripts/validate_project_modularity.py --check-embedding-layout
+# - For public tunnel deployments, keep frontend API same-origin by leaving
+#   NEXT_PUBLIC_API_URL empty (avoid private/Tailnet URLs in browser-facing builds).
 
 # Global foundation model definitions (referenced by projects)
 foundation_models:

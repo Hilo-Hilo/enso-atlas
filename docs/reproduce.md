@@ -68,6 +68,13 @@ The frontend runs separately outside Docker:
 ```bash
 cd frontend
 npm install
+
+# Keep same-origin API routing for public hosting (Cloudflare/Tailscale)
+# so browser requests use /api/... through the frontend origin.
+cat > .env.local <<'EOF'
+NEXT_PUBLIC_API_URL=
+EOF
+
 npm run build
 npx next start -p 3002
 ```
@@ -114,6 +121,29 @@ data/
 ```
 
 Do not use legacy flat layouts like `data/tcga_full/` for new runs.
+
+### Embedding Integrity Guardrails (Prevent Missing Level-0)
+
+After embedding refreshes, project switches, or file migrations, validate that each project's
+`embeddings/level0/` directory matches top-level `embeddings/*.npy` files.
+
+```bash
+python scripts/validate_project_modularity.py --check-embedding-layout
+```
+
+If this check fails, strict level-0 endpoints (`/api/analyze-multi`, heatmap endpoints)
+can report missing level-0 embeddings even when flat embeddings exist.
+
+**Recovery pattern (safe):** backup stale `level0/`, then re-sync from top-level embeddings.
+
+```bash
+# Example for a project id (run where data is mounted writable)
+PROJECT_ID=ovarian-platinum
+EMB_DIR="data/projects/${PROJECT_ID}/embeddings"
+mv "${EMB_DIR}/level0" "${EMB_DIR}/level0.pre-sync-$(date +%Y%m%d-%H%M%S)" 2>/dev/null || true
+mkdir -p "${EMB_DIR}/level0"
+find "${EMB_DIR}" -maxdepth 1 -type f -name '*.npy' -exec cp -a {} "${EMB_DIR}/level0/" \;
+```
 
 ## Project Setup Examples
 
