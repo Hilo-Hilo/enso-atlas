@@ -357,6 +357,7 @@ class MedGemmaReporter:
         score: float = 0.0,
         label: str = "unknown",
         evidence_patches: Optional[List[Dict]] = None,
+        cancer_type: str = "Cancer",
     ) -> Dict:
         """Extract and parse JSON from model response, mapping simplified output to full report structure.
 
@@ -593,6 +594,7 @@ class MedGemmaReporter:
                     [],
                     case_id,
                     patient_context,
+                    cancer_type,
                 )
                 prompt_tokens = self._count_prompt_tokens(prompt)
 
@@ -605,6 +607,7 @@ class MedGemmaReporter:
                 [],
                 case_id,
                 patient_context,
+                cancer_type,
             )
             prompt_tokens = self._count_prompt_tokens(prompt)
 
@@ -766,6 +769,7 @@ class MedGemmaReporter:
                     score=score,
                     label=label,
                     evidence_patches=evidence_patches[:evidence_limit],
+                    cancer_type=cancer_type,
                 )
 
                 # Validate
