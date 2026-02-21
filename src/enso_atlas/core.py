@@ -150,7 +150,12 @@ class EnsoAtlas:
         # Step 3: Run MIL classifier
         logger.info("Running classifier...")
         score, attention_weights = self.classifier.predict(embeddings)
-        threshold = self.classifier.threshold
+        threshold_raw = getattr(self.classifier, "threshold", None)
+        try:
+            threshold = float(threshold_raw) if threshold_raw is not None else 0.5
+        except (TypeError, ValueError):
+            logger.warning("Invalid classifier threshold %r; using default 0.5", threshold_raw)
+            threshold = 0.5
         label = "responder" if score >= threshold else "non-responder"
         # Confidence based on distance from threshold, normalized to [0,1]
         if score >= threshold:

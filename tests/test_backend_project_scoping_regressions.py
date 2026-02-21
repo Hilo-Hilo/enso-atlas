@@ -62,7 +62,8 @@ def test_patient_context_global_label_fallback_is_non_project_only():
 
 def test_async_report_uses_classifier_threshold_consistently_with_sync_path():
     src = _main_source()
-    assert "threshold_val = getattr(classifier, \"threshold\", None)" in src
+    assert "threshold_val = _classifier_threshold()" in src
+    assert "threshold = _classifier_threshold()" in src
     assert "getattr(classifier.config, \"threshold\", 0.5)" not in src
 
 

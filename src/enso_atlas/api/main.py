@@ -1067,6 +1067,21 @@ def create_app(
         decision_support = ClinicalDecisionSupport()
         logger.info("Clinical decision support engine initialized")
 
+        def _classifier_threshold(default: float = 0.5) -> float:
+            """Return a safe numeric decision threshold for binary predictions."""
+            raw_threshold = getattr(classifier, "threshold", None)
+            if raw_threshold is None:
+                return float(default)
+            try:
+                return float(raw_threshold)
+            except (TypeError, ValueError):
+                logger.warning(
+                    "Invalid classifier threshold %r; falling back to %.3f",
+                    raw_threshold,
+                    default,
+                )
+                return float(default)
+
         # Setup MedSigLIP embedder for semantic search
         # Share GPU with MedGemma — SigLIP is ~800MB fp16, fits alongside MedGemma 4B.
         # GPU makes semantic search 10-50x faster (seconds vs minutes for 6000+ patches).
@@ -1797,7 +1812,7 @@ def create_app(
 
         # Run prediction
         score, attention = classifier.predict(embeddings)
-        threshold = classifier.threshold
+        threshold = _classifier_threshold()
         _pos_label, _neg_label = _resolve_project_label_pair(
             request.project_id,
             positive_default="RESPONDER",
@@ -1975,7 +1990,7 @@ def create_app(
 
                 # Run prediction
                 score, attention = classifier.predict(embeddings)
-                _b_threshold = classifier.threshold
+                _b_threshold = _classifier_threshold()
                 label = _b_pos if score >= _b_threshold else _b_neg
                 confidence = abs(score - _b_threshold) * 2
 
@@ -2336,7 +2351,7 @@ def create_app(
 
                 # Single classifier path (legacy)
                 score, attention = classifier.predict(embeddings)
-                threshold_val = getattr(classifier, "threshold", 0.5)
+                threshold_val = _classifier_threshold()
                 label = project_pos_label if score >= threshold_val else project_neg_label
                 confidence = abs(score - threshold_val) * 2
 
@@ -2887,7 +2902,7 @@ def create_app(
 
         embeddings = np.load(emb_path)
         score, attention = classifier.predict(embeddings)
-        threshold = classifier.threshold
+        threshold = _classifier_threshold()
         _pos_label, _neg_label = _resolve_project_label_pair(
             request.project_id,
             positive_default="responder",
@@ -3330,10 +3345,7 @@ should incorporate all available clinical, pathological, and molecular data."""
             )
             
             score, attention = classifier.predict(embeddings)
-            threshold_val = getattr(classifier, "threshold", None)
-            if threshold_val is None:
-                threshold_val = 0.5
-            threshold_val = float(threshold_val)
+            threshold_val = _classifier_threshold()
             label = positive_label if score >= threshold_val else negative_label
             
             report_task_manager.update_task(task_id,
