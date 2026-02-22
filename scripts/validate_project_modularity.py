@@ -11,7 +11,7 @@ import argparse
 from importlib.util import module_from_spec, spec_from_file_location
 import sys
 from pathlib import Path
-from typing import List, Set, Tuple
+from typing import Dict, List, Set, Tuple
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SRC_DIR = REPO_ROOT / "src"
@@ -36,6 +36,48 @@ ProjectRegistry = _projects_module.ProjectRegistry
 def _resolve_repo_path(path_value: str) -> Path:
     path = Path(path_value)
     return path if path.is_absolute() else (REPO_ROOT / path)
+
+
+def _is_relative_to(path: Path, base: Path) -> bool:
+    try:
+        path.relative_to(base)
+        return True
+    except ValueError:
+        return False
+
+
+def _symlink_components(path: Path) -> List[Path]:
+    """Return symlink components along an absolute path (existing prefixes only)."""
+    components = path.parts
+    if not components:
+        return []
+
+    cursor = Path(components[0])
+    symlinks: List[Path] = []
+    if cursor.is_symlink():
+        symlinks.append(cursor)
+
+    for part in components[1:]:
+        cursor = cursor / part
+        if not cursor.exists() and not cursor.is_symlink():
+            break
+        if cursor.is_symlink():
+            symlinks.append(cursor)
+
+    return symlinks
+
+
+def _embedding_root(path_value: str) -> Path:
+    emb_path = _resolve_repo_path(path_value)
+    return emb_path.parent if emb_path.name == "level0" else emb_path
+
+
+def _format_path_list(paths: List[Path], *, limit: int = 3) -> str:
+    if not paths:
+        return "[]"
+    preview = [str(p) for p in paths[:limit]]
+    suffix = " ..." if len(paths) > limit else ""
+    return f"[{', '.join(preview)}{suffix}]"
 
 
 def _collect_embedding_ids(emb_dir: Path) -> Tuple[Set[str], Set[str]]:
@@ -158,6 +200,7 @@ def validate_project_paths(config_path: Path) -> List[str]:
         errors.extend(project.validate_dataset_modularity())
 
         expected_root = PROJECTS_DATA_ROOT / pid
+        expected_root_abs = _resolve_repo_path(str(expected_root))
         slides_dir = Path(project.dataset.slides_dir)
         embeddings_dir = Path(project.dataset.embeddings_dir)
         labels_file = Path(project.dataset.labels_file)
@@ -187,6 +230,25 @@ def validate_project_paths(config_path: Path) -> List[str]:
                 f"got '{labels_file}'"
             )
 
+        # Symlink leakage guardrail: even valid-looking repo-relative paths must
+        # resolve inside the project's nominal root (non-resolved path).
+        for field_name, value in (
+            ("slides_dir", project.dataset.slides_dir),
+            ("embeddings_dir", project.dataset.embeddings_dir),
+            ("labels_file", project.dataset.labels_file),
+        ):
+            configured_abs = _resolve_repo_path(value)
+            resolved = configured_abs.resolve(strict=False)
+            if not _is_relative_to(resolved, expected_root_abs):
+                symlink_chain = _symlink_components(configured_abs)
+                symlink_hint = ""
+                if symlink_chain:
+                    symlink_hint = f"; symlink components={_format_path_list(symlink_chain)}"
+                errors.append(
+                    f"{pid}: dataset.{field_name} resolves outside expected project root "
+                    f"'{expected_root_abs}': '{configured_abs}' -> '{resolved}'{symlink_hint}"
+                )
+
     # 2) Ensure no projects share exact dataset paths
     seen = {}
     for pid, project in projects.items():
@@ -202,6 +264,22 @@ def validate_project_paths(config_path: Path) -> List[str]:
                 )
             else:
                 seen[key] = pid
+
+    # 3) Cross-project contamination guardrail for embeddings roots.
+    resolved_embedding_roots: Dict[Path, str] = {}
+    for pid, project in projects.items():
+        root = _embedding_root(project.dataset.embeddings_dir).resolve(strict=False)
+        owner = resolved_embedding_roots.get(root)
+        if owner is None:
+            resolved_embedding_roots[root] = pid
+            continue
+
+        if owner != pid:
+            errors.append(
+                "Resolved embeddings root collision: "
+                f"projects '{owner}' and '{pid}' share '{root}' "
+                "(cross-project contamination risk)"
+            )
 
     return errors
 
