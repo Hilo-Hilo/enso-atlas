@@ -53,19 +53,19 @@ To build the platform that makes pathology AI deployable: the infrastructure tha
 
 Enso Atlas is a modular platform, not a single-purpose tool. Every component can be swapped without code changes:
 
-- **Foundation models are config-driven.** Path Foundation can be replaced with UNI, CONCH, Virchow, DINOv2, or any custom embedding model by editing a YAML file. The system requires only a model name and embedding dimension. All downstream components (classification, retrieval, outlier detection, few-shot learning) adapt automatically to the new embedding space.
-- **Classification models are pluggable.** Any attention-based MIL variant (TransMIL, CLAM, ABMIL) can be registered by dropping in a weights file and adding a config entry. After training on local data, the checkpoint appears in the UI with heatmap and evidence support.
+- **Foundation model metadata is config-defined.** This repo currently executes Path Foundation-specific embedding code paths. Swapping to a different backbone requires code integration plus config updates.
+- **Classification models are pluggable within implemented architectures.** Current implementation supports TransMIL and CLAM; additional MIL variants (for example ABMIL) require implementation before registration.
 - **Cancer types are project-defined.** Ovarian, lung, breast, prostate, colorectal, or any other cancer type can be added by creating a new project block in the configuration. Labels, thresholds, model assignments, class names, and dataset paths are all per-project.
-- **Feature toggles are per-project.** Report generation, semantic search, or similar case retrieval can be enabled or disabled independently for each project. Resource-constrained deployments can disable GPU-heavy features while retaining core classification.
-- **The UI adapts automatically.** All labels, categories, model lists, and workflow steps derive from the project configuration. No hardcoded cancer types or model IDs exist in the frontend. Switching projects reconfigures the entire interface.
+- **Feature toggles are per-project in config.** Report generation, semantic search, and similar case retrieval toggles are defined per project, but backend/frontend enforcement is partial and should be treated as in-progress.
+- **The UI is mostly project-aware.** Labels, categories, and model lists are primarily derived from project configuration, but some demo/test frontend files still contain hardcoded example model IDs.
 - **Report generators are swappable.** The structured report system works with MedGemma, but any LLM that accepts a prompt and returns JSON can be substituted. A template-based fallback provides reports even without a language model.
 
 ### Key Platform Capabilities
 
-- **Plug-and-Play Foundation Models:** Any embedding model (Path Foundation, UNI, CONCH, Virchow, DINOv2, or custom) can be registered via YAML. The platform requires only a model name and output dimension. All downstream layers adapt automatically.
-- **Pluggable Classification Heads:** Any attention-based MIL model (TransMIL, CLAM, ABMIL) trained on compatible embeddings can be registered by dropping in the weights file. No code changes. The system handles multi-model ensemble, heatmap generation, and evidence extraction for any registered model.
+- **Foundation Models (Current State):** Foundation model metadata is defined in YAML. Path Foundation is the integrated runtime backbone in this repo; adding a new embedding backbone requires integration work plus config updates.
+- **Pluggable Classification Heads:** Implemented MIL architectures (TransMIL, CLAM) can be registered by adding weights + config. Additional architectures (for example ABMIL) require implementation before use.
 - **Config-Driven Cancer Types:** Each cancer type is a project definition in YAML. Lung, breast, prostate, or any other cancer can be added by specifying dataset paths, labels, thresholds, and model assignments. The entire UI (labels, categories, model lists, workflows) reconfigures per project.
-- **Per-Project Feature Toggles:** Report generation, semantic search, or similar case retrieval can be enabled or disabled independently per project, matching the deployment to available hardware and clinical needs.
+- **Per-Project Feature Toggles:** Feature toggles are declared per project. Enforcement across backend/frontend panels is partial and should be validated per deployment.
 - **Evidence Generation:** Per-model attention heatmaps overlaid on WSIs with coverage-based alignment, top-K evidence patches with coordinates, and FAISS-based similar case retrieval
 - **Semantic Tissue Search:** Vision-language model text-to-patch search for queries like "tumor infiltrating lymphocytes" or "necrotic tissue" with on-the-fly embedding
 - **Outlier Tissue Detector:** Centroid distance analysis on foundation model embeddings identifies morphologically unusual patches, including rare tissue patterns, artifacts, or atypical regions for pathologist review
@@ -75,7 +75,7 @@ Enso Atlas is a modular platform, not a single-purpose tool. Every component can
 - **Pathologist Annotations:** SVG-based drawing tools (circle, rectangle, freehand, point) on the OpenSeadragon viewer with full CRUD persistence to PostgreSQL
 - **Batch Analysis:** Async batch processing with model selection, project scoping, force re-embed, real-time progress tracking, and cancellation support
 - **PDF Export:** PDF reports for clinical documentation and tumor board presentations
-- **On-Premise by Design:** Docker Compose deployment with air-gapped mode, no cloud dependencies at runtime, and full audit trail for HIPAA alignment
+- **On-Premise by Design:** Docker Compose deployment with optional air-gapped mode, local-first data handling, and audit logging for HIPAA-aligned operations
 
 ### Demo Configuration: Multi-Project Deployment with Google HAI-DEF
 
@@ -86,7 +86,7 @@ The current deployment demonstrates the platform with:
 - **Semantic search:** MedSigLIP (enabled per project via feature flags)
 - **Datasets:** Project-scoped TCGA cohorts under `data/projects/{project-id}/...`
 
-This configuration is one example. Replacing the foundation model, training new classification heads for a different cancer type, or swapping the report generator requires zero code changes, only YAML configuration and model weights.
+This configuration is one example. Training new classification heads for different cancer types and swapping report generators is largely config-driven; replacing the foundation embedding backbone currently requires integration work plus config/model updates.
 
 ## 1.2 Abstraction Layers
 
@@ -283,20 +283,20 @@ graph TB
 
 ### Frontend Layer
 - **Framework:** Next.js 14 with React 18, TypeScript, Tailwind CSS 3.x
-- **WSI Viewer:** OpenSeadragon 4.1 for Deep Zoom Image (DZI) tile-based rendering with SVG annotation overlay, canvas-based patch heatmap overlays, and patch grid overlay
+- **WSI Viewer:** OpenSeadragon 5.0.1 for Deep Zoom Image (DZI) tile-based rendering with SVG annotation overlay, canvas-based patch heatmap overlays, and patch grid overlay
 - **Layout:** react-resizable-panels v4 for user-adjustable, collapsible three-panel layout
 - **State Management:** React Context (ProjectContext), custom hooks (useAnalysis, useKeyboardShortcuts), localStorage caching
-- **API Communication:** Custom fetch wrapper (2,625 lines) with retry logic, timeout handling, SSE streaming, and typed error handling
-- **Dark Mode:** Full dark mode support via Tailwind CSS dark variant
+- **API Communication:** Custom fetch wrapper (3,054 lines) with retry logic, timeout handling, polling-based progress tracking, and typed error handling
+- **Dark Mode:** Theme toggling is implemented via a root `.dark` class and CSS variables; Tailwind `dark:` utility usage is limited
 
 ### Backend Layer
 - **Framework:** FastAPI with Pydantic models for request/response validation
-- **Primary Module:** `src/enso_atlas/api/main.py` (6,119 lines), containing all core endpoints, model loading, and startup orchestration
+- **Primary Module:** `src/enso_atlas/api/main.py` (7,072 lines), containing all core endpoints, model loading, and startup orchestration
 - **Database:** asyncpg connection pool to PostgreSQL 16 (raw SQL, no ORM) with schema v5 including annotations table
 - **Background Tasks:** Thread-based batch analysis, report generation, and batch re-embedding with status polling and cancellation
 
 ### ML Models Layer
-- **Path Foundation:** TensorFlow SavedModel producing 384-dim patch embeddings (CPU-only due to Blackwell TF incompatibility)
+- **Path Foundation:** 384-dim patch embeddings served via mixed runtimes: Transformers/PyTorch for `/api/embed` (device auto-selection) and TensorFlow SavedModel for slide re-embedding flows
 - **MedGemma 4B:** Transformers-based causal LM for structured report generation (GPU, bfloat16, ~8 GB VRAM)
 - **MedSigLIP:** SigLIP vision-language model for text-to-patch semantic search (GPU, fp16, ~800 MB VRAM)
 - **TransMIL:** Six project-scoped PyTorch Transformer-based MIL classifiers with attention extraction (GPU, ~240 MB total)
@@ -315,13 +315,12 @@ graph TB
 flowchart LR
     subgraph "Offline Pipeline"
         WSI[WSI .svs File] --> PATCH[Patch Extraction<br/>224x224 @ Level 0 (dense)]
-        PATCH --> TISSUE[Tissue Masking<br/>Background Removal]
-        TISSUE --> PF_EMB[Path Foundation<br/>Embedding]
+        PATCH --> PF_EMB[Path Foundation<br/>Embedding (dense level-0 grid)]
         PF_EMB --> NPY[.npy Files<br/>N x 384]
     end
 
     subgraph "Online Analysis"
-        NPY --> TRANSMIL[TransMIL x5<br/>Classification]
+        NPY --> TRANSMIL[TransMIL x6<br/>Classification]
         TRANSMIL --> PRED[Prediction<br/>+ Attention Weights]
         PRED --> HEATMAP[Attention Heatmap<br/>Per-Model Cached PNG]
         PRED --> EVIDENCE[Top-K Evidence<br/>Patches]
@@ -354,7 +353,7 @@ flowchart LR
 |  - Path Foundation (CPU)          |     |  (port 5433)     |
 |  - MedGemma 4B (GPU, bfloat16)   |     +------------------+
 |  - MedSigLIP (GPU, fp16)         |
-|  - TransMIL x5 (GPU)             |
+|  - TransMIL x6 (GPU)             |
 |  - FAISS Index (CPU)             |
 +-----------------------------------+
         |
@@ -394,7 +393,7 @@ const nextConfig = {
     return [
       {
         source: '/api/:path*',
-        destination: 'http://127.0.0.1:8003/api/:path*',
+        destination: `${process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8003'}/api/:path*',
       },
     ]
   },
@@ -452,7 +451,7 @@ Path Foundation is Google's histopathology foundation model, based on a DINOv2-s
 | Architecture | Vision Transformer (DINOv2-based) |
 | Input Size | 224 x 224 x 3 (RGB) |
 | Output Dimension | 384 |
-| Framework | TensorFlow SavedModel |
+| Framework | Mixed runtime: Transformers AutoModel (for `/api/embed`) and TensorFlow SavedModel (for `/api/embed-slide` re-embedding) |
 | Inference Function | `model.signatures["serving_default"]` |
 | Preprocessing | Float32, normalize to [0, 1] |
 
@@ -461,7 +460,7 @@ Path Foundation is Google's histopathology foundation model, based on a DINOv2-s
 Whole-slide images are divided into non-overlapping 224x224 pixel patches at level 0 (full resolution, typically 40x) using a dense grid policy. The patching process includes tissue masking for offline pipelines:
 
 1. **Grid Generation:** Regular grid with step size 224 pixels
-2. **Tissue Detection:** Pixels with mean intensity < 245 and standard deviation > 10 are considered tissue (relaxed thresholds for maximum patch coverage)
+2. **Patch Selection:** `/api/embed-slide` uses a dense level-0 grid with no tissue filtering (all 224x224 tiles kept). Optional offline scripts use stricter patch-level filters (mean intensity 30-230, std >= 15, non-white ratio threshold).
 3. **Batch Embedding:** Tissue patches batched (64 patches per batch) through Path Foundation on CPU
 4. **Storage:** Embeddings saved as `{slide_id}.npy` (N x 384) with coordinates saved as `{slide_id}_coords.npy` (N x 2)
 
@@ -492,7 +491,7 @@ The reporting layer accepts any LLM that can produce structured JSON from a clin
 
 | Parameter | Value |
 |---|---|
-| Model ID | `google/medgemma-4b-it` |
+| Model ID | `/app/models/medgemma-4b-it` (default local path); `google/medgemma-4b-it` when configured |
 | Architecture | Gemma-2 Causal LM |
 | Parameters | 4 billion |
 | Precision | bfloat16 (GPU) |
@@ -508,7 +507,7 @@ The reporting layer accepts any LLM that can produce structured JSON from a clin
 2. **Warmup:** Test inference at startup pre-compiles CUDA kernels (60-120s)
 3. **Prompt Engineering:** Compact JSON-first prompt forcing structured output
 4. **Generation:** `torch.inference_mode()` with configurable max tokens and time limits via custom `StoppingCriteria`
-5. **Non-Blocking:** All inference wrapped in `asyncio.to_thread()` to avoid blocking the event loop
+5. **Non-Blocking:** Inference runs in worker threads: `asyncio.to_thread()` in async paths and dedicated `threading.Thread` + timeout in report-task execution
 6. **JSON Parsing:** Progressive repair strategies for truncated JSON with regex fallback
 7. **Safety Validation:** Every report checked against prohibited phrases (e.g., "start treatment", "prescribe")
 
@@ -541,7 +540,7 @@ The semantic search layer accepts any vision-language model that can encode both
 
 | Parameter | Value |
 |---|---|
-| Model ID | `google/medsiglip-448` (preferred) or `google/siglip-so400m-patch14-384` (fallback) |
+| Model ID | Auto-resolved local path (`MEDSIGLIP_MODEL_PATH`, `/app/models/medsiglip`, etc.); fallback `google/siglip-so400m-patch14-384` |
 | Architecture | SigLIP (dual encoder: vision + text) |
 | Vision Input | 448 x 448 (MedSigLIP) or 384 x 384 (SigLIP) |
 | Embedding Dimension | 1152 |
@@ -551,7 +550,7 @@ The semantic search layer accepts any vision-language model that can encode both
 ### Capabilities
 
 - **Text-to-Patch Search:** Natural language queries matched against patch embeddings via cosine similarity
-- **On-the-Fly Embedding:** When cached MedSigLIP embeddings are unavailable, patches are extracted from the WSI and embedded in real-time
+- **On-the-Fly Embedding + Fallback:** If cached embeddings are missing, the service attempts real-time MedSigLIP embedding from WSI patches; if unavailable or failed, it falls back to query-aware tissue-type ranking (`model_used: tissue-type-fallback`)
 - **Image-to-Image Search:** Visual similarity search via FAISS using Path Foundation embeddings across the entire database
 - **Predefined Query Sets:** Curated queries for tumor, inflammation, necrosis, stroma, mitosis, and vessels
 
@@ -582,7 +581,7 @@ The demo deployment uses TransMIL. The following subsections document it as the 
 
 ## 4.1 TransMIL -- Demo Classification Architecture
 
-TransMIL extends the MIL paradigm with Transformer self-attention, allowing the model to capture inter-patch relationships and spatial context. Attention signals provide interpretability for clinical adoption. Other compatible architectures include CLAM (Clustering-constrained Attention MIL), ABMIL (Attention-Based MIL), and DSMIL (Dual-Stream MIL). Any architecture that outputs per-patch attention weights integrates directly.
+TransMIL extends the MIL paradigm with Transformer self-attention, allowing the model to capture inter-patch relationships and spatial context. Attention signals provide interpretability for clinical adoption. The current implementation supports TransMIL and CLAM; additional architectures require implementation before integration.
 
 ## 4.2 Architecture Details
 
@@ -610,8 +609,8 @@ graph TD
 | Number of Classes | 1 (binary with sigmoid) | Per training configuration |
 | Attention Heads | 8 | Via `--num_heads` training arg |
 | Transformer Layers | 2 | Via `--num_layers` training arg |
-| Dropout | 0.1 (inference) / 0.25 (training) | Via `--dropout` training arg |
-| Total Parameters | ~3.2M | Varies with hidden_dim/layers |
+| Dropout | 0.1 or 0.25 (checkpoint/training-config dependent; disabled during eval) | Via `--dropout` training arg |
+| Total Parameters | ~2.48M (2,477,569 with default 384->512, 2 layers, 8 heads) | Varies with hidden_dim/layers |
 
 ## 4.3 Multi-Model Inference
 
@@ -634,22 +633,25 @@ The classification threshold is optimized using the Youden J statistic:
 
 ```json
 {
-  "method": "youden_j",
-  "threshold": 0.9229,
-  "sensitivity": 0.846,
-  "specificity": 0.912,
-  "auc": 0.879
+  "auc_roc": 0.879,
+  "n_slides": 152,
+  "n_positive": 139,
+  "n_negative": 13,
+  "optimal_threshold_youden": null,
+  "optimal_threshold_f1": null,
+  "recommended_threshold": 0.5,
+  "note": "Placeholder -- run scripts/optimize_threshold.py on DGX Spark to compute the real optimal threshold."
 }
 ```
 
-The high threshold (0.9229 vs default 0.5) reflects the class imbalance (139:13) and optimizes for balanced sensitivity/specificity.
+Current repository threshold config is a placeholder (`recommended_threshold=0.5`); a Youden-J optimized threshold is not yet materialized in `models/threshold_config.json`.
 
 ## 4.5 Training Pipeline
 
 | Parameter | Value |
 |---|---|
 | Optimizer | AdamW (lr=2e-4, weight_decay=1e-5) |
-| Scheduler | CosineAnnealingLR (T_max=50, eta_min=1e-6) |
+| Scheduler | CosineAnnealingWarmRestarts (T_0=10, T_mult=2, eta_min=1e-6) |
 | Gradient Accumulation | 4 steps |
 | Mixed Precision | AMP (autocast + GradScaler) |
 | Gradient Clipping | Max norm 1.0 |
@@ -663,10 +665,10 @@ The high threshold (0.9229 vs default 0.5) reflects the class imbalance (139:13)
 
 ## 5.1 Startup and Initialization
 
-The FastAPI application is created via `create_app()` in `src/enso_atlas/api/main.py` (6,119 lines). Startup orchestrates model loading:
+The FastAPI application is created via `create_app()` in `src/enso_atlas/api/main.py` (7,072 lines as of this revision). Startup orchestrates model loading:
 
 ```
-1.  MIL Classifier (TransMIL checkpoint)            ~2s
+1.  MIL classifier load (~2s): architecture from `MIL_ARCHITECTURE` (default `clam`); TransMIL checkpoint when `MIL_ARCHITECTURE=transmil`
 2.  Multi-Model Inference (project-scoped models)     ~5s
 3.  Evidence Generator (FAISS index)                 ~3s
 4.  Path Foundation Embedder Init (lazy, CPU)        ~0s
@@ -680,7 +682,7 @@ The FastAPI application is created via `create_app()` in `src/enso_atlas/api/mai
 12. PostgreSQL Schema Init + Population               ~5-60s (first run)
 13. Project Registry (YAML loading)                   ~0.1s
 14. Agent Workflow Initialization                     ~0.1s
-15. Chat Manager Initialization                       ~0.1s
+15. (Route wiring) ChatManager initialization occurs during app construction, outside `@app.on_event("startup")`
 ```
 
 ### Timing Benchmarks (DGX Spark, Blackwell GPU)
@@ -807,11 +809,12 @@ The FastAPI application is created via `create_app()` in `src/enso_atlas/api/mai
 | `PUT` | `/api/projects/{id}` | Update project |
 | `DELETE` | `/api/projects/{id}` | Delete project |
 | `GET` | `/api/projects/{id}/slides` | List project slides |
-| `POST` | `/api/projects/{id}/slides` | Assign slides |
-| `DELETE` | `/api/projects/{id}/slides` | Unassign slides |
+| `POST` | `/api/projects/{id}/slides` | Assign slides (body: {"slide_ids": ["..."]}) |
+| `DELETE` | `/api/projects/{id}/slides` | Unassign slides (body: {"slide_ids": ["..."]}) |
 | `GET` | `/api/projects/{id}/models` | List project models |
-| `POST` | `/api/projects/{id}/models` | Assign models |
-| `DELETE` | `/api/projects/{id}/models` | Unassign models |
+| `GET` | `/api/projects/{id}/available-models` | List project-compatible model metadata (ModelPicker source-of-truth) |
+| `POST` | `/api/projects/{id}/models` | Assign models (body: {"model_ids": ["..."]}) |
+| `DELETE` | `/api/projects/{id}/models` | Unassign models (body: {"model_ids": ["..."]}) |
 | `POST` | `/api/projects/{id}/upload` | Upload slide file |
 | `GET` | `/api/projects/{id}/status` | Project readiness status |
 | `GET` | `/api/models` | List available models (with ?project_id= filtering) |
@@ -841,14 +844,25 @@ The FastAPI application is created via `create_app()` in `src/enso_atlas/api/mai
 | `GET` | `/api/slides/{id}/history` | Per-slide history |
 | `GET` | `/api/audit-log` | Compliance audit trail |
 
-### Tags and Groups (Stubs)
+### Metadata, Tags, and Groups
 
 | Method | Path | Description |
 |---|---|---|
-| `GET` | `/api/tags` | List tags |
-| `POST` | `/api/tags` | Create tag |
-| `GET` | `/api/groups` | List groups |
-| `POST` | `/api/groups` | Create group |
+| `GET` | `/api/metadata/tags` | List all tags with usage counts |
+| `GET` | `/api/metadata/groups` | List all groups |
+| `POST` | `/api/metadata/groups` | Create a group |
+| `GET` | `/api/metadata/groups/{group_id}` | Get group details |
+| `PATCH` | `/api/metadata/groups/{group_id}` | Update group metadata |
+| `DELETE` | `/api/metadata/groups/{group_id}` | Delete group |
+| `POST` | `/api/metadata/groups/{group_id}/slides` | Add slides to group |
+| `DELETE` | `/api/metadata/groups/{group_id}/slides` | Remove slides from group |
+| `GET` | `/api/metadata/slides/{slide_id}` | Get slide metadata |
+| `POST` | `/api/metadata/slides/{slide_id}/tags` | Add tags to a slide |
+| `DELETE` | `/api/metadata/slides/{slide_id}/tags` | Remove tags from a slide |
+| `PATCH` | `/api/metadata/slides/{slide_id}` | Update slide metadata |
+| `POST` | `/api/metadata/slides/{slide_id}/star` | Toggle slide star status |
+| `GET` | `/api/metadata/search` | Search slides by metadata |
+| `POST` | `/api/metadata/bulk/metadata` | Bulk metadata update |
 
 ## 5.3 Project Scope Resolution and Isolation Guarantees
 
@@ -884,7 +898,7 @@ The agentic workflow implements a seven-step AI pipeline that performs slide ana
 1. **Transparency:** Every step produces visible reasoning that clinicians can inspect
 2. **Streaming:** Results are streamed via Server-Sent Events (SSE) for real-time progress
 3. **Session Memory:** Sessions persist analysis state for follow-up questions
-4. **Graceful Degradation:** Each step can be skipped if dependencies are unavailable
+4. **Graceful Degradation:** Dependency-bound steps can be skipped or downgraded; initialization failures surface as explicit errors
 
 ## 6.2 Seven-Step Pipeline
 
@@ -929,9 +943,13 @@ sequenceDiagram
     Agent-->>Client: SSE: reason complete (~10ms)
 
     Note over Agent: Step 7: REPORT
-    Agent->>MedGemma: generate_report()
-    MedGemma-->>Agent: structured report
-    Agent-->>Client: SSE: report complete (10-120s)
+    alt MedGemma available
+      Agent->>MedGemma: generate_report()
+      MedGemma-->>Agent: structured report
+    else fallback
+      Agent->>Agent: build structured report from predictions/evidence/retrieval
+    end
+    Agent-->>Client: SSE: report complete
 ```
 
 ## 6.3 SSE Streaming Format
@@ -940,7 +958,7 @@ sequenceDiagram
 {
   "step": "analyze",
   "status": "complete",
-  "message": "Ran project-scoped models on 6,234 patches",
+  "message": "Ran 3 models on 6,234 patches",
   "reasoning": "Model predictions:\n- Platinum Sensitivity: sensitive (score: 0.94)...",
   "data": {"predictions": {}, "top_evidence": []},
   "timestamp": "2025-02-06T23:57:42.123Z",
@@ -1137,16 +1155,16 @@ _pool = await asyncpg.create_pool(
 ```
 App (layout.tsx)
   +-- ProjectProvider (ProjectContext.tsx)
-      +-- HomePage (page.tsx, 2142 lines)
+      +-- HomePage (page.tsx, ~2472 lines)
           +-- Header
           |   +-- ProjectSwitcher
-          |   +-- ViewModeToggle (oncologist/pathologist)
+          |   +-- ViewModeToggle (oncologist/pathologist/batch)
           |   +-- DemoModeToggle
-          |   +-- Dark Mode Toggle
+          |   +-- Settings menu (opens SettingsModal theme selector)
           +-- PanelGroup (react-resizable-panels)
               +-- Left Panel (collapsible)
               |   +-- SlideSelector (25,527 bytes)
-              |   +-- QuickStatsPanel
+              |   +-- CaseNotesPanel
               |   +-- AnalysisControls
               +-- Center Panel
               |   +-- WSIViewer (61,161 bytes)
@@ -1164,12 +1182,12 @@ App (layout.tsx)
               |   +-- SimilarCasesPanel
               |   +-- SemanticSearchPanel
               |   +-- ReportPanel
-              |   +-- BatchAnalysisPanel (43,366 bytes)
-              |   +-- AIAssistantPanel (38,056 bytes)
+              |   +-- BatchAnalysisPanel (~45,905 bytes)
+              |   +-- AIAssistantPanel
               |   +-- OutlierDetectorPanel (11,988 bytes)
-              |   +-- PatchClassifierPanel (16,135 bytes)
+              |   +-- (PatchClassifierPanel currently disabled on home page)
               |   +-- CaseNotesPanel
-              |   +-- UncertaintyPanel
+              |   +-- (Uncertainty panel not mounted by default in current home layout)
               +-- Footer
               +-- Modals
                   +-- PatchZoomModal
@@ -1179,21 +1197,22 @@ App (layout.tsx)
                   +-- WelcomeModal
 
 Slides Page (/slides/page.tsx)
-  +-- SlideManager
-      +-- GridView / TableView (with thumbnails)
+  +-- Page-level state (no SlideManager wrapper)
+      +-- SlideGrid / SlideTable (with thumbnails)
       +-- FilterPanel (label, embeddings, patches, date, search)
       +-- BulkActions
       +-- Pagination
 
 Projects Page (/projects/page.tsx)
-  +-- ProjectManager
+  +-- Page-level project CRUD/status (no ProjectManager wrapper)
       +-- ProjectList (CRUD cards with readiness status)
       +-- SlideUpload
-      +-- ModelAssignment
-      +-- SlideAssignment
+      +-- ProjectFormModal (create/edit)
+      +-- SlideUploadModal
+      +-- DeleteConfirmModal
 ```
 
-## 8.3 WSI Viewer (61,161 bytes)
+## 8.3 WSI Viewer (74,056 bytes)
 
 The WSI viewer (`frontend/src/components/viewer/WSIViewer.tsx`) is the central component:
 
@@ -1204,7 +1223,7 @@ The WSI viewer (`frontend/src/components/viewer/WSIViewer.tsx`) is the central c
 - **Canvas-Based Patch Overlay:** Separate HTML canvas for outlier detection and few-shot classifier heatmaps, rendered independently from OSD heatmaps
 - **Patch Grid Overlay:** 224px boundary grid drawn on a dedicated canvas with configurable opacity and color (cyan default), toggled via toolbar
 - **SVG Annotation Layer:** Real-time drawing of circle, rectangle, freehand, and point annotations using SVG overlay positioned in OSD viewport coordinates
-- **Spatial Patch Selection:** Click-to-select mode for few-shot classifier. Clicking on the viewer identifies the nearest patch and adds it to the active class
+- **Spatial Patch Selection (viewer support only):** WSIViewer contains nearest-patch click selection logic, but the few-shot classifier panel is currently disabled on the home page
 - **Real-Time Scale Bar:** Imperative DOM updates (bypassing React render) on every OSD animation frame for smooth magnification and scale display
 - **Canvas2D Optimization:** Patches HTMLCanvasElement.getContext to add `willReadFrequently: true` for OpenSeadragon pixel data access
 
@@ -1237,12 +1256,9 @@ All major layout panels use react-resizable-panels v4:
 
 ## 8.5 Dark Mode
 
-Full dark mode support via Tailwind CSS `dark:` variant:
+Theme preference is available in SettingsModal and persisted to localStorage (`atlas-theme`).
 
-- Toggle in the header persisted to localStorage
-- All components styled with dark variants (slate-800, slate-700, etc.)
-- OpenSeadragon navigator styled with dark background
-- Charts and visualizations adapt to dark theme
+A `.dark` variable theme exists in global CSS, but component-level `dark:` Tailwind variants are not broadly implemented yet.
 
 ## 8.6 State Management
 
@@ -1264,13 +1280,13 @@ Manages analysis state (loading, results, error) with retry support.
 - `resolutionLevel` / `forceReembed`: Batch analysis configuration
 - `heatmapModel` / `heatmapLevel`: Per-model heatmap selection
 
-## 8.7 API Client (2,625 lines)
+## 8.7 API Client (3,054 lines)
 
 The API client (`frontend/src/lib/api.ts`) implements:
 
 - **Retry Logic:** 3 retries with exponential backoff for 408, 429, 500, 502, 503, 504
 - **Typed Errors:** `AtlasApiError` with `getUserMessage()` for display
-- **SSE Streaming:** AsyncGenerator for agent and chat endpoints
+- **SSE Streaming:** `frontend/src/lib/api.ts` does not implement AsyncGenerator/SSE helpers for agent/chat; SSE parsing currently lives in `AIAssistantPanel.tsx`
 - **Functions:** `detectOutliers()`, `classifyPatches()`, `getPatchCoords()`, `getAnnotations()`, `saveAnnotation()`, `deleteAnnotation()`, `getSlideCachedResults()`, `embedSlideWithPolling()`, `analyzeSlideMultiModel()`, `visualSearch()`, plus all standard CRUD operations
 
 ---
@@ -1325,7 +1341,7 @@ projects:
 
 ## 9.2 ProjectRegistry Backend
 
-The `ProjectRegistry` class loads and manages project configurations with PostgreSQL synchronization on startup. Junction tables (`project_slides`, `project_models`) provide many-to-many relationships.
+The `ProjectRegistry` class loads `foundation_models`, `classification_models`, and `projects` from YAML at startup. PostgreSQL synchronization is performed during app startup (`db.populate_projects_from_registry(...)`). Note: current `ProjectRegistry.save()` persists only the `projects` section, so API create/update/delete flows do not preserve top-level model catalogs.
 
 ## 9.3 Adding a New Cancer Type
 
@@ -1333,14 +1349,14 @@ No code changes required. The entire process is configuration-driven:
 
 1. **Define the project** in `config/projects.yaml` (cancer type, classes, labels, thresholds)
 2. **Add slides** to the configured `slides_dir`
-3. **Generate embeddings:** `python scripts/embed_level0_pipelined.py --slides_dir ... --output_dir ...`
+3. **Generate embeddings:** `python scripts/embed_level0_pipelined.py --slide-dir ... --output-dir ...`
 4. **Validate level-0 layout:** `python scripts/validate_project_modularity.py --check-embedding-layout`
    - `embeddings/level0/` must be synchronized with top-level `embeddings/*.npy` for project-scoped level-0 endpoints.
 5. **Train a classification model:** `python scripts/train_transmil.py --embeddings_dir ... --labels_file ...`
 6. **Register the model** under `classification_models` in `projects.yaml`
-7. **Restart the server.** The new project auto-loads in the frontend project switcher with all labels, models, and features configured
+7. **Restart the server.** The new project auto-loads in the frontend project switcher with project labels and scoped models; feature-toggle-driven panel gating is not fully wired in the frontend.
 
-The frontend renders entirely from project metadata: class names, positive/negative labels, model lists, feature availability, and threshold values all derive from the YAML. No frontend code is aware of specific cancer types or model names.
+The frontend is project-aware for switching and model scoping, but not entirely metadata-driven: it still contains hardcoded fallbacks (for example `DEFAULT_PROJECT` and label-mapping heuristics), and feature/threshold wiring is not fully derived from project metadata.
 
 ## 9.4 Switching Between Projects
 
@@ -1348,8 +1364,8 @@ The frontend `ProjectContext` reads available projects from the API and renders 
 
 1. The slide list re-filters to show only project-assigned slides
 2. The model picker updates to show only project-assigned classification models
-3. Labels, class names, and threshold values update to match the project config
-4. Feature panels show/hide based on project feature toggles
+3. Labels/class names and project-scoped model choices update with the selected project; threshold values are not fully propagated from project summaries in the frontend
+4. Feature toggles are present in YAML/backend config but are not currently used to conditionally render all panels in `frontend/src/app/page.tsx`
 5. The selected project persists to localStorage across sessions
 
 A single Enso Atlas deployment can serve multiple clinical teams working on different cancer types simultaneously.
@@ -1360,7 +1376,7 @@ A single Enso Atlas deployment can serve multiple clinical teams working on diff
 
 ## 10.1 Outlier Tissue Detector
 
-The outlier detector identifies morphologically unusual tissue patches by measuring each patch's distance from the embedding centroid. It operates on whatever foundation model embeddings are configured for the active project. No model-specific code is required.
+The outlier detector identifies morphologically unusual tissue patches by measuring each patch's distance from the embedding centroid. Current implementation loads `{slide_id}.npy` from the global `embeddings_dir` and does not take `project_id`, so this endpoint is not fully project-scoped.
 
 ### Algorithm
 
@@ -1395,7 +1411,7 @@ The `OutlierDetectorPanel` component:
 
 ## 10.2 Few-Shot Patch Classifier
 
-The few-shot classifier enables pathologists to define custom tissue classes by selecting example patches, then classifies all patches in the slide. It operates on the active project's foundation model embeddings, making it compatible with any registered foundation model.
+The few-shot classifier enables pathologists to define custom tissue classes by selecting example patches, then classifies all patches in the slide. Current implementation loads embeddings from the global `embeddings_dir` by `slide_id` and does not take `project_id`, so it is not fully project-scoped.
 
 ### Algorithm
 
@@ -1500,7 +1516,7 @@ Full CRUD operations:
 - `DELETE /api/slides/{id}/annotations/{ann_id}` -- Delete
 - `GET /api/slides/{id}/annotations/summary` -- Count by label
 
-All annotation operations are logged to the audit trail.
+Annotation create/delete operations are logged to the audit trail; update/list/summary operations are currently not audit-logged.
 
 ---
 
@@ -1539,7 +1555,7 @@ The frontend uses coverage dimensions for positioning the heatmap overlay to ens
 
 ### Disk-Based Caching
 
-Heatmaps are cached to `data/embeddings/heatmap_cache/{slide_id}_{model_id}.png` after first generation. Subsequent requests serve the cached file directly via `FileResponse`.
+Model heatmaps are cached under `<embedding_dir>/heatmap_cache/` with scoped/versioned keys (for example `{project_or_global}_{slide_id}_{model_id}_{truthful|smooth}_v3.png`). Cache reads are used only for default `alpha_power≈0.7`; non-default alpha requests are regenerated.
 
 ### Configurable Rendering
 
@@ -1565,9 +1581,9 @@ Outlier detection and few-shot classification produce per-patch data that is ren
 ### PatchOverlay Type
 ```typescript
 interface PatchOverlay {
-    data: Array<{ x: number; y: number; score?: number; class_idx?: number; confidence?: number }>;
     type: "outlier" | "classifier";
-    classColors?: string[];
+    data: Array<{ x: number; y: number; score?: number; classIdx?: number; confidence?: number }>;
+    classes?: string[];
 }
 ```
 
@@ -1642,7 +1658,7 @@ With 24 GB VRAM: MedGemma 4B (~8 GB) + MedSigLIP (~800 MB) + TransMIL (~200 MB) 
 
 ```bash
 git clone https://github.com/Hilo-Hilo/enso-atlas.git
-cd med-gemma-hackathon
+cd enso-atlas
 ```
 
 ### Step 2: Download Foundation Models
@@ -1921,10 +1937,10 @@ PATIENT-002,SLIDE-002.svs,non-responder,67,F,IV,High,Serous
 
 ```bash
 python scripts/embed_level0_pipelined.py \
-  --slides_dir data/projects/breast-her2/slides \
-  --output_dir data/projects/breast-her2/embeddings \
-  --patch_size 224 \
-  --batch_size 512
+  --slide-dir data/projects/breast-her2/slides \
+  --output-dir data/projects/breast-her2/embeddings \
+  --patch-size 224 \
+  --batch-size 512
 ```
 
 This produces `{slide_id}.npy` (N x 384) and `{slide_id}_coords.npy` (N x 2) for each slide.
@@ -1934,8 +1950,8 @@ This produces `{slide_id}.npy` (N x 384) and `{slide_id}_coords.npy` (N x 2) for
 ```bash
 python scripts/train_transmil.py \
   --embeddings_dir data/projects/breast-her2/embeddings \
-  --labels_file data/projects/breast-her2/labels.csv \
-  --output_dir outputs/transmil_her2 \
+  --labels_file data/projects/breast-her2/labels.json \
+  --output-dir outputs/transmil_her2 \
   --epochs 100 \
   --lr 2e-4 \
   --hidden_dim 512 \
@@ -1951,8 +1967,8 @@ Alternatively, the fine-tuning script supports 5-fold cross-validation:
 ```bash
 python scripts/train_transmil_finetune.py \
   --embeddings_dir data/projects/breast-her2/embeddings \
-  --labels_file data/projects/breast-her2/labels.csv \
-  --output_dir outputs/transmil_her2 \
+  --labels_file data/projects/breast-her2/labels.json \
+  --output-dir outputs/transmil_her2 \
   --n_folds 5 \
   --epochs 100
 ```
@@ -1972,9 +1988,9 @@ outputs/transmil_her2/
 ```bash
 python scripts/optimize_threshold.py \
   --embeddings_dir data/projects/breast-her2/embeddings \
-  --labels_file data/projects/breast-her2/labels.csv \
-  --model_path outputs/transmil_her2/best_model.pt \
-  --output outputs/transmil_her2/threshold_config.json
+  --labels_file data/projects/breast-her2/labels.json \
+  --checkpoint outputs/transmil_her2/best_model.pt \
+  --output_dir outputs/transmil_her2
 ```
 
 This produces a `threshold_config.json` with the Youden J optimal threshold:
@@ -2096,9 +2112,9 @@ curl -X POST http://localhost:8003/api/embed-slides/batch \
 
 ```bash
 python scripts/embed_level0_pipelined.py \
-  --slides_dir data/projects/ovarian-platinum/slides \
-  --output_dir data/projects/ovarian-platinum/embeddings \
-  --batch_size 512
+  --slide-dir data/projects/ovarian-platinum/slides \
+  --output-dir data/projects/ovarian-platinum/embeddings \
+  --batch-size 512
 ```
 
 ### 13.5.4 Adding Labels
@@ -2196,7 +2212,7 @@ volumes:
 |---|---|---|---|
 | `DATABASE_URL` | Yes | `postgresql://enso:...@atlas-db:5432/enso_atlas` | PostgreSQL connection string |
 | `POSTGRES_PASSWORD` | Yes | `enso_atlas_2024` | Change in production |
-| `MIL_ARCHITECTURE` | No | `transmil` | MIL model type |
+| `MIL_ARCHITECTURE` | No | `clam` (compose overrides to `transmil`) | MIL model type |
 | `MIL_THRESHOLD_CONFIG` | No | `models/threshold_config.json` | Threshold config path |
 | `MIL_MODEL_PATH` | No | (auto-detected) | Override default model checkpoint |
 | `TRANSFORMERS_OFFLINE` | No | `0` | Set to `1` for air-gapped deployment |
@@ -2443,7 +2459,7 @@ To upgrade Enso Atlas to a new version:
 
 ```bash
 # Pull latest code
-cd med-gemma-hackathon
+cd enso-atlas
 git pull origin main
 
 # Rebuild backend container
@@ -2485,7 +2501,7 @@ This section provides a step-by-step guide for hospital IT teams to deploy Enso 
 
 ```bash
 git clone https://github.com/Hilo-Hilo/enso-atlas.git
-cd med-gemma-hackathon/docker
+cd enso-atlas/docker
 docker compose up -d
 ```
 
@@ -2554,24 +2570,22 @@ mkdir -p /data/lung_slides
 
 # 2. Extract patches and generate embeddings
 python scripts/embed_level0_pipelined.py \
-  --slides-dir /data/lung_slides \
+  --slide-dir /data/lung_slides \
   --output-dir /data/lung_embeddings \
-  --batch-size 512 --threads 32
+  --batch-size 512
 
 # 3. Prepare labels CSV (slide_id, label columns)
 # Format: slide_id,egfr_status
 # Example: TCGA-XX-XXXX.svs,mutant
 
 # 4. Train TransMIL
-python scripts/train_transmil.py \
-  --embeddings-dir /data/lung_embeddings \
-  --labels /data/lung_labels.csv \
-  --output-dir models/egfr_transmil_v1 \
-  --target-column egfr_status \
-  --positive-class mutant
+python scripts/train_transmil_finetune.py \
+  --embeddings_dir /data/lung_embeddings \
+  --labels_file /data/lung_labels.csv \
+  --output_dir outputs/egfr_transmil_v1
 
 # 5. Copy weights to the models directory
-cp models/egfr_transmil_v1/best_model.pt models/egfr_transmil_v1/
+# No copy needed if training output_dir is already outputs/egfr_transmil_v1
 
 # 6. Restart the server
 cd docker && docker compose restart enso-atlas
@@ -2646,7 +2660,7 @@ data/
       labels.json
 ```
 
-The backend resolves all dataset paths from `config/projects.yaml`; no API endpoint should rely on flat global `data/tcga_full` assumptions.
+The backend resolves project-scoped dataset paths from `config/projects.yaml` when `project_id` is provided. Legacy non-project requests still use compatibility fallbacks (including `data/tcga_full` paths).
 
 ## 14.3 Embedding Generation and Routing
 
@@ -2655,7 +2669,7 @@ The extraction script (`scripts/embed_level0_pipelined.py`) generates dense leve
 - `{slide_id}.npy` -- Embedding array (N x 384)
 - `{slide_id}_coords.npy` -- Coordinate array (N x 2)
 
-Runtime routing uses `_resolve_embedding_path()` to enforce level-0 dense-only lookup for analysis and heatmap workloads, preventing sparse/dense mixing across projects.
+Runtime routing uses `_resolve_embedding_path()` for `/api/analyze-multi` and heatmap endpoints to enforce level-0 dense lookup. Some legacy analysis/report endpoints still load `{embeddings_dir}/{slide_id}.npy` directly.
 
 ---
 
@@ -2665,7 +2679,7 @@ Runtime routing uses `_resolve_embedding_path()` to enforce level-0 dense-only l
 
 No data leaves the hospital network:
 
-- **No cloud dependencies at runtime:** `TRANSFORMERS_OFFLINE=1` and `HF_HUB_OFFLINE=1` enforce air-gapped operation
+- **Offline-capable runtime:** Set `TRANSFORMERS_OFFLINE=1` and `HF_HUB_OFFLINE=1` to enforce air-gapped operation after model pre-caching (compose defaults are `0`)
 - **No telemetry:** All analytics disabled
 - **Local database:** PostgreSQL co-located Docker container
 - **Local storage:** All embeddings, slides, and model weights on local volumes
@@ -2707,7 +2721,7 @@ No data leaves the hospital network:
 | `batch_analysis_slide` | Batch slide analysis |
 | `batch_analysis_async_completed` | Async batch completed |
 | `uncertainty_analysis_completed` | MC Dropout analysis |
-| `report_generated` | MedGemma report |
+| `batch_analysis_completed` | Batch slide analysis (synchronous) |
 | `pdf_exported` | PDF export |
 | `annotation_created` | Annotation created |
 | `annotation_deleted` | Annotation deleted |
@@ -2880,7 +2894,7 @@ First MedSigLIP embedding run for a slide takes ~12-14 minutes for ~6,680 patche
 | Variable | Default | Description |
 |---|---|---|
 | `DATABASE_URL` | `postgresql://enso:enso_atlas_2024@atlas-db:5432/enso_atlas` | PostgreSQL connection |
-| `MIL_ARCHITECTURE` | `transmil` | MIL model type |
+| `MIL_ARCHITECTURE` | `clam` (compose overrides to `transmil`) | MIL model type |
 | `MIL_THRESHOLD` | (from config) | Classification threshold |
 | `MIL_THRESHOLD_CONFIG` | `models/threshold_config.json` | Threshold config |
 | `MIL_MODEL_PATH` | (auto) | Model checkpoint path |
@@ -2927,12 +2941,12 @@ med-gemma-hackathon/
 |       |   |   +-- PatchClassifierPanel.tsx    (16,135 bytes)
 |       |   |   +-- PathologistView.tsx         (30,114 bytes)
 |       |   |   +-- PredictionPanel.tsx
-|       |   |   +-- QuickStatsPanel.tsx
+|       |   |   +-- CaseNotesPanel.tsx
 |       |   |   +-- ReportPanel.tsx
 |       |   |   +-- SemanticSearchPanel.tsx
 |       |   |   +-- SimilarCasesPanel.tsx
 |       |   |   +-- SlideSelector.tsx           (25,527 bytes)
-|       |   |   +-- UncertaintyPanel.tsx
+|       |   |   +-- (Uncertainty panel not mounted by default in current home layout).tsx
 |       |   +-- viewer/
 |       |   |   +-- WSIViewer.tsx               (61,161 bytes)
 |       |   +-- slides/
