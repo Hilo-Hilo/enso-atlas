@@ -1,0 +1,48 @@
+name: CI Tests
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  regression-tests:
+    name: Regression tests (Python)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest fastapi pyyaml requests
+
+      - name: Syntax sanity check
+        run: |
+          python -m py_compile src/enso_atlas/api/main.py src/enso_atlas/core.py
+
+      - name: Run regression suite
+        run: |
+          pytest -q \
+            tests/test_backend_project_scoping_regressions.py \
+            tests/test_model_scope.py \
+            tests/test_project_modularity.py \
+            tests/test_setup_project_scripts.py \
+            tests/test_frontend_heatmap_proxy_scoping.py \
+            tests/test_frontend_heatmap_error_message.py \
+            tests/test_issue56_batch_embed_contention.py \
+            tests/test_heatmap_grid_alignment.py \
+            tests/test_similar_case_project_scope_regressions.py
