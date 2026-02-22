@@ -610,6 +610,21 @@ def create_app(
     _data_root: Path = Path("data")
     slides_dir: Path = _data_root / "slides"
 
+    def _classifier_threshold(default: float = 0.5) -> float:
+        """Return a safe numeric decision threshold for binary predictions."""
+        raw_threshold = getattr(classifier, "threshold", None)
+        if raw_threshold is None:
+            return float(default)
+        try:
+            return float(raw_threshold)
+        except (TypeError, ValueError):
+            logger.warning(
+                "Invalid classifier threshold %r; falling back to %.3f",
+                raw_threshold,
+                default,
+            )
+            return float(default)
+
     def _resolve_dataset_path(path_str: str | Path) -> Path:
         """Resolve a dataset path from config (repo-relative or absolute)."""
         p = Path(path_str)
@@ -1066,21 +1081,6 @@ def create_app(
         # Setup clinical decision support engine
         decision_support = ClinicalDecisionSupport()
         logger.info("Clinical decision support engine initialized")
-
-        def _classifier_threshold(default: float = 0.5) -> float:
-            """Return a safe numeric decision threshold for binary predictions."""
-            raw_threshold = getattr(classifier, "threshold", None)
-            if raw_threshold is None:
-                return float(default)
-            try:
-                return float(raw_threshold)
-            except (TypeError, ValueError):
-                logger.warning(
-                    "Invalid classifier threshold %r; falling back to %.3f",
-                    raw_threshold,
-                    default,
-                )
-                return float(default)
 
         # Setup MedSigLIP embedder for semantic search
         # Share GPU with MedGemma — SigLIP is ~800MB fp16, fits alongside MedGemma 4B.
