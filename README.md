@@ -12,7 +12,7 @@ Enso Atlas is an on-premise pathology evidence platform that analyzes whole-slid
 
 This repository is developed for the **Kaggle-Google Med Gemma Impact Challenge**:
 
-- Writeups page: https://www.kaggle.com/competitions/med-gemma-impact-challenge/writeups
+- Writeups page: https://www.kaggle.com/competitions/med-gemma-impact-challenge
 - Challenge prompt: **The MedGemma Impact Challenge — Build human-centered AI applications with MedGemma and other open models from Google’s Health AI Developer Foundations (HAI-DEF).**
 
 **Last Updated:** February 22, 2026
