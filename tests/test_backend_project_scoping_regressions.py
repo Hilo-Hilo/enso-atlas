@@ -94,15 +94,15 @@ def test_project_scoped_slides_fail_closed_when_embeddings_are_missing_or_empty(
     assert "_candidate_emb_dirs = [_fallback_embeddings_dir]" in src
 
 
-def test_project_scoped_listing_filters_contaminated_slide_ids_by_project_bases():
+def test_project_scoped_listing_filters_contaminated_slide_ids_by_authoritative_membership():
     src = _main_source()
-    assert "_allowed_base_ids: set[str] = {sid.split(\".\", 1)[0] for sid in slide_data.keys()}" in src
-    assert "sid.split(\".\", 1)[0] in _allowed_base_ids" in src
-    assert "Filtered %d contaminated slide IDs from project '%s' listing" in src
+    assert "include_embedding_fallback=False" in src
+    assert "_filter_project_candidate_slide_ids(" in src
+    assert "slide scoping guard filtered" in src
 
 
 def test_resolve_slide_path_supports_unambiguous_uuid_suffix_fallback():
     src = _main_source()
-    assert "slide_base = slide_id.split(\".\", 1)[0]" in src
-    assert "matches.extend(sorted(d.glob(f\"{slide_base}.*{ext}\")))" in src
-    assert "Ambiguous WSI fallback match" in src
+    assert "def _resolve_slide_path_in_dirs(" in src
+    assert "pattern = f\"{base}.*{ext}\"" in src
+    assert "Ambiguous WSI fallback for slide_id=%s" in src

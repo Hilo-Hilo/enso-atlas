@@ -54,6 +54,153 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
+
+# ---- Project/slide ID utility helpers (pure + testable) ----
+def _slide_id_base(slide_id: str) -> str:
+    """Return deterministic slide-id base used for UUID-tolerant matching.
+
+    Examples:
+    - "TCGA-04-1331-01A" -> "TCGA-04-1331-01A"
+    - "TCGA-04-1331-01A.9f5e..." -> "TCGA-04-1331-01A"
+    """
+    sid = (slide_id or "").strip()
+    if not sid:
+        return ""
+    return sid.split(".", 1)[0]
+
+
+def _resolve_slide_path_in_dirs(
+    slide_id: str,
+    candidate_dirs: list[Path],
+    exts: list[str],
+    *,
+    logger_obj: Optional[logging.Logger] = None,
+) -> Path | None:
+    """Resolve slide path with deterministic UUID-tolerant fallback.
+
+    Resolution order:
+    1) Exact filename match: ``<slide_id><ext>``
+    2) Safe fallback (UUID mismatch tolerance): if exactly one file matches
+       ``<base>.*<ext>`` across all candidate dirs/extensions, return it.
+
+    If fallback matches are ambiguous (>1), returns ``None``.
+    """
+    # Exact match first (deterministic by dir/ext iteration order)
+    for d in candidate_dirs:
+        if not d.exists():
+            continue
+        for ext in exts:
+            cand = d / f"{slide_id}{ext}"
+            if cand.exists():
+                return cand
+
+    # UUID-tolerant fallback: <base>.*.<ext>, but only when unambiguous.
+    base = _slide_id_base(slide_id)
+    if not base:
+        return None
+
+    wildcard_matches: list[Path] = []
+    seen: set[Path] = set()
+
+    for d in candidate_dirs:
+        if not d.exists():
+            continue
+        for ext in exts:
+            pattern = f"{base}.*{ext}"
+            for cand in sorted(d.glob(pattern)):
+                if not cand.is_file() or cand in seen:
+                    continue
+                wildcard_matches.append(cand)
+                seen.add(cand)
+
+    if len(wildcard_matches) == 1:
+        return wildcard_matches[0]
+
+    if len(wildcard_matches) > 1 and logger_obj is not None:
+        logger_obj.warning(
+            "Ambiguous WSI fallback for slide_id=%s (base=%s): %s",
+            slide_id,
+            base,
+            [str(p) for p in wildcard_matches],
+        )
+
+    return None
+
+
+def _load_slide_ids_from_labels_file(labels_path: Path | None) -> set[str]:
+    """Load slide IDs from a labels file (CSV or JSON)."""
+    if labels_path is None or not labels_path.exists():
+        return set()
+
+    slide_ids: set[str] = set()
+
+    try:
+        if labels_path.suffix.lower() == ".json":
+            with open(labels_path) as f:
+                payload = json.load(f)
+            if isinstance(payload, dict):
+                for sid in payload.keys():
+                    sid_str = str(sid).strip()
+                    if sid_str:
+                        slide_ids.add(sid_str)
+            return slide_ids
+
+        if labels_path.suffix.lower() == ".csv":
+            import csv
+
+            with open(labels_path) as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    sid = (row.get("slide_id") or "").strip()
+                    if not sid:
+                        slide_file = (row.get("slide_file") or "").strip()
+                        sid = slide_file.replace(".svs", "").replace(".SVS", "")
+                    if sid:
+                        slide_ids.add(sid)
+    except Exception:
+        # Caller decides how to handle parse failures; keep helper fail-safe.
+        return set()
+
+    return slide_ids
+
+
+def _filter_project_candidate_slide_ids(
+    candidate_slide_ids: set[str],
+    allowed_slide_ids: set[str],
+) -> list[str]:
+    """Filter candidate embedding IDs using authoritative project membership.
+
+    Matching rules are deterministic and conservative:
+    - Keep exact ID matches.
+    - Also allow one-to-one base-ID matches (e.g., ``TCGA-XX`` label matching
+      ``TCGA-XX.<uuid>`` embedding ID).
+    - If a base maps to multiple candidates, treat it as ambiguous and do not
+      include base-only matches for that base.
+    """
+    cleaned_candidates = sorted({str(s).strip() for s in candidate_slide_ids if str(s).strip()})
+    cleaned_allowed = {str(s).strip() for s in allowed_slide_ids if str(s).strip()}
+
+    if not cleaned_candidates or not cleaned_allowed:
+        return []
+
+    filtered: set[str] = {sid for sid in cleaned_candidates if sid in cleaned_allowed}
+
+    candidates_by_base: dict[str, list[str]] = {}
+    for sid in cleaned_candidates:
+        base = _slide_id_base(sid)
+        candidates_by_base.setdefault(base, []).append(sid)
+
+    for allowed_sid in sorted(cleaned_allowed):
+        base = _slide_id_base(allowed_sid)
+        if not base:
+            continue
+        unresolved = [sid for sid in candidates_by_base.get(base, []) if sid not in filtered]
+        if len(unresolved) == 1:
+            filtered.add(unresolved[0])
+
+    return sorted(filtered)
+
+
 # PDF Export (optional) - second import block kept for compatibility
 if not PDF_EXPORT_AVAILABLE:
     try:
@@ -683,35 +830,12 @@ def create_app(
                     pass
 
         exts = [".svs", ".tiff", ".tif", ".ndpi", ".mrxs", ".vms", ".scn"]
-        for d in candidates_dirs:
-            if not d.exists():
-                continue
-            for ext in exts:
-                cand = d / f"{slide_id}{ext}"
-                if cand.exists():
-                    return cand
-
-        # Fallback: tolerate UUID-suffixed filenames when the request uses
-        # a base slide_id without UUID (e.g. TCGA-...-TS1 vs TCGA-...-TS1.<uuid>). 
-        # Only return a match when unambiguous.
-        slide_base = slide_id.split(".", 1)[0]
-        for d in candidates_dirs:
-            if not d.exists():
-                continue
-            matches: list[Path] = []
-            for ext in exts:
-                matches.extend(sorted(d.glob(f"{slide_base}.*{ext}")))
-            matches = [m for m in matches if m.is_file()]
-            if len(matches) == 1:
-                return matches[0]
-            if len(matches) > 1:
-                logger.warning(
-                    "Ambiguous WSI fallback match for %s in %s (%d matches)",
-                    slide_id,
-                    d,
-                    len(matches),
-                )
-        return None
+        return _resolve_slide_path_in_dirs(
+            slide_id,
+            candidates_dirs,
+            exts,
+            logger_obj=logger,
+        )
 
     def has_wsi_file(slide_id: str, project_id: Optional[str] = None) -> bool:
         return resolve_slide_path(slide_id, project_id=project_id) is not None
@@ -846,15 +970,20 @@ def create_app(
 
         return pos_label, neg_label
 
-    async def _project_slide_ids(project_id: Optional[str]) -> Optional[set[str]]:
+    async def _project_slide_ids(
+        project_id: Optional[str],
+        *,
+        include_embedding_fallback: bool = True,
+    ) -> Optional[set[str]]:
         """Resolve allowed slide IDs for a project.
 
         Resolution order:
         1) project_slides junction table (authoritative)
         2) legacy slides.project_id column
-        3) project embeddings directory (flat-file fallback)
+        3) project labels file (authoritative flat-file fallback)
+        4) project embeddings directory (optional compatibility fallback)
 
-        Returns None when project_id is not provided.
+        Returns ``None`` when ``project_id`` is not provided.
         """
         if not project_id:
             return None
@@ -892,6 +1021,13 @@ def create_app(
                             return legacy_ids
             except Exception as e:
                 logger.warning(f"DB legacy project_id query failed for {project_id}: {e}")
+
+        labels_ids = _load_slide_ids_from_labels_file(_project_labels_path(project_id))
+        if labels_ids:
+            return labels_ids
+
+        if not include_embedding_fallback:
+            return set()
 
         proj_emb_dir = _resolve_project_embeddings_dir(project_id, require_exists=True)
         if not proj_emb_dir.exists():
@@ -1554,40 +1690,52 @@ def create_app(
                     if not f.name.endswith("_coords.npy"):
                         _project_slide_ids_set.add(f.stem)
 
-            # Prefer authoritative project assignments when available.
-            _assigned_ids = await _project_slide_ids(project_id)
-            if _assigned_ids:
-                _assigned_base_ids = {sid.split(".", 1)[0] for sid in _assigned_ids}
-                _project_slide_ids_set = {
-                    sid
-                    for sid in _project_slide_ids_set
-                    if sid in _assigned_ids or sid.split(".", 1)[0] in _assigned_base_ids
-                }
+            # Prefer authoritative project membership (DB / legacy DB column /
+            # labels file). For list views we intentionally disable embedding-dir
+            # fallback here to avoid re-ingesting unfiltered shared embeddings.
+            _authoritative_ids = await _project_slide_ids(
+                project_id,
+                include_embedding_fallback=False,
+            )
 
-            # Guardrail against shared embedding directory contamination:
-            # only keep slide IDs whose base id exists in project labels or
-            # in project-scoped slide files.
-            _allowed_base_ids: set[str] = {sid.split(".", 1)[0] for sid in slide_data.keys()}
-            _slide_exts = {".svs", ".tiff", ".tif", ".ndpi", ".mrxs", ".vms", ".scn"}
-            if _fallback_slides_dir.exists():
-                for _slide_file in _fallback_slides_dir.iterdir():
-                    if _slide_file.is_file() and _slide_file.suffix.lower() in _slide_exts:
-                        _allowed_base_ids.add(_slide_file.stem.split(".", 1)[0])
+            if _authoritative_ids:
+                _filtered_ids = set(
+                    _filter_project_candidate_slide_ids(
+                        _project_slide_ids_set,
+                        _authoritative_ids,
+                    )
+                )
 
-            if _allowed_base_ids:
-                _before_filter = len(_project_slide_ids_set)
-                _project_slide_ids_set = {
-                    sid for sid in _project_slide_ids_set if sid.split(".", 1)[0] in _allowed_base_ids
-                }
-                _removed = _before_filter - len(_project_slide_ids_set)
-                if _removed > 0:
-                    logger.warning(
-                        "Filtered %d contaminated slide IDs from project '%s' listing",
-                        _removed,
-                        project_id,
+                # Keep compatibility for in-project embeddings-only slides that
+                # have WSI files but are absent from labels.
+                _slide_exts = {".svs", ".tiff", ".tif", ".ndpi", ".mrxs", ".vms", ".scn"}
+                _project_wsi_ids: set[str] = set()
+                if _fallback_slides_dir.exists():
+                    for _slide_file in _fallback_slides_dir.iterdir():
+                        if _slide_file.is_file() and _slide_file.suffix.lower() in _slide_exts:
+                            _project_wsi_ids.add(_slide_file.stem)
+
+                if _project_wsi_ids:
+                    _filtered_ids.update(
+                        _filter_project_candidate_slide_ids(
+                            _project_slide_ids_set,
+                            _project_wsi_ids,
+                        )
                     )
 
-            fallback_slide_ids = sorted(_project_slide_ids_set)
+                _removed = len(_project_slide_ids_set) - len(_filtered_ids)
+                if _removed > 0:
+                    logger.warning(
+                        "Project '%s' slide scoping guard filtered %d cross-project IDs",
+                        project_id,
+                        _removed,
+                    )
+
+                fallback_slide_ids = sorted(_filtered_ids)
+            else:
+                # Compatibility mode: if no authoritative membership source is
+                # available, preserve existing embeddings-only behavior.
+                fallback_slide_ids = sorted(_project_slide_ids_set)
         else:
             fallback_slide_ids = available_slides
 
