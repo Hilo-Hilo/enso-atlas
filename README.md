@@ -6,7 +6,7 @@
 
 **On-Premise Multi-Cancer Pathology Evidence Platform for Project-Scoped Clinical AI**
 
-Enso Atlas is an on-premise pathology evidence platform that analyzes whole-slide images (WSIs) using TransMIL attention-based classification, Path Foundation embeddings, MedSigLIP retrieval, and MedGemma reporting across multiple cancer projects with strict project isolation.
+Enso Atlas is an on-premise pathology evidence platform that analyzes whole-slide images (WSIs) using TransMIL attention-based classification, Path Foundation embeddings, MedSigLIP retrieval, and MedGemma reporting across multiple cancer projects with project isolation.
 
 ## Competition Context
 
