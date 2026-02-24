@@ -29,7 +29,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useProject } from "@/contexts/ProjectContext";
 
-export type UserViewMode = "oncologist" | "pathologist" | "batch";
+export type UserViewMode = "oncologist" | "pathologist";
 
 interface HeaderProps {
   isConnected?: boolean;
@@ -126,9 +126,8 @@ function MobileViewModeSelector({
       <p className="text-xs text-gray-400 mb-2">View Mode</p>
       <div className="flex flex-col gap-2">
         {[
-          { mode: "oncologist" as const, icon: Stethoscope, label: "Oncologist", gradient: "from-clinical-600 to-clinical-500" },
+          { mode: "oncologist" as const, icon: Stethoscope, label: "Oncologist", gradient: "from-emerald-600 to-emerald-500" },
           { mode: "pathologist" as const, icon: Microscope, label: "Pathologist", gradient: "from-violet-600 to-violet-500" },
-          { mode: "batch" as const, icon: Layers, label: "Batch", gradient: "from-amber-600 to-amber-500" },
         ].map(({ mode, icon: Icon, label, gradient }) => (
           <button
             key={mode}
@@ -177,19 +176,19 @@ function ProjectSwitcher() {
     <div ref={dropdownRef} className="relative hidden md:block">
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2 px-3 py-1.5 bg-navy-800/50 hover:bg-navy-700/50 rounded-lg border border-navy-700/30 transition-colors"
+        className="flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-clinical-500 to-clinical-600 hover:from-clinical-600 hover:to-clinical-700 rounded-lg shadow-md transition-all"
       >
-        <Layers className="h-4 w-4 text-clinical-400" />
-        <span className="text-sm text-gray-300 font-medium truncate max-w-[200px] lg:max-w-[280px]">
+        <Layers className="h-4 w-4 text-white" />
+        <span className="text-sm text-white font-medium truncate max-w-[200px] lg:max-w-[280px]">
           {currentProject.name}
         </span>
-        <ChevronDown className={cn("h-3.5 w-3.5 text-gray-400 transition-transform", isOpen && "rotate-180")} />
+        <ChevronDown className={cn("h-3.5 w-3.5 text-white/90 transition-transform", isOpen && "rotate-180")} />
       </button>
 
       {isOpen && (
-        <div className="absolute top-full left-0 mt-1 w-80 bg-navy-900 border border-navy-700/50 rounded-lg shadow-xl z-50 overflow-hidden">
-          <div className="px-3 py-2 border-b border-navy-700/50">
-            <span className="text-xs text-gray-500 font-medium uppercase tracking-wide">Switch Project</span>
+        <div className="absolute top-full left-0 mt-1 w-80 bg-sky-50 border border-sky-200 rounded-lg shadow-xl z-[220] overflow-hidden">
+          <div className="px-3 py-2 border-b border-sky-200">
+            <span className="text-xs text-sky-700 font-medium uppercase tracking-wide">Switch Project</span>
           </div>
           <div className="max-h-64 overflow-y-auto py-1">
             {projects.map((project) => (
@@ -197,19 +196,19 @@ function ProjectSwitcher() {
                 key={project.id}
                 onClick={() => { switchProject(project.id); setIsOpen(false); }}
                 className={cn(
-                  "w-full text-left px-3 py-2.5 hover:bg-navy-800/80 transition-colors",
-                  project.id === currentProject.id && "bg-navy-800/60 border-l-2 border-clinical-400"
+                  "w-full text-left px-3 py-2.5 hover:bg-sky-100 transition-colors",
+                  project.id === currentProject.id && "bg-sky-100 border-l-2 border-clinical-500"
                 )}
               >
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-gray-200">{project.name}</span>
+                  <span className="text-sm font-medium text-slate-800">{project.name}</span>
                   {project.id === currentProject.id && (
-                    <span className="w-2 h-2 rounded-full bg-clinical-400" />
+                    <span className="w-2 h-2 rounded-full bg-clinical-500" />
                   )}
                 </div>
-                <span className="text-xs text-gray-500">{project.cancer_type} · {project.prediction_target}</span>
+                <span className="text-xs text-slate-600">{project.cancer_type} · {project.prediction_target}</span>
                 {project.description && (
-                  <p className="text-xs text-gray-600 mt-0.5 line-clamp-2">{project.description}</p>
+                  <p className="text-xs text-slate-500 mt-0.5 line-clamp-2">{project.description}</p>
                 )}
               </button>
             ))}
@@ -256,14 +255,14 @@ function UtilityOverflowMenu({
     <div ref={menuRef} className="relative hidden lg:block">
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="p-2 text-gray-400 hover:text-white hover:bg-navy-700/50 rounded-lg border border-navy-700/30 transition-all duration-150"
+        className="p-2 text-white bg-gradient-to-r from-clinical-500 to-clinical-600 hover:from-clinical-600 hover:to-clinical-700 rounded-lg shadow-md transition-all duration-150"
         title="More options"
       >
         <MoreHorizontal className="h-4 w-4" />
       </button>
 
       {isOpen && (
-        <div className="absolute top-full right-0 mt-1 w-52 bg-white rounded-lg shadow-xl z-50 overflow-hidden py-1">
+        <div className="absolute top-full right-0 mt-1 w-52 bg-sky-50 border border-sky-200 rounded-lg shadow-xl z-[220] overflow-hidden py-1">
           {items.map(({ icon: Icon, label, onClick }) => (
             <button
               key={label}
@@ -271,9 +270,9 @@ function UtilityOverflowMenu({
                 setIsOpen(false);
                 onClick?.();
               }}
-              className="flex items-center gap-3 w-full px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+              className="flex items-center gap-3 w-full px-4 py-2.5 text-sm text-slate-700 hover:bg-sky-100 transition-colors"
             >
-              <Icon className="h-4 w-4 text-gray-500" />
+              <Icon className="h-4 w-4 text-sky-700" />
               <span>{label}</span>
             </button>
           ))}
@@ -333,7 +332,7 @@ export function Header({
   };
 
   const handleOpenDocs = () => {
-    window.open("https://github.com/Hilo-Hilo/Enso-Atlas/blob/main/docs.md", "_blank");
+    window.open("https://github.com/Hilo-Hilo/med-gemma-hackathon/blob/main/TECHNICAL_SPECIFICATION.md", "_blank");
   };
 
   const showDisconnectionBanner = !isConnected && !bannerDismissed;
@@ -354,25 +353,25 @@ export function Header({
         />
       )}
 
-      <header className="h-14 sm:h-16 bg-gradient-to-r from-navy-900 via-navy-900 to-navy-800 border-b border-navy-700/50 px-3 sm:px-4 lg:px-6 flex items-center justify-between shrink-0 shadow-lg">
+      <header className="relative z-[120] h-[4.7rem] sm:h-[5.3rem] bg-sky-100/90 backdrop-blur-sm border-b border-sky-200 px-3 sm:px-4 lg:px-6 flex items-center justify-between shrink-0 shadow-md">
         {/* Left: Logo and Navigation */}
         <div className="flex items-center gap-2 sm:gap-4">
           {/* Mobile Menu Button */}
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="lg:hidden p-2 -ml-2 text-gray-400 hover:text-white hover:bg-navy-700/50 rounded-lg transition-colors"
+            className="lg:hidden p-2 -ml-2 text-sky-700 hover:text-sky-900 hover:bg-sky-200/70 rounded-lg transition-colors"
           >
             <Menu className="h-5 w-5" />
           </button>
 
           {/* Logo */}
           <div className="flex items-center gap-2 sm:gap-3">
-            <Logo size="md" variant="full" className="hidden sm:flex" />
-            <Logo size="sm" variant="mark" className="sm:hidden" />
+            <Logo size="md" variant="full" contrast="light-bg" className="hidden sm:flex" />
+            <Logo size="sm" variant="mark" contrast="light-bg" className="sm:hidden" />
           </div>
 
           {/* Divider */}
-          <div className="h-8 w-px bg-gradient-to-b from-transparent via-navy-600 to-transparent mx-1 sm:mx-2 hidden md:block" />
+          <div className="h-8 w-px bg-gradient-to-b from-transparent via-sky-300 to-transparent mx-1 sm:mx-2 hidden md:block" />
 
           {/* Project Switcher */}
           <ProjectSwitcher />
@@ -380,36 +379,36 @@ export function Header({
           {/* Slide Manager Link */}
           <Link
             href="/slides"
-            className="hidden lg:flex items-center gap-2 px-2 xl:px-3 py-1.5 bg-navy-800/50 hover:bg-navy-700/50 rounded-lg border border-navy-700/30 transition-colors"
+            className="hidden lg:flex items-center gap-2 px-2 xl:px-3 py-1.5 bg-gradient-to-r from-clinical-500 to-clinical-600 hover:from-clinical-600 hover:to-clinical-700 rounded-lg shadow-md transition-all"
             title="Slides"
           >
-            <Layers className="h-4 w-4 text-clinical-400" />
-            <span className="text-sm text-gray-300 font-medium hidden xl:inline">Slides</span>
+            <Layers className="h-4 w-4 text-white" />
+            <span className="text-sm text-white font-medium hidden xl:inline">Slides</span>
           </Link>
 
           {/* Project Management Link */}
           <Link
             href="/projects"
-            className="hidden lg:flex items-center gap-2 px-2 xl:px-3 py-1.5 bg-navy-800/50 hover:bg-navy-700/50 rounded-lg border border-navy-700/30 transition-colors"
+            className="hidden lg:flex items-center gap-2 px-2 xl:px-3 py-1.5 bg-gradient-to-r from-clinical-500 to-clinical-600 hover:from-clinical-600 hover:to-clinical-700 rounded-lg shadow-md transition-all"
             title="Projects"
           >
-            <FolderOpen className="h-4 w-4 text-clinical-400" />
-            <span className="text-sm text-gray-300 font-medium hidden xl:inline">Projects</span>
+            <FolderOpen className="h-4 w-4 text-white" />
+            <span className="text-sm text-white font-medium hidden xl:inline">Projects</span>
           </Link>
 
           {/* Divider */}
-          <div className="h-8 w-px bg-gradient-to-b from-transparent via-navy-600 to-transparent mx-2 hidden xl:block" />
+          <div className="h-8 w-px bg-gradient-to-b from-transparent via-sky-300 to-transparent mx-2 hidden xl:block" />
 
           {/* View Mode Toggle - Desktop only */}
           {onViewModeChange && (
-            <div className="hidden lg:flex items-center bg-navy-800/80 rounded-xl p-1 border border-navy-700/30 shadow-inner">
+            <div className="hidden lg:flex items-center gap-2">
               <button
                 onClick={() => onViewModeChange("oncologist")}
                 className={cn(
                   "flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200",
                   viewMode === "oncologist"
-                    ? "bg-gradient-to-r from-clinical-600 to-clinical-500 text-white shadow-md shadow-clinical-600/30"
-                    : "text-gray-400 hover:text-white hover:bg-navy-700/50"
+                    ? "bg-emerald-100 text-emerald-800 border border-emerald-400 shadow-md ring-1 ring-emerald-300"
+                    : "bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-sm hover:bg-emerald-100"
                 )}
               >
                 <Stethoscope className="h-4 w-4" />
@@ -420,24 +419,12 @@ export function Header({
                 className={cn(
                   "flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200",
                   viewMode === "pathologist"
-                    ? "bg-gradient-to-r from-violet-600 to-violet-500 text-white shadow-md shadow-violet-600/30"
-                    : "text-gray-400 hover:text-white hover:bg-navy-700/50"
+                    ? "bg-violet-600 text-white shadow-lg shadow-violet-500/30 ring-1 ring-violet-200"
+                    : "bg-violet-100 text-violet-800 border border-violet-300 shadow-sm hover:bg-violet-200"
                 )}
               >
                 <Microscope className="h-4 w-4" />
                 <span className="hidden 2xl:inline">Pathologist</span>
-              </button>
-              <button
-                onClick={() => onViewModeChange("batch")}
-                className={cn(
-                  "flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200",
-                  viewMode === "batch"
-                    ? "bg-gradient-to-r from-amber-600 to-amber-500 text-white shadow-md shadow-amber-600/30"
-                    : "text-gray-400 hover:text-white hover:bg-navy-700/50"
-                )}
-              >
-                <Layers className="h-4 w-4" />
-                <span className="hidden 2xl:inline">Batch</span>
               </button>
             </div>
           )}
@@ -464,7 +451,7 @@ export function Header({
           {/* Connection status dot - always visible, just a dot with tooltip */}
           <button
             onClick={() => setStatusOpen(true)}
-            className="flex items-center justify-center w-8 h-8 rounded-lg hover:bg-navy-700/50 transition-all"
+            className="flex items-center justify-center w-8 h-8 rounded-lg hover:bg-sky-200/70 transition-all"
             title={connectionStatusText}
           >
             <div className="relative flex h-2.5 w-2.5">
@@ -494,22 +481,22 @@ export function Header({
           />
 
           {/* Divider - Desktop only */}
-          <div className="h-8 w-px bg-gradient-to-b from-transparent via-navy-600 to-transparent hidden lg:block" />
+          <div className="h-8 w-px bg-gradient-to-b from-transparent via-sky-300 to-transparent hidden lg:block" />
 
           {/* User Context */}
           <div className="relative">
             <button
               onClick={() => setUserDropdownOpen(!userDropdownOpen)}
-              className="flex items-center gap-2 px-1.5 sm:px-2 py-1.5 rounded-xl hover:bg-navy-800/80 transition-all duration-200 border border-transparent hover:border-navy-700/50 group"
+              className="flex items-center gap-2 px-1.5 sm:px-2 py-1.5 rounded-xl hover:bg-sky-200/60 transition-all duration-200 border border-transparent hover:border-sky-300/60 group"
             >
               <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gradient-to-br from-clinical-600 to-clinical-700 flex items-center justify-center shadow-md group-hover:shadow-clinical-600/30 transition-shadow">
                 <User className="h-4 w-4 text-white" />
               </div>
               {userName && (
                 <>
-                  <span className="text-sm text-gray-200 font-medium hidden xl:inline">{userName}</span>
+                  <span className="text-sm text-slate-700 font-medium hidden xl:inline">{userName}</span>
                   <ChevronDown className={cn(
-                    "h-3.5 w-3.5 text-gray-400 group-hover:text-gray-300 transition-all hidden xl:inline",
+                    "h-3.5 w-3.5 text-slate-500 group-hover:text-slate-700 transition-all hidden xl:inline",
                     userDropdownOpen && "rotate-180"
                   )} />
                 </>

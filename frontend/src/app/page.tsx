@@ -18,7 +18,6 @@ import {
   CaseNotesPanel,
   OncologistSummaryView,
   PathologistView,
-  BatchAnalysisPanel,
   AIAssistantPanel,
   AnalysisControls,
   OutlierDetectorPanel,
@@ -53,6 +52,15 @@ const WSIViewer = nextDynamic(
 
 // Mobile Panel Tab Component
 type MobilePanelTab = "slides" | "results";
+type RightSidebarPanelKey =
+  | "pathologist-workspace"
+  | "medgemma"
+  | "evidence"
+  | "prediction"
+  | "multi-model"
+  | "semantic-search"
+  | "similar-cases"
+  | "outlier-detector";
 
 function MobilePanelTabs({
   activeTab,
@@ -93,43 +101,6 @@ function MobilePanelTabs({
         )}
       </button>
     </div>
-  );
-}
-
-// Collapsible Sidebar Toggle
-function SidebarToggle({
-  side,
-  isOpen,
-  onClick,
-}: {
-  side: "left" | "right";
-  isOpen: boolean;
-  onClick: () => void;
-}) {
-  const positionClasses =
-    side === "left"
-      ? isOpen
-        ? "-right-3 rounded-r-lg border-l-0"
-        : "left-0 rounded-r-lg border-l-0"
-      : isOpen
-        ? "-left-3 rounded-l-lg border-r-0"
-        : "right-0 rounded-l-lg border-r-0";
-
-  return (
-    <button
-      onClick={onClick}
-      className={cn(
-        "hidden lg:flex absolute top-1/2 -translate-y-1/2 z-10 w-6 h-12 items-center justify-center bg-white border border-gray-200 shadow-sm hover:bg-gray-50 transition-colors",
-        positionClasses
-      )}
-      title={isOpen ? "Collapse panel" : "Expand panel"}
-    >
-      {side === "left" ? (
-        isOpen ? <ChevronLeft className="h-4 w-4 text-gray-500" /> : <ChevronRight className="h-4 w-4 text-gray-500" />
-      ) : (
-        isOpen ? <ChevronRight className="h-4 w-4 text-gray-500" /> : <ChevronLeft className="h-4 w-4 text-gray-500" />
-      )}
-    </button>
   );
 }
 
@@ -208,6 +179,14 @@ function HomePage() {
 
   // User view mode: oncologist vs pathologist (affects entire UI layout)
   const [userViewMode, setUserViewMode] = useState<UserViewMode>("oncologist");
+  const handleUserViewModeChange = useCallback((mode: UserViewMode) => {
+    setUserViewMode(mode);
+    setActiveRightPanel((prev) => {
+      if (mode === "pathologist") return "pathologist-workspace";
+      if (prev === "pathologist-workspace") return "medgemma";
+      return prev;
+    });
+  }, []);
 
   // View mode: "wsi" for full WSI viewer, "summary" for oncologist summary
   const [viewMode, setViewMode] = useState<"wsi" | "summary">("wsi");
@@ -230,6 +209,7 @@ function HomePage() {
 
   // Mobile panel state
   const [mobilePanelTab, setMobilePanelTab] = useState<MobilePanelTab>("slides");
+  const [activeRightPanel, setActiveRightPanel] = useState<RightSidebarPanelKey>("medgemma");
 
   // Desktop sidebar collapse state
   const [leftSidebarOpen, setLeftSidebarOpen] = useState(true);
@@ -343,13 +323,6 @@ function HomePage() {
     return () => clearTimeout(timer);
   }, [heatmapAlphaPower]);
 
-  // Bumped whenever the user explicitly runs/re-runs analysis.
-  // Included in model heatmap URLs to force regeneration per analysis run.
-  const [analysisRunId, setAnalysisRunId] = useState<number>(0);
-  const bumpAnalysisRunId = useCallback(() => {
-    setAnalysisRunId((prev) => prev + 1);
-  }, []);
-
   // Multi-model analysis state
   const [multiModelResult, setMultiModelResult] = useState<MultiModelResponse | null>(null);
   const [isAnalyzingMultiModel, setIsAnalyzingMultiModel] = useState(false);
@@ -456,6 +429,40 @@ function HomePage() {
   }, [analysisResult]);
 
   const showMultiModelPanel = scopedProjectModels.length > 1;
+  const isTumorStageProject =
+    currentProject.id === "lung-stage" ||
+    currentProject.prediction_target === "tumor_stage" ||
+    currentProject.prediction_target?.includes("stage");
+  const primaryPredictionPanelLabel = isTumorStageProject
+    ? "Tumor Stage"
+    : "Resistance to Therapy";
+  const rightSidebarPanelOptions = useMemo<
+    Array<{ value: RightSidebarPanelKey; label: string }>
+  >(
+    () =>
+      userViewMode === "pathologist"
+        ? [
+            { value: "pathologist-workspace" as const, label: "Pathologist Workspace" },
+            { value: "semantic-search", label: "MedSigLIP Semantic Search" },
+            { value: "evidence", label: "Evidence Patches" },
+            { value: "outlier-detector", label: "Outlier Tissue Detector" },
+          ]
+        : [
+            { value: "medgemma", label: "MedGemma" },
+            { value: "prediction", label: primaryPredictionPanelLabel },
+            ...(showMultiModelPanel
+              ? [{ value: "multi-model" as const, label: "Survival AI Predictions" }]
+              : []),
+            { value: "similar-cases", label: "Similar Cases" },
+          ],
+    [showMultiModelPanel, userViewMode, primaryPredictionPanelLabel]
+  );
+
+  useEffect(() => {
+    if (!rightSidebarPanelOptions.some((panel) => panel.value === activeRightPanel)) {
+      setActiveRightPanel(rightSidebarPanelOptions[0]?.value ?? "medgemma");
+    }
+  }, [activeRightPanel, rightSidebarPanelOptions]);
 
   // Report state from agent workflow (AI Assistant). This hydrates the main Clinical Report panel.
   const [agentReport, setAgentReport] = useState<StructuredReport | null>(null);
@@ -744,12 +751,18 @@ function HomePage() {
         viewerRef.current?.focus();
         break;
       case 3:
-        predictionPanelRef.current?.focus();
-        predictionPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+        setActiveRightPanel("prediction");
+        requestAnimationFrame(() => {
+          predictionPanelRef.current?.focus();
+          predictionPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+        });
         break;
       case 4:
-        evidencePanelRef.current?.focus();
-        evidencePanelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+        setActiveRightPanel("evidence");
+        requestAnimationFrame(() => {
+          evidencePanelRef.current?.focus();
+          evidencePanelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+        });
         break;
     }
   }, []);
@@ -842,7 +855,7 @@ function HomePage() {
         return null;
       });
 
-      const cachedPromise = getSlideCachedResults(slide.id).catch((err) => {
+      const cachedPromise = getSlideCachedResults(slide.id, currentProject.id).catch((err) => {
         console.error("Failed to fetch cached results:", err);
         return null;
       });
@@ -925,6 +938,7 @@ function HomePage() {
             modelName: meta?.name ?? humanizeModelId(r.model_id),
             category,
             score: r.score,
+            decisionThreshold: r.threshold ?? undefined,
             label: r.label,
             positiveLabel: meta?.posLabel ?? projectPositiveLabel,
             negativeLabel: meta?.negLabel ?? projectNegativeLabel,
@@ -1347,8 +1361,6 @@ function HomePage() {
   const handleAnalyze = useCallback(async () => {
     if (!selectedSlide) return;
 
-    bumpAnalysisRunId();
-
     // On mobile, switch to results tab when analysis starts
     setMobilePanelTab("results");
     
@@ -1385,27 +1397,33 @@ function HomePage() {
       setMultiModelResult(null);
       setMultiModelError(null);
     }
-  }, [selectedSlide, analyze, toast, handleMultiModelAnalyze, currentProject.id, scopedProjectModels.length, bumpAnalysisRunId]);
+  }, [selectedSlide, analyze, toast, handleMultiModelAnalyze, currentProject.id, scopedProjectModels.length]);
 
   // Retry multi-model analysis (always force)
   const handleRetryMultiModel = useCallback(() => {
-    bumpAnalysisRunId();
     handleMultiModelAnalyze(true);
-  }, [handleMultiModelAnalyze, bumpAnalysisRunId]);
+  }, [handleMultiModelAnalyze]);
 
   // Re-analyze: force a fresh analysis bypassing cache
   const handleReanalyze = useCallback(() => {
-    bumpAnalysisRunId();
     handleMultiModelAnalyze(true);
-  }, [handleMultiModelAnalyze, bumpAnalysisRunId]);
+  }, [handleMultiModelAnalyze]);
 
   // Handle patch click - navigate viewer
   const handlePatchClick = useCallback((coords: PatchCoordinates) => {
     // Set selected patch ID for highlighting
     setSelectedPatchId(`${coords.x}_${coords.y}`);
-    // Set target coordinates to trigger WSI viewer navigation
-    setTargetCoordinates(coords);
+    // Clone coordinates so repeated clicks on the same patch still trigger navigation.
+    setTargetCoordinates({ ...coords });
   }, []);
+
+  const handleReportEvidenceClick = useCallback((coords: PatchCoordinates) => {
+    // Ensure the clicked evidence is visible in the full WSI viewer.
+    if (userViewMode === "oncologist") {
+      setViewMode("wsi");
+    }
+    handlePatchClick(coords);
+  }, [handlePatchClick, userViewMode]);
 
   // Handle patch zoom - open modal with enlarged view
   const handlePatchZoom = useCallback((patch: EvidencePatch) => {
@@ -1878,12 +1896,26 @@ function HomePage() {
       debouncedAlphaPower,
       currentProject?.id,
       heatmapSmooth,
-      analysisRunId,
     ),
     minValue: 0,
     maxValue: 1,
     colorScale: "viridis" as const,
   } : undefined;
+
+  const primaryMultiModelPrediction =
+    multiModelResult?.predictions?.[currentProject.prediction_target];
+  const sidebarPrediction = primaryMultiModelPrediction
+    ? {
+        score: primaryMultiModelPrediction.score,
+        label: primaryMultiModelPrediction.label,
+        confidence: primaryMultiModelPrediction.confidence,
+      }
+    : analysisResult?.prediction ?? null;
+  const sidebarPredictionProcessingTime = primaryMultiModelPrediction
+    ? multiModelResult?.processingTimeMs
+    : analysisResult?.processingTimeMs;
+  const sidebarPredictionIsCached =
+    isCachedResult && (!!primaryMultiModelPrediction || !analysisResult);
 
   // Determine if we have results to show (cached multi-model counts too)
   const hasResults = !!analysisResult || !!multiModelResult || isAnalyzing;
@@ -1974,31 +2006,108 @@ function HomePage() {
     </>
   );
 
-  // Render right sidebar content (oncologist mode)
-  const renderRightSidebarContent = () => (
-    <>
-      {/* Prediction Results */}
-      <div ref={predictionPanelRef} tabIndex={-1} className="focus:outline-none focus:ring-2 focus:ring-clinical-500 focus:ring-offset-2 rounded-lg" data-demo="prediction-panel">
-        <PredictionPanel
-          prediction={analysisResult?.prediction ?? (multiModelResult?.predictions?.[currentProject.prediction_target] ? {
-            score: multiModelResult.predictions[currentProject.prediction_target].score,
-            label: multiModelResult.predictions[currentProject.prediction_target].label,
-            confidence: multiModelResult.predictions[currentProject.prediction_target].confidence,
-          } : null)}
-          isLoading={isAnalyzing}
-          processingTime={analysisResult?.processingTimeMs}
-          analysisStep={analysisStep}
-          error={!isAnalyzing && !analysisResult && !multiModelResult ? error : null}
-          onRetry={retryAnalysis}
-          qcMetrics={slideQCMetrics}
-          isCached={isCachedResult && !analysisResult}
-          cachedAt={cachedResultTimestamp}
-          onReanalyze={selectedSlide ? handleAnalyze : undefined}
-        />
-      </div>
+  const renderSelectedRightSidebarPanel = () => {
+    if (activeRightPanel === "pathologist-workspace") {
+      if (!selectedSlide) {
+        return (
+          <div className="rounded-lg border border-violet-200 bg-violet-50 p-4 text-sm text-violet-800">
+            Select a slide to open Pathologist Workspace.
+          </div>
+        );
+      }
 
-      {/* Multi-Model Analysis Results (only for projects with >1 scoped model) */}
-      {showMultiModelPanel && (
+      return (
+        <PathologistView
+          analysisResult={analysisResult}
+          annotations={annotations}
+          onAddAnnotation={handleAddAnnotation}
+          onDeleteAnnotation={handleDeleteAnnotation}
+          onPatchClick={(patchId) => setSelectedPatchId(patchId)}
+          onSwitchToOncologistView={() => handleUserViewModeChange("oncologist")}
+          selectedPatchId={selectedPatchId}
+          slideId={selectedSlide.id}
+          viewerZoom={viewerZoom}
+          onZoomTo={(level) => viewerControlsRef.current?.zoomTo(level)}
+          onAnnotationToolChange={setActiveAnnotationTool}
+          selectedAnnotationId={selectedAnnotationId}
+          onSelectAnnotation={setSelectedAnnotationId}
+          onExportPdf={handleExportPdf}
+          report={report}
+          mpp={selectedSlide.mpp}
+        />
+      );
+    }
+
+    if (activeRightPanel === "medgemma") {
+      return (
+        <div data-demo="report-panel">
+          <ReportPanel
+            report={report}
+            isLoading={isGeneratingReport}
+            progress={reportProgress}
+            progressMessage={reportProgressMessage}
+            onGenerateReport={
+              (analysisResult || multiModelResult) && !report ? handleGenerateReport : undefined
+            }
+            onExportPdf={report ? handleExportPdf : undefined}
+            onExportJson={report ? handleExportJson : undefined}
+            error={!isGeneratingReport && !report && error ? error : null}
+            onRetry={retryReport}
+            onEvidenceClick={handleReportEvidenceClick}
+          />
+        </div>
+      );
+    }
+
+    if (activeRightPanel === "evidence") {
+      return (
+        <div
+          ref={evidencePanelRef}
+          tabIndex={-1}
+          className="focus:outline-none focus:ring-2 focus:ring-clinical-500 focus:ring-offset-2 rounded-lg"
+          data-demo="evidence-panel"
+        >
+          <EvidencePanel
+            patches={significantEvidencePatches}
+            isLoading={isAnalyzing}
+            onPatchClick={handlePatchClick}
+            onPatchZoom={handlePatchZoom}
+            onFindSimilar={handleVisualSearch}
+            selectedPatchId={selectedPatchId}
+            error={!isAnalyzing && error && !analysisResult ? error : null}
+            onRetry={retryAnalysis}
+            isSearchingVisual={isSearchingVisual}
+          />
+        </div>
+      );
+    }
+
+    if (activeRightPanel === "prediction") {
+      return (
+        <div
+          ref={predictionPanelRef}
+          tabIndex={-1}
+          className="focus:outline-none focus:ring-2 focus:ring-clinical-500 focus:ring-offset-2 rounded-lg"
+          data-demo="prediction-panel"
+        >
+          <PredictionPanel
+            prediction={sidebarPrediction}
+            isLoading={isAnalyzing}
+            processingTime={sidebarPredictionProcessingTime}
+            analysisStep={analysisStep}
+            error={!isAnalyzing && !analysisResult && !multiModelResult ? error : null}
+            onRetry={retryAnalysis}
+            qcMetrics={slideQCMetrics}
+            isCached={sidebarPredictionIsCached}
+            cachedAt={cachedResultTimestamp}
+            onReanalyze={selectedSlide ? handleAnalyze : undefined}
+          />
+        </div>
+      );
+    }
+
+    if (activeRightPanel === "multi-model" && showMultiModelPanel) {
+      return (
         <div data-demo="multi-model-panel">
           <MultiModelPredictionPanel
             multiModelResult={multiModelResult}
@@ -2013,96 +2122,94 @@ function HomePage() {
             availableModels={scopedProjectModels.length > 0 ? scopedProjectModels : undefined}
           />
         </div>
-      )}
+      );
+    }
 
-      {/* Evidence Patches (significance-gated to reduce low-signal clutter) */}
-      <div ref={evidencePanelRef} tabIndex={-1} className="focus:outline-none focus:ring-2 focus:ring-clinical-500 focus:ring-offset-2 rounded-lg" data-demo="evidence-panel">
-        <EvidencePanel
-          patches={significantEvidencePatches}
-          isLoading={isAnalyzing}
+    if (activeRightPanel === "semantic-search") {
+      return (
+        <SemanticSearchPanel
+          slideId={selectedSlide?.id ?? null}
+          isAnalyzed={!!analysisResult}
+          onSearch={handleSemanticSearch}
+          results={semanticResults}
+          isSearching={isSearching}
+          error={searchError}
           onPatchClick={handlePatchClick}
-          onPatchZoom={handlePatchZoom}
-          onFindSimilar={handleVisualSearch}
           selectedPatchId={selectedPatchId}
-          error={!isAnalyzing && error && !analysisResult ? error : null}
-          onRetry={retryAnalysis}
-          isSearchingVisual={isSearchingVisual}
         />
-      </div>
+      );
+    }
 
-      {/* Semantic Search */}
-      <SemanticSearchPanel
-        slideId={selectedSlide?.id ?? null}
-        projectId={currentProject.id}
-        isAnalyzed={!!analysisResult}
-        onSearch={handleSemanticSearch}
-        results={semanticResults}
-        isSearching={isSearching}
-        error={searchError}
-        onPatchClick={handlePatchClick}
-        selectedPatchId={selectedPatchId}
-      />
+    if (activeRightPanel === "similar-cases") {
+      return (
+        <div data-demo="similar-cases">
+          <SimilarCasesPanel
+            cases={visualSearchResults.length > 0 ? visualSearchResults : (analysisResult?.similarCases ?? [])}
+            isLoading={isAnalyzing || isSearchingVisual}
+            onCaseClick={handleCaseClick}
+            error={visualSearchError || (!isAnalyzing && error && !analysisResult ? error : null)}
+            onRetry={visualSearchResults.length > 0 ? () => {
+              setVisualSearchResults([]);
+              setVisualSearchError(null);
+            } : retryAnalysis}
+          />
+          {visualSearchResults.length > 0 && (
+            <div className="mt-2 flex items-center justify-between px-2">
+              <p className="text-xs text-gray-500">
+                Showing patches similar to query from slide {visualSearchQuery?.slideId?.slice(0, 12)}...
+              </p>
+              <button
+                onClick={() => {
+                  setVisualSearchResults([]);
+                  setVisualSearchQuery(null);
+                }}
+                className="text-xs text-clinical-600 hover:text-clinical-700 font-medium"
+              >
+                Clear visual search
+              </button>
+            </div>
+          )}
+        </div>
+      );
+    }
 
-      {/* Similar Cases - shows visual search results when available, otherwise analysis results */}
-      <div data-demo="similar-cases">
-        <SimilarCasesPanel
-          cases={visualSearchResults.length > 0 ? visualSearchResults : (analysisResult?.similarCases ?? [])}
-          isLoading={isAnalyzing || isSearchingVisual}
-          onCaseClick={handleCaseClick}
-          error={visualSearchError || (!isAnalyzing && error && !analysisResult ? error : null)}
-          onRetry={visualSearchResults.length > 0 ? () => {
-            setVisualSearchResults([]);
-            setVisualSearchError(null);
-          } : retryAnalysis}
+    if (activeRightPanel === "outlier-detector") {
+      return (
+        <OutlierDetectorPanel
+          slideId={selectedSlide?.id ?? null}
+          onHeatmapToggle={(enabled, data) => {
+            setShowOutlierHeatmap(enabled);
+            setOutlierHeatmapData(data);
+          }}
+          onPatchClick={handlePatchClick}
         />
-        {visualSearchResults.length > 0 && (
-          <div className="mt-2 flex items-center justify-between px-2">
-            <p className="text-xs text-gray-500">
-              Showing patches similar to query from slide {visualSearchQuery?.slideId?.slice(0, 12)}...
-            </p>
-            <button
-              onClick={() => {
-                setVisualSearchResults([]);
-                setVisualSearchQuery(null);
-              }}
-              className="text-xs text-clinical-600 hover:text-clinical-700 font-medium"
-            >
-              Clear visual search
-            </button>
-          </div>
-        )}
+      );
+    }
+
+    return null;
+  };
+
+  // Render right sidebar content (oncologist mode)
+  const renderRightSidebarContent = () => (
+    <>
+      <div className="sticky top-0 z-10 bg-white pb-3 border-b border-gray-100">
+        <label htmlFor="right-panel-selector" className="block text-xs font-medium text-gray-600 mb-1">
+          Right panel
+        </label>
+        <select
+          id="right-panel-selector"
+          value={activeRightPanel}
+          onChange={(e) => setActiveRightPanel(e.target.value as RightSidebarPanelKey)}
+          className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-clinical-500 focus:outline-none focus:ring-1 focus:ring-clinical-500"
+        >
+          {rightSidebarPanelOptions.map((panel) => (
+            <option key={panel.value} value={panel.value}>
+              {panel.label}
+            </option>
+          ))}
+        </select>
       </div>
-
-      {/* Outlier Tissue Detector */}
-      <OutlierDetectorPanel
-        slideId={selectedSlide?.id ?? null}
-        onHeatmapToggle={(enabled, data) => {
-          setShowOutlierHeatmap(enabled);
-          setOutlierHeatmapData(data);
-        }}
-        onPatchClick={handlePatchClick}
-      />
-
-      {/* Few-Shot Patch Classifier -- disabled (feature not functional) */}
-
-      {/* Clinical Report */}
-      <div data-demo="report-panel">
-        <ReportPanel
-          report={report}
-          isLoading={isGeneratingReport}
-          progress={reportProgress}
-          progressMessage={reportProgressMessage}
-          onGenerateReport={
-            (analysisResult || multiModelResult) && !report ? handleGenerateReport : undefined
-          }
-          onExportPdf={report ? handleExportPdf : undefined}
-          onExportJson={report ? handleExportJson : undefined}
-          error={!isGeneratingReport && !report && error ? error : null}
-          onRetry={retryReport}
-        />
-
-      {/* AI Assistant -- removed (chat feature not functional enough for demo) */}
-      </div>
+      <div className="pt-2">{renderSelectedRightSidebarPanel()}</div>
     </>
   );
 
@@ -2111,54 +2218,32 @@ function HomePage() {
       {/* Header */}
       <Header
         isConnected={isConnected}
-        viewMode={userViewMode}
-        onViewModeChange={setUserViewMode}
         isProcessing={isAnalyzing || isGeneratingReport}
         version="0.1.0"
         institutionName="Enso Labs"
         userName="Clinician"
         onOpenShortcuts={() => setShortcutsModalOpen(true)}
+        viewMode={userViewMode}
+        onViewModeChange={handleUserViewModeChange}
         demoMode={demoMode}
         onDemoModeToggle={handleDemoModeToggle}
         onReconnect={handleReconnect}
       />
 
-      {/* Mobile Panel Tabs - Only show when not in batch mode */}
-      {userViewMode !== "batch" && (
-        <MobilePanelTabs
-          activeTab={mobilePanelTab}
-          onTabChange={setMobilePanelTab}
-          hasResults={hasResults}
-        />
-      )}
+      <MobilePanelTabs
+        activeTab={mobilePanelTab}
+        onTabChange={setMobilePanelTab}
+        hasResults={hasResults}
+      />
 
       {/* Main Content */}
-      <main className="flex-1 flex flex-col lg:flex-row overflow-hidden">
-        {/* Batch Mode - Full Width Panel */}
-        {userViewMode === "batch" ? (
-          <div className="flex-1 p-3 sm:p-4 lg:p-6 bg-gray-50 overflow-auto">
-            <div className="max-w-6xl mx-auto h-full">
-              <BatchAnalysisPanel
-                onSlideSelect={(slideId) => {
-                  // Switch to oncologist mode and select the slide
-                  const slide = slideList.find((s) => s.id === slideId);
-                  if (slide) {
-                    setSelectedSlide(slide);
-                    setUserViewMode("oncologist");
-                  }
-                }}
-                className="h-full"
-              />
-            </div>
-          </div>
-        ) : (
-        <>
+      <main className="flex-1 flex flex-col lg:flex-row overflow-hidden relative">
         {/* Left Sidebar - Slide Selection */}
         <aside
           ref={slideSelectorRef as React.RefObject<HTMLElement>}
           tabIndex={-1}
           className={cn(
-            "bg-white border-b lg:border-b-0 lg:border-r border-surface-border overflow-y-auto shrink-0 space-y-4 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-clinical-500 relative transition-all duration-300",
+            "bg-white border-b lg:border-b-0 lg:border-r border-surface-border overflow-y-auto overflow-x-hidden shrink-0 space-y-4 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-clinical-500 relative transition-all duration-300",
             // Mobile: Full width, show/hide based on tab
             "lg:hidden",
             mobilePanelTab === "slides" ? "flex-1 p-3 sm:p-4" : "hidden"
@@ -2190,15 +2275,18 @@ function HomePage() {
           ref={slideSelectorRef as React.RefObject<HTMLElement>}
           tabIndex={-1}
           className={cn(
-            "h-full bg-white border-r border-surface-border space-y-4 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-clinical-500 relative",
-            leftSidebarOpen ? "p-4 overflow-y-auto" : "overflow-hidden"
+            "h-full bg-white border-r border-surface-border space-y-4 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-clinical-500 relative overflow-x-hidden",
+            leftSidebarOpen ? "p-4 overflow-y-auto overflow-x-hidden" : "overflow-hidden"
           )}
           data-demo="slide-selector"
         >
           {leftSidebarOpen && renderLeftSidebarContent()}
-          <SidebarToggle
-            side="left"
-            isOpen={leftSidebarOpen}
+        </aside>
+        </Panel>
+        <PanelResizeHandle className="relative w-1.5 bg-gray-100 hover:bg-clinical-200 active:bg-clinical-300 transition-colors cursor-col-resize flex items-center justify-center group">
+          <div className="w-0.5 h-8 bg-gray-300 group-hover:bg-clinical-400 rounded-full transition-colors" />
+          <button
+            onMouseDown={(e) => e.stopPropagation()}
             onClick={() => {
               if (leftSidebarOpen) {
                 leftPanelRef.current?.collapse();
@@ -2206,11 +2294,15 @@ function HomePage() {
                 leftPanelRef.current?.expand();
               }
             }}
-          />
-        </aside>
-        </Panel>
-        <PanelResizeHandle className="w-1.5 bg-gray-100 hover:bg-clinical-200 active:bg-clinical-300 transition-colors cursor-col-resize flex items-center justify-center group">
-          <div className="w-0.5 h-8 bg-gray-300 group-hover:bg-clinical-400 rounded-full transition-colors" />
+            className="absolute top-3 left-1/2 -translate-x-1/2 z-30 h-10 w-10 rounded-lg border border-sky-300 bg-white shadow-md hover:bg-sky-50 flex items-center justify-center"
+            title={leftSidebarOpen ? "Collapse left sidebar" : "Expand left sidebar"}
+          >
+            {leftSidebarOpen ? (
+              <ChevronLeft className="h-5 w-5 text-sky-700" />
+            ) : (
+              <ChevronRight className="h-5 w-5 text-sky-700" />
+            )}
+          </button>
         </PanelResizeHandle>
 
         {/* Center - WSI Viewer or Oncologist Summary */}
@@ -2348,8 +2440,26 @@ function HomePage() {
           </div>
         </section>
         </Panel>
-        <PanelResizeHandle className="w-1.5 bg-gray-100 hover:bg-clinical-200 active:bg-clinical-300 transition-colors cursor-col-resize flex items-center justify-center group">
+        <PanelResizeHandle className="relative w-1.5 bg-gray-100 hover:bg-clinical-200 active:bg-clinical-300 transition-colors cursor-col-resize flex items-center justify-center group">
           <div className="w-0.5 h-8 bg-gray-300 group-hover:bg-clinical-400 rounded-full transition-colors" />
+          <button
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={() => {
+              if (rightSidebarOpen) {
+                rightPanelRef.current?.collapse();
+              } else {
+                rightPanelRef.current?.expand();
+              }
+            }}
+            className="absolute top-3 left-1/2 -translate-x-1/2 z-30 h-10 w-10 rounded-lg border border-sky-300 bg-white shadow-md hover:bg-sky-50 flex items-center justify-center"
+            title={rightSidebarOpen ? "Collapse right sidebar" : "Expand right sidebar"}
+          >
+            {rightSidebarOpen ? (
+              <ChevronRight className="h-5 w-5 text-sky-700" />
+            ) : (
+              <ChevronLeft className="h-5 w-5 text-sky-700" />
+            )}
+          </button>
         </PanelResizeHandle>
 
         {/* Right Sidebar - Desktop (Resizable) */}
@@ -2367,47 +2477,11 @@ function HomePage() {
         >
         <aside
           className={cn(
-            "h-full bg-white p-4 overflow-y-auto space-y-4 relative",
+            "h-full bg-white p-4 overflow-y-auto overflow-x-hidden space-y-4 relative",
             !rightSidebarOpen && "overflow-hidden"
           )}
         >
-          {rightSidebarOpen && (
-            <>
-              {userViewMode === "pathologist" && selectedSlide ? (
-                <PathologistView
-                  analysisResult={analysisResult}
-                  annotations={annotations}
-                  onAddAnnotation={handleAddAnnotation}
-                  onDeleteAnnotation={handleDeleteAnnotation}
-                  onPatchClick={(patchId) => setSelectedPatchId(patchId)}
-                  onSwitchToOncologistView={() => setUserViewMode("oncologist")}
-                  selectedPatchId={selectedPatchId}
-                  slideId={selectedSlide.id}
-                  viewerZoom={viewerZoom}
-                  onZoomTo={(level) => viewerControlsRef.current?.zoomTo(level)}
-                  onAnnotationToolChange={setActiveAnnotationTool}
-                  selectedAnnotationId={selectedAnnotationId}
-                  onSelectAnnotation={setSelectedAnnotationId}
-                  onExportPdf={handleExportPdf}
-                  report={report}
-                  mpp={selectedSlide.mpp}
-                />
-              ) : (
-                renderRightSidebarContent()
-              )}
-            </>
-          )}
-          <SidebarToggle
-            side="right"
-            isOpen={rightSidebarOpen}
-            onClick={() => {
-              if (rightSidebarOpen) {
-                rightPanelRef.current?.collapse();
-              } else {
-                rightPanelRef.current?.expand();
-              }
-            }}
-          />
+          {rightSidebarOpen && renderRightSidebarContent()}
         </aside>
         </Panel>
         </PanelGroup>
@@ -2419,31 +2493,8 @@ function HomePage() {
             mobilePanelTab === "results" ? "flex-1 p-3 sm:p-4" : "hidden"
           )}
         >
-          {userViewMode === "pathologist" && selectedSlide ? (
-            <PathologistView
-              analysisResult={analysisResult}
-              annotations={annotations}
-              onAddAnnotation={handleAddAnnotation}
-              onDeleteAnnotation={handleDeleteAnnotation}
-              onPatchClick={(patchId) => setSelectedPatchId(patchId)}
-              onSwitchToOncologistView={() => setUserViewMode("oncologist")}
-              selectedPatchId={selectedPatchId}
-              slideId={selectedSlide.id}
-              viewerZoom={viewerZoom}
-              onZoomTo={(level) => viewerControlsRef.current?.zoomTo(level)}
-              onAnnotationToolChange={setActiveAnnotationTool}
-              selectedAnnotationId={selectedAnnotationId}
-              onSelectAnnotation={setSelectedAnnotationId}
-              onExportPdf={handleExportPdf}
-              report={report}
-              mpp={selectedSlide.mpp}
-            />
-          ) : (
-            renderRightSidebarContent()
-          )}
+          {renderRightSidebarContent()}
         </aside>
-        </>
-        )}
       </main>
 
       {/* Footer - Hidden on mobile when viewing panels */}

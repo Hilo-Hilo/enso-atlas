@@ -9,14 +9,12 @@ import {
   CheckCircle,
   XCircle,
   AlertTriangle,
-  FlaskConical,
   Stethoscope,
   FileText,
   ZoomIn,
   ArrowRight,
   Eye,
   Layers,
-  Shield,
   Circle,
 } from "lucide-react";
 import type { AnalysisResponse, StructuredReport, EvidencePatch } from "@/types";
@@ -119,19 +117,6 @@ export function OncologistSummaryView({
             Full WSI View
           </Button>
         )}
-      </div>
-
-      {/* Uncalibrated Warning */}
-      <div className="flex items-center gap-3 px-4 py-3 bg-amber-100 border-2 border-amber-400 rounded-lg">
-        <FlaskConical className="h-5 w-5 text-amber-700 shrink-0" />
-        <div>
-          <span className="text-sm font-bold text-amber-800 uppercase tracking-wide">
-            Uncalibrated - Research Use Only
-          </span>
-          <p className="text-xs text-amber-700 mt-0.5">
-            Model output has not been validated for clinical decision-making.
-          </p>
-        </div>
       </div>
 
       {/* Main Prediction Card */}
@@ -318,22 +303,6 @@ export function OncologistSummaryView({
         </Card>
       )}
 
-      {/* Safety Notice */}
-      <div className="p-4 bg-red-50 border-2 border-red-200 rounded-lg">
-        <div className="flex items-start gap-3">
-          <Shield className="h-5 w-5 text-red-600 mt-0.5 shrink-0" />
-          <div>
-            <h4 className="text-sm font-bold text-red-800 mb-1">
-              Important Safety Notice
-            </h4>
-            <p className="text-sm text-red-700 leading-relaxed">
-              This analysis is for research purposes only and is NOT a diagnostic tool. 
-              All findings must be interpreted by qualified healthcare professionals in 
-              the context of the complete clinical picture.
-            </p>
-          </div>
-        </div>
-      </div>
     </div>
   );
 }

@@ -143,11 +143,18 @@ export function ModelPicker({
   const [apiModelDetails, setApiModelDetails] = useState<AvailableModelDetail[]>([]);
   const [projectModelIds, setProjectModelIds] = useState<string[]>([]);
   const [usingFallbackModels, setUsingFallbackModels] = useState(false);
+  const [isLoadingModelOptions, setIsLoadingModelOptions] = useState(true);
+  const hasRecoveredPrimaryOnlySelection = React.useRef(false);
+
+  useEffect(() => {
+    hasRecoveredPrimaryOnlySelection.current = false;
+  }, [currentProject.id]);
 
   useEffect(() => {
     let cancelled = false;
 
     // Clear old models first to prevent race condition with auto-select
+    setIsLoadingModelOptions(true);
     setApiModelDetails([]);
     setProjectModelIds([]);
     setUsingFallbackModels(false);
@@ -157,6 +164,7 @@ export function ModelPicker({
       if (!currentProject.id || currentProject.id === "default") {
         if (!cancelled) {
           setUsingFallbackModels(true);
+          setIsLoadingModelOptions(false);
         }
         return;
       }
@@ -170,6 +178,7 @@ export function ModelPicker({
 
           if (includesPrimary) {
             setApiModelDetails(details);
+            setIsLoadingModelOptions(false);
             return;
           }
 
@@ -187,6 +196,7 @@ export function ModelPicker({
         if (!cancelled && modelIds.length > 0) {
           setProjectModelIds(modelIds);
           setUsingFallbackModels(true);
+          setIsLoadingModelOptions(false);
           return;
         }
       } catch (err) {
@@ -195,6 +205,7 @@ export function ModelPicker({
 
       if (!cancelled) {
         setUsingFallbackModels(true);
+        setIsLoadingModelOptions(false);
       }
     };
 
@@ -260,12 +271,33 @@ export function ModelPicker({
     }
   }, [models, selectedModels, onSelectionChange]);
 
-  // Auto-select all models when models are loaded and selectedModels is empty
+  // Auto-select all models only after project model loading is complete.
+  // This avoids locking the selection to the temporary single-model fallback.
   useEffect(() => {
-    if (models.length > 0 && selectedModels.length === 0) {
+    if (!isLoadingModelOptions && models.length > 0 && selectedModels.length === 0) {
       onSelectionChange(models.map((m) => m.id));
     }
-  }, [models, selectedModels.length, onSelectionChange]);
+  }, [isLoadingModelOptions, models, selectedModels.length, onSelectionChange]);
+
+  // One-time recovery: when fallback auto-selected only the primary model before
+  // full project models arrived, expand selection to all project models.
+  useEffect(() => {
+    const primaryId = currentProject.prediction_target;
+    if (!primaryId) return;
+    if (isLoadingModelOptions) return;
+    if (hasRecoveredPrimaryOnlySelection.current) return;
+    if (models.length <= 1) return;
+    if (selectedModels.length !== 1 || selectedModels[0] !== primaryId) return;
+
+    onSelectionChange(models.map((m) => m.id));
+    hasRecoveredPrimaryOnlySelection.current = true;
+  }, [
+    currentProject.prediction_target,
+    isLoadingModelOptions,
+    models,
+    onSelectionChange,
+    selectedModels,
+  ]);
 
   // Track which models have been previously run on the selected slide
   const [previouslyRanModels, setPreviouslyRanModels] = useState<Set<string>>(new Set());
@@ -601,6 +633,11 @@ function ModelCheckbox({
           </span>
         </div>
         <p className="text-xs text-gray-500 truncate">{model.description}</p>
+        {model.positiveLabel && model.negativeLabel && (
+          <p className="text-2xs text-gray-500 truncate">
+            Labels: {model.positiveLabel} vs {model.negativeLabel}
+          </p>
+        )}
       </div>
     </label>
   );

@@ -17,24 +17,16 @@ export async function GET(
     const level = searchParams.get("level");
     const alphaPower = searchParams.get("alpha_power");
     const smooth = searchParams.get("smooth");
-    const refresh = searchParams.get("refresh");
-    const analysisRunId = searchParams.get("analysis_run_id");
     const projectId = searchParams.get("project_id");
     if (level) backendParams.set("level", level);
     if (alphaPower) backendParams.set("alpha_power", alphaPower);
     if (smooth) backendParams.set("smooth", smooth);
-    if (refresh) backendParams.set("refresh", refresh);
-    if (analysisRunId) {
-      backendParams.set("analysis_run_id", analysisRunId);
-      if (!refresh) backendParams.set("refresh", "true");
-    }
     if (projectId) backendParams.set("project_id", projectId);
     const qs = backendParams.toString() ? `?${backendParams.toString()}` : "";
     const backendUrl = `${BACKEND_URL}/api/heatmap/${encodeURIComponent(slideId)}/${encodeURIComponent(modelId)}${qs}`;
     
     const response = await fetch(backendUrl, {
       method: "GET",
-      cache: "no-store",
     });
 
     if (!response.ok) {
@@ -56,9 +48,7 @@ export async function GET(
     
     const headers: Record<string, string> = {
       "Content-Type": contentType,
-      "Cache-Control": "no-store, max-age=0",
-      "Pragma": "no-cache",
-      "Expires": "0",
+      "Cache-Control": alphaPower || smooth ? "no-cache" : "public, max-age=3600",
     };
     // Forward coverage headers for heatmap alignment
     for (const h of ["X-Model-Id", "X-Model-Name", "X-Slide-Width", "X-Slide-Height", "X-Coverage-Width", "X-Coverage-Height"]) {

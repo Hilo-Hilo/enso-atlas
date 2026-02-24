@@ -18,7 +18,6 @@ import { getPatchUrl } from "@/lib/api";
 
 interface SemanticSearchPanelProps {
   slideId: string | null;
-  projectId?: string;
   isAnalyzed: boolean;
   onSearch: (query: string, topK: number) => Promise<void>;
   results: SemanticSearchResult[];
@@ -38,7 +37,6 @@ const EXAMPLE_QUERIES = [
 
 export function SemanticSearchPanel({
   slideId,
-  projectId,
   isAnalyzed,
   onSearch,
   results,
@@ -78,7 +76,7 @@ export function SemanticSearchPanel({
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Search className="h-4 w-4 text-gray-400" />
-            Semantic Evidence Search
+            MedSigLIP Semantic Search
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -90,7 +88,7 @@ export function SemanticSearchPanel({
               Search unavailable
             </p>
             <p className="text-xs mt-1.5 text-gray-500 max-w-[200px] mx-auto">
-              Run analysis on a slide to enable semantic search by description.
+              Run analysis on a slide to enable MedSigLIP semantic search by description.
             </p>
           </div>
         </CardContent>
@@ -103,7 +101,7 @@ export function SemanticSearchPanel({
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2">
           <Search className="h-4 w-4 text-clinical-600" />
-          Semantic Evidence Search
+          MedSigLIP Semantic Search
           {results.length > 0 && (
             <Badge variant="info" size="sm" className="font-mono">
               {results.length}
@@ -224,19 +222,16 @@ export function SemanticSearchPanel({
                     result={result}
                     rank={index + 1}
                     slideId={slideId}
-                    projectId={projectId}
                     isSelected={coordsMatch !== null && selectedPatchId === coordsMatch}
-                    onClick={() => {
-                      if (!result.coordinates) return;
-                      const patchSize = result.patch_size ?? 224;
+                    onClick={() =>
                       onPatchClick?.({
-                        x: result.coordinates[0],
-                        y: result.coordinates[1],
-                        width: patchSize,
-                        height: patchSize,
+                        x: result.coordinates?.[0] ?? 0,
+                        y: result.coordinates?.[1] ?? 0,
+                        width: 224,
+                        height: 224,
                         level: 0,
-                      });
-                    }}
+                      })
+                    }
                   />
                 );
               })}
@@ -261,7 +256,6 @@ interface SearchResultItemProps {
   result: SemanticSearchResult;
   rank: number;
   slideId: string;
-  projectId?: string;
   isSelected: boolean;
   onClick: () => void;
 }
@@ -270,7 +264,6 @@ function SearchResultItem({
   result,
   rank,
   slideId,
-  projectId,
   isSelected,
   onClick,
 }: SearchResultItemProps) {
@@ -282,23 +275,15 @@ function SearchResultItem({
       ? "bg-amber-500"
       : "bg-blue-500";
 
-  const hasCoordinates = Boolean(result.coordinates);
-  const patchUrl = getPatchUrl(slideId, `patch_${result.patch_index}`, {
-    projectId,
-    coordinates: result.coordinates,
-    patchSize: result.patch_size,
-    size: 224,
-  });
+  const patchUrl = getPatchUrl(slideId, `patch_${result.patch_index}`);
 
   return (
     <button
       onClick={onClick}
-      disabled={!hasCoordinates}
       className={cn(
         "w-full flex items-center gap-3 p-2.5 rounded-lg border transition-all text-left group",
-        hasCoordinates && "hover:border-clinical-500 hover:bg-clinical-50/50 hover:shadow-clinical",
+        "hover:border-clinical-500 hover:bg-clinical-50/50 hover:shadow-clinical",
         "focus:outline-none focus:ring-2 focus:ring-clinical-500",
-        !hasCoordinates && "opacity-70 cursor-not-allowed",
         isSelected
           ? "border-clinical-600 bg-clinical-50 ring-1 ring-clinical-200"
           : "border-gray-200 bg-white"

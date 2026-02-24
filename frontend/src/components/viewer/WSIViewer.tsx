@@ -359,12 +359,6 @@ export function WSIViewer({
   useEffect(() => {
     if (!containerRef.current || !dziUrl) return;
 
-    if (hasWsi === false) {
-      setLoadError("WSI preview unavailable — embeddings only");
-      setIsReady(false);
-      return;
-    }
-
     setLoadError(null);
     setIsReady(false);
 
@@ -1342,6 +1336,54 @@ export function WSIViewer({
     );
   }, [imageToScreenCoords, onAnnotationSelect]);
 
+  const renderTargetHighlight = useCallback(() => {
+    if (!targetCoordinates) return null;
+
+    const x0 = targetCoordinates.x;
+    const y0 = targetCoordinates.y;
+    const wImg = targetCoordinates.width || DEFAULT_PATCH_SIZE_PX;
+    const hImg = targetCoordinates.height || DEFAULT_PATCH_SIZE_PX;
+
+    const topLeft = imageToScreenCoords(x0, y0);
+    const bottomRight = imageToScreenCoords(x0 + wImg, y0 + hImg);
+    if (!topLeft || !bottomRight) return null;
+
+    const x = Math.min(topLeft.x, bottomRight.x);
+    const y = Math.min(topLeft.y, bottomRight.y);
+    const w = Math.abs(bottomRight.x - topLeft.x);
+    const h = Math.abs(bottomRight.y - topLeft.y);
+    if (w < 1 || h < 1) return null;
+
+    return (
+      <g key={`target-highlight-${x0}-${y0}`}>
+        <rect
+          x={x}
+          y={y}
+          width={w}
+          height={h}
+          rx={4}
+          ry={4}
+          fill="rgba(59, 130, 246, 0.14)"
+          stroke="#1d4ed8"
+          strokeWidth={2.5}
+        />
+        <rect
+          x={x}
+          y={y}
+          width={w}
+          height={h}
+          rx={4}
+          ry={4}
+          fill="none"
+          stroke="#ffffff"
+          strokeWidth={1}
+          strokeDasharray="6 4"
+          opacity={0.9}
+        />
+      </g>
+    );
+  }, [targetCoordinates, imageToScreenCoords]);
+
   // Render the drawing preview
   const renderDrawingPreview = useCallback(() => {
     if (!drawingPreview) return null;
@@ -1640,6 +1682,7 @@ export function WSIViewer({
           viewBox={`0 0 ${containerRef.current?.clientWidth || 1} ${containerRef.current?.clientHeight || 1}`}
           preserveAspectRatio="none"
         >
+          {renderTargetHighlight()}
           {annotations.map((ann) => renderAnnotationSVG(ann, selectedAnnotationId === ann.id))}
           {renderDrawingPreview()}
         </svg>
@@ -1751,10 +1794,11 @@ export function WSIViewer({
 
       {/* Overlay Controls (always visible when viewer is ready) */}
       {isReady && (
-        <div className="absolute top-4 right-4 z-20 flex flex-col gap-2">
+        <div className="absolute top-4 right-4 z-20 w-[min(18rem,calc(100%-2rem))] max-h-[calc(100%-2rem)] overflow-y-auto pr-1">
+          <div className="flex flex-col gap-2">
           {/* Attention Heatmap Section */}
           {heatmap && (
-            <div className="viewer-toolbar flex-col items-stretch gap-2 p-3 min-w-[200px]">
+            <div className="viewer-toolbar flex-col items-stretch gap-2 p-3 w-full">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Layers className="h-4 w-4 text-gray-600" />
@@ -1850,7 +1894,7 @@ export function WSIViewer({
           )}
 
           {/* Patch Grid Section */}
-          <div className="viewer-toolbar flex-col items-stretch gap-2 p-3 min-w-[200px]">
+          <div className="viewer-toolbar flex-col items-stretch gap-2 p-3 w-full">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Grid3X3 className="h-4 w-4 text-gray-600" />
@@ -1897,6 +1941,7 @@ export function WSIViewer({
                 </div>
               </div>
             )}
+          </div>
           </div>
         </div>
       )}

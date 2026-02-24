@@ -25,6 +25,9 @@ import type {
   BatchAnalyzeResponse,
   BatchAnalysisResult,
   BatchAnalysisSummary,
+  DecisionSupport,
+  RiskLevel,
+  ConfidenceLevel,
   ModelPrediction,
   AvailableModel,
   MultiModelResponse,
@@ -297,8 +300,8 @@ interface BackendSlideInfo {
   has_wsi?: boolean;
   has_embeddings: boolean;
   has_level0_embeddings?: boolean;  // Whether level 0 (full res) embeddings exist
-  label?: string;
-  num_patches?: number;
+  label?: string | null;
+  num_patches?: number | null;
   patient?: BackendPatientContext;
   dimensions?: { width: number; height: number };
   mpp?: number;
@@ -312,14 +315,38 @@ interface BackendSlidesListResponse {
   per_page?: number;
 }
 
+function normalizePatchCount(value: number | null | undefined): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+function normalizeLabel(value: string | null | undefined): string | undefined {
+  return typeof value === "string" ? value : undefined;
+}
+
+function normalizeProjectId(projectId?: string | null): string | null {
+  const value = typeof projectId === "string" ? projectId.trim() : "";
+  if (!value || value === "default") {
+    return null;
+  }
+  return value;
+}
+
 /**
  * Fetch list of available slides
  */
 export async function getSlides(params: { page?: number; perPage?: number; projectId?: string } = {}): Promise<SlidesListResponse> {
+  if (params.projectId?.trim() === "default") {
+    return {
+      slides: [],
+      total: 0,
+    };
+  }
+
   const query = new URLSearchParams();
   if (params.page !== undefined) query.set("page", String(params.page));
   if (params.perPage !== undefined) query.set("per_page", String(params.perPage));
-  if (params.projectId) query.set("project_id", params.projectId);
+  const projectId = normalizeProjectId(params.projectId);
+  if (projectId) query.set("project_id", projectId);
   const endpoint = query.toString() ? `/api/slides?${query.toString()}` : "/api/slides";
 
   // Backend may return either an array or a paginated object.
@@ -335,11 +362,11 @@ export async function getSlides(params: { page?: number; perPage?: number; proje
       mpp: s.mpp ?? 0.25,
       createdAt: new Date().toISOString(),
       // Extended fields from backend
-      label: s.label,
+      label: normalizeLabel(s.label),
       hasWsi: s.has_wsi,
       hasEmbeddings: s.has_embeddings,
       hasLevel0Embeddings: s.has_level0_embeddings ?? false, // Level 0 embedding status
-      numPatches: s.num_patches,
+      numPatches: normalizePatchCount(s.num_patches),
       // Patient context
       patient: s.patient
         ? {
@@ -373,17 +400,18 @@ export async function getSlides(params: { page?: number; perPage?: number; proje
     const perPage = backend.per_page ?? mapped.length;
     const totalPages = perPage > 0 ? Math.ceil(total / perPage) : 1;
 
-    if (totalPages > 1) {
-      const pageRequests: Promise<BackendSlideInfo[] | BackendSlidesListResponse>[] = [];
-      for (let page = 2; page <= totalPages; page += 1) {
-        const pageParams = new URLSearchParams();
-        pageParams.set("page", String(page));
-        pageParams.set("per_page", String(perPage));
-        pageRequests.push(
-          fetchApi<BackendSlideInfo[] | BackendSlidesListResponse>(
-            `/api/slides?${pageParams.toString()}`
-          )
-        );
+      if (totalPages > 1) {
+        const pageRequests: Promise<BackendSlideInfo[] | BackendSlidesListResponse>[] = [];
+        for (let page = 2; page <= totalPages; page += 1) {
+          const pageParams = new URLSearchParams();
+          pageParams.set("page", String(page));
+          pageParams.set("per_page", String(perPage));
+          if (projectId) pageParams.set("project_id", projectId);
+          pageRequests.push(
+            fetchApi<BackendSlideInfo[] | BackendSlidesListResponse>(
+              `/api/slides?${pageParams.toString()}`
+            )
+          );
       }
 
       const pageResponses = await Promise.all(pageRequests);
@@ -443,13 +471,14 @@ interface BackendAnalysisResponse {
 export async function analyzeSlide(
   request: AnalysisRequest
 ): Promise<AnalysisResponse> {
+  const projectId = normalizeProjectId(request.projectId);
   const backend = await fetchApi<BackendAnalysisResponse>(
     "/api/analyze",
     {
       method: "POST",
       body: JSON.stringify({ 
         slide_id: request.slideId,
-        project_id: request.projectId || null,
+        project_id: projectId,
       }),
     },
     { timeoutMs: 60000 } // 60 second timeout for analysis
@@ -535,7 +564,8 @@ export async function fetchSimilarCases(
     const params = new URLSearchParams();
     params.set('slide_id', slideId);
     params.set('k', String(k));
-    if (projectId) params.set('project_id', projectId);
+    const scopedProjectId = normalizeProjectId(projectId);
+    if (scopedProjectId) params.set('project_id', scopedProjectId);
     
     const backend = await fetchApi<BackendSimilarResponse>(
       `/api/similar?${params.toString()}`,
@@ -615,6 +645,67 @@ interface BackendReportResponse {
   summary_text: string;
 }
 
+function toFrontendDecisionSupport(raw: unknown): DecisionSupport | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const obj = raw as Record<string, unknown>;
+  const primary = String(obj.primary_recommendation ?? "").trim();
+  if (!primary) return undefined;
+
+  const asStringArray = (value: unknown): string[] =>
+    Array.isArray(value) ? value.map((v) => String(v).trim()).filter(Boolean) : [];
+
+  const rawScore = Number(obj.confidence_score);
+  const confidenceScore = Number.isFinite(rawScore)
+    ? Math.max(0, Math.min(1, rawScore))
+    : 0.5;
+
+  const confidenceLevel: ConfidenceLevel =
+    obj.confidence_level === "high" || obj.confidence_level === "moderate" || obj.confidence_level === "low"
+      ? (obj.confidence_level as ConfidenceLevel)
+      : confidenceScore >= 0.7
+      ? "high"
+      : confidenceScore >= 0.35
+      ? "moderate"
+      : "low";
+
+  const riskLevel: RiskLevel =
+    obj.risk_level === "high_confidence" ||
+    obj.risk_level === "moderate_confidence" ||
+    obj.risk_level === "low_confidence" ||
+    obj.risk_level === "inconclusive"
+      ? (obj.risk_level as RiskLevel)
+      : confidenceLevel === "high"
+      ? "high_confidence"
+      : confidenceLevel === "moderate"
+      ? "moderate_confidence"
+      : "low_confidence";
+
+  const guidelineRaw = Array.isArray(obj.guideline_references) ? obj.guideline_references : [];
+  const guidelineRefs = guidelineRaw
+    .filter((g): g is Record<string, unknown> => !!g && typeof g === "object")
+    .map((g) => ({
+      source: String(g.source ?? "").trim() || "Clinical guideline",
+      section: String(g.section ?? "").trim() || "General",
+      recommendation: String(g.recommendation ?? "").trim() || "Correlate with multidisciplinary review.",
+      ...(String(g.url ?? "").trim() ? { url: String(g.url).trim() } : {}),
+    }));
+
+  return {
+    risk_level: riskLevel,
+    confidence_level: confidenceLevel,
+    confidence_score: confidenceScore,
+    primary_recommendation: primary,
+    supporting_rationale: asStringArray(obj.supporting_rationale),
+    alternative_considerations: asStringArray(obj.alternative_considerations),
+    guideline_references: guidelineRefs,
+    uncertainty_statement: String(obj.uncertainty_statement ?? "").trim(),
+    quality_warnings: asStringArray(obj.quality_warnings),
+    suggested_workup: asStringArray(obj.suggested_workup),
+    interpretation_note: String(obj.interpretation_note ?? "").trim(),
+    caveat: String(obj.caveat ?? "").trim(),
+  };
+}
+
 /**
  * Generate a structured report for a slide
  * Uses longer timeout for MedGemma inference
@@ -622,16 +713,17 @@ interface BackendReportResponse {
 export async function generateReport(
   request: ReportRequest
 ): Promise<StructuredReport> {
+  const projectId = normalizeProjectId(request.projectId);
   const backend = await fetchApi<BackendReportResponse>(
     "/api/report",
     {
       method: "POST",
       body: JSON.stringify({ 
         slide_id: request.slideId,
-        project_id: request.projectId,
+        project_id: projectId,
       }),
     },
-    { timeoutMs: 210000 } // 210 second timeout for CPU-based report generation
+    { timeoutMs: 420000 } // Allow slow CPU MedGemma runs
   );
 
   // Transform backend response to frontend StructuredReport format
@@ -643,9 +735,9 @@ export async function generateReport(
     patchId: e.patch_id || `patch_${idx}`,
     coordsLevel0: (e.coordinates || [0, 0]) as [number, number],
     morphologyDescription: e.morphology_description || 
-      `High-attention region at coordinates (${e.coordinates?.[0] || 0}, ${e.coordinates?.[1] || 0}) with attention weight ${(e.attention_weight || 0).toFixed(3)}`,
+      `Tissue region (${e.coordinates?.[0] || 0}, ${e.coordinates?.[1] || 0})`,
     whyThisPatchMatters: e.significance ||
-      "This region shows morphological patterns associated with the predicted classification based on model attention analysis.",
+      "Regional morphology contributes to the model's slide-level prediction signal.",
   }));
 
   // Transform similar examples
@@ -655,40 +747,8 @@ export async function generateReport(
     distance: s.distance ?? (1 - (s.similarity_score || 0)),
   }));
 
-  // Build decision support if available
-  const decisionSupport = reportJson.decision_support ? {
-    risk_level: reportJson.decision_support.risk_level as import("@/types").RiskLevel,
-    confidence_level: reportJson.decision_support.confidence_level as import("@/types").ConfidenceLevel,
-    confidence_score: reportJson.decision_support.confidence_score,
-    primary_recommendation: reportJson.decision_support.primary_recommendation,
-    supporting_rationale: reportJson.decision_support.supporting_rationale || [],
-    alternative_considerations: reportJson.decision_support.alternative_considerations || [],
-    guideline_references: reportJson.decision_support.guideline_references || [],
-    uncertainty_statement: reportJson.decision_support.uncertainty_statement || 
-      "Prediction confidence should be interpreted in the context of slide quality and similar case evidence.",
-    quality_warnings: reportJson.decision_support.quality_warnings || [],
-    suggested_workup: reportJson.decision_support.suggested_workup || [],
-    interpretation_note: reportJson.decision_support.interpretation_note ||
-      "This is an AI-generated interpretation. Clinical correlation and expert review are essential.",
-    caveat: reportJson.decision_support.caveat ||
-      "This tool is for research purposes only and should not be used as the sole basis for clinical decisions.",
-  } : undefined;
-
-  // Default limitations if not provided
-  const defaultLimitations = [
-    "This is an uncalibrated research model - probabilities are not clinically validated",
-    "Prediction is based on morphological patterns and may not capture all relevant clinical factors",
-    "Model has been trained on a limited dataset and may not generalize to all populations",
-    "Slide quality and tissue representation may affect prediction accuracy",
-  ];
-
-  // Default next steps if not provided
-  const defaultNextSteps = [
-    "Correlate findings with clinical history and other diagnostic tests",
-    "Review high-attention regions identified by the model",
-    "Consider molecular profiling for additional treatment guidance",
-    "Discuss findings in multidisciplinary tumor board",
-  ];
+  // Decision support is only rendered when supplied by MedGemma.
+  const decisionSupport = toFrontendDecisionSupport(reportJson.decision_support);
 
   return {
     caseId: reportJson.case_id || backend.slide_id,
@@ -704,10 +764,10 @@ export async function generateReport(
     },
     evidence,
     similarExamples,
-    limitations: reportJson.limitations?.length ? reportJson.limitations : defaultLimitations,
-    suggestedNextSteps: reportJson.suggested_next_steps?.length ? reportJson.suggested_next_steps : defaultNextSteps,
+    limitations: reportJson.limitations?.length ? reportJson.limitations : [],
+    suggestedNextSteps: reportJson.suggested_next_steps?.length ? reportJson.suggested_next_steps : [],
     safetyStatement: reportJson.safety_statement || 
-      "This is a research decision-support tool, not a diagnostic device. All findings must be validated by qualified pathologists and clinicians. Do not use for standalone clinical decision-making.",
+      "This prediction is for decision support and to enhance interpretability by the physician. Clinical decisions should integrate multiple factors including patient history, other biomarkers, and clinician expertise.",
     summary: backend.summary_text,
     decisionSupport,
   };
@@ -724,7 +784,8 @@ export function getDziUrl(slideId: string, projectId?: string): string {
   // Use local proxy to avoid CORS - OpenSeadragon will fetch tiles from
   // /api/slides/{id}/dzi_files/{level}/{col}_{row}.jpeg (relative to DZI URL)
   const params = new URLSearchParams();
-  if (projectId) params.set("project_id", projectId);
+  const scopedProjectId = normalizeProjectId(projectId);
+  if (scopedProjectId) params.set("project_id", scopedProjectId);
   const qs = params.toString() ? `?${params.toString()}` : "";
   return `/api/slides/${encodeURIComponent(slideId)}/dzi${qs}`;
 }
@@ -744,19 +805,15 @@ export function getHeatmapUrl(
   alphaPower?: number,
   projectId?: string,
   smooth?: boolean,
-  analysisRunId?: number | string,
 ): string {
   const params = new URLSearchParams();
   if (level !== undefined) params.set('level', String(level));
   if (alphaPower !== undefined && Math.abs(alphaPower - 0.7) > 0.01) {
     params.set('alpha_power', alphaPower.toFixed(2));
   }
-  if (projectId) params.set('project_id', projectId);
+  const scopedProjectId = normalizeProjectId(projectId);
+  if (scopedProjectId) params.set('project_id', scopedProjectId);
   if (smooth) params.set('smooth', 'true');
-  if (modelId && analysisRunId !== undefined && analysisRunId !== null) {
-    params.set('analysis_run_id', String(analysisRunId));
-    params.set('refresh', 'true');
-  }
   const qs = params.toString() ? `?${params.toString()}` : '';
   if (modelId) {
     return `/api/heatmap/${encodeURIComponent(slideId)}/${encodeURIComponent(modelId)}${qs}`;
@@ -771,7 +828,8 @@ export function getHeatmapUrl(
  */
 export function getThumbnailUrl(slideId: string, projectId?: string): string {
   const params = new URLSearchParams();
-  if (projectId) params.set("project_id", projectId);
+  const scopedProjectId = normalizeProjectId(projectId);
+  if (scopedProjectId) params.set("project_id", scopedProjectId);
   const qs = params.toString() ? `?${params.toString()}` : "";
   return `/api/slides/${encodeURIComponent(slideId)}/thumbnail${qs}`;
 }
@@ -781,26 +839,8 @@ export function getThumbnailUrl(slideId: string, projectId?: string): string {
  * 
  * Uses local Next.js API proxy to avoid CORS issues.
  */
-export function getPatchUrl(
-  slideId: string,
-  patchId: string,
-  options?: {
-    projectId?: string;
-    coordinates?: [number, number];
-    patchSize?: number;
-    size?: number;
-  }
-): string {
-  const params = new URLSearchParams();
-  if (options?.projectId) params.set("project_id", options.projectId);
-  if (options?.coordinates) {
-    params.set("x", String(options.coordinates[0]));
-    params.set("y", String(options.coordinates[1]));
-  }
-  if (options?.patchSize !== undefined) params.set("patch_size", String(options.patchSize));
-  if (options?.size !== undefined) params.set("size", String(options.size));
-  const qs = params.toString() ? `?${params.toString()}` : "";
-  return `/api/slides/${encodeURIComponent(slideId)}/patches/${encodeURIComponent(patchId)}${qs}`;
+export function getPatchUrl(slideId: string, patchId: string): string {
+  return `/api/slides/${encodeURIComponent(slideId)}/patches/${encodeURIComponent(patchId)}`;
 }
 
 /**
@@ -877,7 +917,6 @@ interface BackendSemanticSearchResult {
   patch_index: number;
   similarity_score: number;
   coordinates?: [number, number];
-  patch_size?: number;
   attention_weight?: number;
 }
 
@@ -897,6 +936,7 @@ export async function semanticSearch(
   topK: number = 5,
   projectId?: string
 ): Promise<SemanticSearchResponse> {
+  const scopedProjectId = normalizeProjectId(projectId);
   const backend = await fetchApi<BackendSemanticSearchResponse>(
     "/api/semantic-search",
     {
@@ -905,7 +945,7 @@ export async function semanticSearch(
         slide_id: slideId,
         query,
         top_k: topK,
-        project_id: projectId || null,
+        project_id: scopedProjectId,
       }),
     },
     { timeoutMs: 30000 }
@@ -919,7 +959,6 @@ export async function semanticSearch(
       patch_index: r.patch_index,
       similarity: r.similarity_score,  // Map similarity_score -> similarity
       coordinates: r.coordinates,
-      patch_size: r.patch_size,
     })),
   };
 }
@@ -1337,6 +1376,7 @@ interface BackendModelPrediction {
   model_name: string;
   category: string;
   score: number;
+  decision_threshold?: number | null;
   label: string;
   positive_label: string;
   negative_label: string;
@@ -1379,6 +1419,7 @@ function transformModelPrediction(backend: BackendModelPrediction): ModelPredict
     modelName: backend.model_name,
     category: backend.category,
     score: backend.score,
+    decisionThreshold: backend.decision_threshold ?? undefined,
     label: backend.label,
     positiveLabel: backend.positive_label,
     negativeLabel: backend.negative_label,
@@ -1460,6 +1501,7 @@ export async function analyzeSlideMultiModel(
   force: boolean = false,  // bypass cache
   projectId?: string  // scope models to project's classification_models
 ): Promise<MultiModelResponse> {
+  const scopedProjectId = normalizeProjectId(projectId);
   const backend = await fetchApi<BackendMultiModelResponse>(
     "/api/analyze-multi",
     {
@@ -1467,7 +1509,7 @@ export async function analyzeSlideMultiModel(
       body: JSON.stringify({
         slide_id: slideId,
         models: (models === undefined ? null : models),
-        project_id: projectId || null,
+        project_id: scopedProjectId,
         return_attention: returnAttention,
         level: level,
         force: force,
@@ -1519,10 +1561,20 @@ interface CachedResultsResponse {
  * Fetch cached analysis results for a slide.
  * Returns empty array if no cached results exist.
  */
-export async function getSlideCachedResults(slideId: string): Promise<CachedResultsResponse> {
+export async function getSlideCachedResults(
+  slideId: string,
+  projectId?: string
+): Promise<CachedResultsResponse> {
+  const scopedProjectId = normalizeProjectId(projectId);
+  const qs = new URLSearchParams();
+  if (scopedProjectId) qs.set("project_id", scopedProjectId);
+  const endpoint =
+    `/api/slides/${encodeURIComponent(slideId)}/cached-results` +
+    (qs.toString() ? `?${qs.toString()}` : "");
+
   try {
     return await fetchApi<CachedResultsResponse>(
-      `/api/slides/${encodeURIComponent(slideId)}/cached-results`
+      endpoint
     );
   } catch (err) {
     // Cache is optional - return empty on failure
@@ -1815,8 +1867,12 @@ function applyClientSideFilters(
  * Search and filter slides with pagination
  * Falls back to client-side filtering if search endpoint not available
  */
-export async function searchSlides(filters: SlideFilters): Promise<SlideSearchResult> {
+export async function searchSlides(
+  filters: SlideFilters,
+  projectId?: string
+): Promise<SlideSearchResult> {
   const params = new URLSearchParams();
+  const scopedProjectId = normalizeProjectId(projectId);
   
   if (filters.search) params.set("search", filters.search);
   if (filters.tags?.length) params.set("tags", filters.tags.join(","));
@@ -1832,6 +1888,7 @@ export async function searchSlides(filters: SlideFilters): Promise<SlideSearchRe
   if (filters.sortOrder) params.set("sort_order", filters.sortOrder);
   if (filters.page !== undefined) params.set("page", String(filters.page));
   if (filters.perPage !== undefined) params.set("per_page", String(filters.perPage));
+  if (scopedProjectId) params.set("project_id", scopedProjectId);
 
   try {
     const backend = await fetchApi<BackendSlideSearchResult>(
@@ -1848,9 +1905,9 @@ export async function searchSlides(filters: SlideFilters): Promise<SlideSearchRe
         magnification: s.magnification ? parseInt(s.magnification.replace('x', ''), 10) : 40,
         mpp: s.mpp ?? 0.25,
         createdAt: new Date().toISOString(),
-        label: s.label,
+        label: normalizeLabel(s.label),
         hasEmbeddings: s.has_embeddings,
-        numPatches: s.num_patches,
+        numPatches: normalizePatchCount(s.num_patches),
         patient: s.patient ? {
           age: s.patient.age,
           sex: s.patient.sex,
@@ -1871,7 +1928,9 @@ export async function searchSlides(filters: SlideFilters): Promise<SlideSearchRe
       console.warn("[API] Search endpoint not available, using client-side filtering");
       
       // Fetch all slides and filter client-side
-      const allSlides = await getSlides({});
+      const allSlides = await getSlides({
+        projectId: scopedProjectId || undefined,
+      });
       const { slides: filtered, total } = applyClientSideFilters(allSlides.slides, filters);
       
       return {
@@ -2168,12 +2227,25 @@ export interface AsyncReportResponse {
  * Start async report generation
  * Returns a task_id for polling
  */
-export async function startReportGeneration(slideId: string): Promise<AsyncReportResponse> {
+export async function startReportGeneration(request: ReportRequest): Promise<AsyncReportResponse> {
+  const projectId = normalizeProjectId(request.projectId);
+  const payload: Record<string, unknown> = {
+    slide_id: request.slideId,
+  };
+
+  if (projectId) {
+    payload.project_id = projectId;
+  }
+  if (typeof request.includeDetails === "boolean") {
+    payload.include_evidence = request.includeDetails;
+    payload.include_similar = request.includeDetails;
+  }
+
   return fetchApi<AsyncReportResponse>(
     '/api/report/async',
     {
       method: 'POST',
-      body: JSON.stringify({ slide_id: slideId }),
+      body: JSON.stringify(payload),
     },
     { timeoutMs: 10000 }
   );
@@ -2199,11 +2271,11 @@ export async function generateReportWithProgress(
   onProgress?: (progress: number, message: string) => void
 ): Promise<StructuredReport> {
   // Start async generation
-  const asyncResponse = await startReportGeneration(request.slideId);
+  const asyncResponse = await startReportGeneration(request);
   const taskId = asyncResponse.task_id;
   
   // Poll for completion
-  const maxWaitMs = 210000; // 3.5 minute max wait (CPU inference can take 120s+)
+  const maxWaitMs = 420000; // Keep polling long enough for slow CPU MedGemma runs
   const pollIntervalMs = 2000; // Poll every 2 seconds
   const startTime = Date.now();
   let lastProgress = 0;
@@ -2318,9 +2390,9 @@ function transformBackendReport(backend: {
     patchId: e.patch_id || `patch_${idx}`,
     coordsLevel0: (e.coordinates || [0, 0]) as [number, number],
     morphologyDescription: e.morphology_description || 
-      `High-attention region with attention weight ${(e.attention_weight || 0).toFixed(3)}`,
+      `Tissue region (${e.coordinates?.[0] || 0}, ${e.coordinates?.[1] || 0})`,
     whyThisPatchMatters: e.significance ||
-      'This region shows morphological patterns associated with the predicted classification.',
+      "Regional morphology contributes to the model's slide-level prediction signal.",
   }));
 
   const similarExamples = (reportJson.similar_examples || []).map((s) => ({
@@ -2329,35 +2401,7 @@ function transformBackendReport(backend: {
     distance: s.distance ?? (1 - (s.similarity_score || 0)),
   }));
 
-  const decisionSupport = reportJson.decision_support ? {
-    risk_level: reportJson.decision_support.risk_level as import('@/types').RiskLevel,
-    confidence_level: reportJson.decision_support.confidence_level as import('@/types').ConfidenceLevel,
-    confidence_score: reportJson.decision_support.confidence_score,
-    primary_recommendation: reportJson.decision_support.primary_recommendation,
-    supporting_rationale: reportJson.decision_support.supporting_rationale || [],
-    alternative_considerations: reportJson.decision_support.alternative_considerations || [],
-    guideline_references: reportJson.decision_support.guideline_references || [],
-    uncertainty_statement: reportJson.decision_support.uncertainty_statement || 
-      'Prediction confidence should be interpreted in the context of slide quality.',
-    quality_warnings: reportJson.decision_support.quality_warnings || [],
-    suggested_workup: reportJson.decision_support.suggested_workup || [],
-    interpretation_note: reportJson.decision_support.interpretation_note ||
-      'This is an AI-generated interpretation. Clinical correlation is essential.',
-    caveat: reportJson.decision_support.caveat ||
-      'This tool is for research purposes only.',
-  } : undefined;
-
-  const defaultLimitations = [
-    'This is an uncalibrated research model',
-    'Prediction is based on morphological patterns only',
-    'Model trained on limited dataset',
-  ];
-
-  const defaultNextSteps = [
-    'Correlate findings with clinical history',
-    'Review high-attention regions',
-    'Consider molecular profiling',
-  ];
+  const decisionSupport = toFrontendDecisionSupport(reportJson.decision_support);
 
   return {
     caseId: reportJson.case_id || backend.slide_id,
@@ -2373,8 +2417,8 @@ function transformBackendReport(backend: {
     },
     evidence,
     similarExamples,
-    limitations: reportJson.limitations?.length ? reportJson.limitations : defaultLimitations,
-    suggestedNextSteps: reportJson.suggested_next_steps?.length ? reportJson.suggested_next_steps : defaultNextSteps,
+    limitations: reportJson.limitations?.length ? reportJson.limitations : [],
+    suggestedNextSteps: reportJson.suggested_next_steps?.length ? reportJson.suggested_next_steps : [],
     safetyStatement: reportJson.safety_statement || 
       'This is a research tool. All findings must be validated by qualified clinicians.',
     summary: backend.summary_text,
