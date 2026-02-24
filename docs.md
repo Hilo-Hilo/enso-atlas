@@ -1426,88 +1426,93 @@ Project selection priority is: URL `?project=` -> localStorage (`enso-atlas-sele
 
 # 9. Config-Driven Project System
 
-The project system is the architectural center of Enso Atlas. It is the mechanism by which the platform achieves model-agnosticism and multi-cancer support without code changes. Every deployment decision (which foundation model to use, which classification heads to run, what labels to display, which features to enable) is encoded in a single YAML file.
+Enso Atlas project behavior is defined in `config/projects.yaml`. The backend loads this file at startup through `ProjectRegistry` and uses it to resolve project metadata, dataset paths, and model scoping.
 
-A hospital can go from a trained model and a set of slides to a fully deployed clinical decision support tool by editing a configuration file and restarting the server. No Python, no TypeScript, no Docker rebuilds.
+## 9.1 Current YAML Structure (`config/projects.yaml`)
 
-## 9.1 YAML Schema
+The current file has three top-level sections:
 
-Projects are defined in `config/projects.yaml`:
+- `foundation_models`: global embedding model catalog
+- `classification_models`: global prediction model catalog
+- `projects`: per-project configuration
 
-```yaml
-foundation_models:
-  path_foundation:
-    name: "Path Foundation"
-    embedding_dim: 384
+Current config snapshot:
 
-classification_models:
-  platinum_sensitivity:
-    model_dir: "transmil_v2"
-    auc: 0.907
-    category: "ovarian_cancer"
-    compatible_foundation: "path_foundation"
-  tumor_grade:
-    model_dir: "transmil_grade"
-    auc: 0.752
-    category: "general_pathology"
-    decision_threshold: 0.9935
-    compatible_foundation: "path_foundation"
-  lung_stage:
-    model_dir: "luad_transmil_stage"
-    auc: 0.648
-    category: "lung_cancer"
-    compatible_foundation: "path_foundation"
+- **Foundation models (4):** `path_foundation`, `dinov2`, `uni`, `conch`
+- **Classification models (6):** `lung_stage`, `platinum_sensitivity`, `tumor_grade`, `survival_5y`, `survival_3y`, `survival_1y`
+- **Projects (2):** `ovarian-platinum`, `lung-stage`
 
-projects:
-  ovarian-platinum:
-    prediction_target: platinum_sensitivity
-    dataset:
-      slides_dir: data/projects/ovarian-platinum/slides
-      embeddings_dir: data/projects/ovarian-platinum/embeddings
-      labels_file: data/projects/ovarian-platinum/labels.csv
-    classification_models: [platinum_sensitivity, tumor_grade, survival_5y, survival_3y, survival_1y]
-    threshold: 0.9229
+Each project entry includes:
 
-  lung-stage:
-    prediction_target: tumor_stage
-    dataset:
-      slides_dir: data/projects/lung-stage/slides
-      embeddings_dir: data/projects/lung-stage/embeddings
-      labels_file: data/projects/lung-stage/labels.json
-    classification_models: [lung_stage]
-    threshold: 0.5
-```
+- Core metadata (`name`, `cancer_type`, `prediction_target`, `classes`, `positive_class`)
+- Dataset paths (`dataset.slides_dir`, `dataset.embeddings_dir`, `dataset.labels_file`, `dataset.label_column`)
+- Model/tool metadata (`models.*`, `features.*`)
+- Model scoping (`foundation_model`, `classification_models`)
+- Decision settings (`threshold`, optional `threshold_config`)
 
-## 9.2 ProjectRegistry Backend
+The expected path convention is project-scoped:
 
-The `ProjectRegistry` class loads `foundation_models`, `classification_models`, and `projects` from YAML at startup. PostgreSQL synchronization is performed during app startup (`db.populate_projects_from_registry(...)`). Note: current `ProjectRegistry.save()` persists only the `projects` section, so API create/update/delete flows do not preserve top-level model catalogs.
+`data/projects/<project_id>/{slides,embeddings,labels.*}`
 
-## 9.3 Adding a New Cancer Type
+## 9.2 Backend Loading and Resolution
 
-No code changes required. The entire process is configuration-driven:
+`src/enso_atlas/api/projects.py` implements `ProjectRegistry`.
 
-1. **Define the project** in `config/projects.yaml` (cancer type, classes, labels, thresholds)
-2. **Add slides** to the configured `slides_dir`
-3. **Generate embeddings:** `python scripts/embed_level0_pipelined.py --slide-dir ... --output-dir ...`
-4. **Validate level-0 layout:** `python scripts/validate_project_modularity.py --check-embedding-layout`
-   - `embeddings/level0/` must be synchronized with top-level `embeddings/*.npy` for project-scoped level-0 endpoints.
-5. **Train a classification model:** `python scripts/train_transmil.py --embeddings_dir ... --labels_file ...`
-6. **Register the model** under `classification_models` in `projects.yaml`
-7. **Restart the server.** The new project auto-loads in the frontend project switcher with project labels and scoped models; feature-toggle-driven panel gating is not fully wired in the frontend.
+At startup it:
 
-The frontend is project-aware for switching and model scoping, but not entirely metadata-driven: it still contains hardcoded fallbacks (for example `DEFAULT_PROJECT` and label-mapping heuristics), and feature/threshold wiring is not fully derived from project metadata.
+1. Loads `foundation_models` into `FoundationModelConfig`
+2. Loads `classification_models` into `ClassificationModelConfig`
+3. Loads `projects` into `ProjectConfig`
+4. Sets default project from `DEFAULT_PROJECT` env var (if valid), else first YAML project
 
-## 9.4 Switching Between Projects
+Then `src/enso_atlas/api/main.py` wires the registry into the API and, when PostgreSQL is available, syncs project rows via `db.populate_projects_from_registry(...)`.
 
-The frontend `ProjectContext` reads available projects from the API and renders a project switcher in the header. When the user switches projects:
+Important implementation details from current code:
 
-1. The slide list re-filters to show only project-assigned slides
-2. The model picker updates to show only project-assigned classification models
-3. Labels/class names and project-scoped model choices update with the selected project; threshold values are not fully propagated from project summaries in the frontend
-4. Feature toggles are present in YAML/backend config but are not currently used to conditionally render all panels in `frontend/src/app/page.tsx`
-5. The selected project persists to localStorage across sessions
+- `get_project_classification_models(project_id)` filters models by both project membership and `compatible_foundation`.
+- Project-scoped `/api/models?project_id=...` resolves allowlists in this order:
+  1) DB `project_models` assignments
+  2) YAML `projects.<id>.classification_models` fallback
+- `ProjectRegistry.save()` currently writes only the `projects` section. If API create/update/delete flows call `save()`, top-level `foundation_models` and `classification_models` are not preserved in the output YAML.
+- YAML may include extra classification-model keys (for example `decision_threshold`), but `ClassificationModelConfig` currently loads only the typed fields defined in code.
 
-A single Enso Atlas deployment can serve multiple clinical teams working on different cancer types simultaneously.
+## 9.3 Adding a New Project / Cancer Task
+
+Configuration-first workflow:
+
+1. Add or reuse a foundation model in `foundation_models`
+2. Add classification model definitions in `classification_models`
+3. Add a project under `projects` with project-scoped dataset paths
+4. Put slide files in that project's `slides_dir`
+5. Generate embeddings into that project's `embeddings_dir`
+6. Run layout validation:
+   - `python scripts/validate_project_modularity.py --check-embedding-layout`
+7. Train/export prediction checkpoints and ensure model IDs match config
+8. Restart backend so `ProjectRegistry` reloads
+
+Practical note: for full-fidelity config management, edit `config/projects.yaml` directly until `ProjectRegistry.save()` preserves top-level model catalogs.
+
+## 9.4 Runtime Project Switching (Frontend)
+
+Frontend project state lives in `frontend/src/contexts/ProjectContext.tsx`.
+
+Selection priority is:
+
+1. URL query param `?project=<id>`
+2. `localStorage` key `enso-atlas-selected-project`
+3. First project returned by `/api/projects`
+
+When project changes, frontend calls project-scoped APIs:
+
+- Slide list: `/api/slides?project_id=<id>`
+- Model list: `/api/models?project_id=<id>` (with fallback to `/api/projects/{id}/models` and then project-derived safe defaults)
+
+Current behavior notes:
+
+- The selected project persists in `localStorage`.
+- If project APIs are unavailable, frontend falls back to `DEFAULT_PROJECT` metadata.
+- Project-aware model and label wiring is in place, but there are still fallback heuristics in UI components (for example model/label derivation in `ModelPicker`).
+- YAML `features` toggles are defined and loaded, but panel-level rendering in `frontend/src/app/page.tsx` is not fully feature-flag-driven yet.
 
 ---
 
