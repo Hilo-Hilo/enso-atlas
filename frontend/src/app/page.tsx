@@ -343,6 +343,13 @@ function HomePage() {
     return () => clearTimeout(timer);
   }, [heatmapAlphaPower]);
 
+  // Bumped whenever the user explicitly runs/re-runs analysis.
+  // Included in model heatmap URLs to force regeneration per analysis run.
+  const [analysisRunId, setAnalysisRunId] = useState<number>(0);
+  const bumpAnalysisRunId = useCallback(() => {
+    setAnalysisRunId((prev) => prev + 1);
+  }, []);
+
   // Multi-model analysis state
   const [multiModelResult, setMultiModelResult] = useState<MultiModelResponse | null>(null);
   const [isAnalyzingMultiModel, setIsAnalyzingMultiModel] = useState(false);
@@ -1340,6 +1347,8 @@ function HomePage() {
   const handleAnalyze = useCallback(async () => {
     if (!selectedSlide) return;
 
+    bumpAnalysisRunId();
+
     // On mobile, switch to results tab when analysis starts
     setMobilePanelTab("results");
     
@@ -1376,17 +1385,19 @@ function HomePage() {
       setMultiModelResult(null);
       setMultiModelError(null);
     }
-  }, [selectedSlide, analyze, toast, handleMultiModelAnalyze, currentProject.id, scopedProjectModels.length]);
+  }, [selectedSlide, analyze, toast, handleMultiModelAnalyze, currentProject.id, scopedProjectModels.length, bumpAnalysisRunId]);
 
   // Retry multi-model analysis (always force)
   const handleRetryMultiModel = useCallback(() => {
+    bumpAnalysisRunId();
     handleMultiModelAnalyze(true);
-  }, [handleMultiModelAnalyze]);
+  }, [handleMultiModelAnalyze, bumpAnalysisRunId]);
 
   // Re-analyze: force a fresh analysis bypassing cache
   const handleReanalyze = useCallback(() => {
+    bumpAnalysisRunId();
     handleMultiModelAnalyze(true);
-  }, [handleMultiModelAnalyze]);
+  }, [handleMultiModelAnalyze, bumpAnalysisRunId]);
 
   // Handle patch click - navigate viewer
   const handlePatchClick = useCallback((coords: PatchCoordinates) => {
@@ -1867,6 +1878,7 @@ function HomePage() {
       debouncedAlphaPower,
       currentProject?.id,
       heatmapSmooth,
+      analysisRunId,
     ),
     minValue: 0,
     maxValue: 1,

@@ -68,6 +68,29 @@ def test_backend_model_heatmap_sets_coverage_headers_from_shared_helper():
     assert '"X-Coverage-Height": str(_coverage.coverage_height)' in src
 
 
+def test_backend_model_heatmap_supports_refresh_nonce_and_bypasses_disk_cache():
+    src = _read("src/enso_atlas/api/main.py")
+
+    assert "analysis_run_id" in src
+    assert "force_refresh = bool(refresh or (analysis_run_id and analysis_run_id.strip()))" in src
+    assert "cache_path.exists() and not force_refresh" in src
+
+
+def test_backend_model_heatmap_cache_key_tracks_model_checkpoint_signature():
+    src = _read("src/enso_atlas/api/main.py")
+
+    assert "checkpoint_signature" in src
+    assert 'cache_path = cache_dir / f"{cache_suffix}_{slide_id}_{model_id}_{mode_suffix}_{checkpoint_suffix}_v4.png"' in src
+    assert "Detected checkpoint update" in src
+
+
+def test_backend_model_heatmap_disables_http_caching():
+    src = _read("src/enso_atlas/api/main.py")
+
+    assert '"Cache-Control": "no-store, max-age=0"' in src
+    assert '"Pragma": "no-cache"' in src
+
+
 def test_pdf_heatmap_path_does_not_fabricate_synthetic_coords_when_missing():
     src = _read("src/enso_atlas/api/main.py")
 

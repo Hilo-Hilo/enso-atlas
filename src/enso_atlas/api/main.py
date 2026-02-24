@@ -894,6 +894,7 @@ def create_app(
     slide_siglip_embeddings = {}  # Cache for MedSigLIP embeddings per slide
     available_slides = []
     slide_labels = {}  # Cache for slide labels (slide_id -> label string)
+    model_checkpoint_signatures: Dict[str, str] = {}  # model_id -> checkpoint signature for hot-reload/cache invalidation
     db_available = False  # Whether PostgreSQL is connected and populated
     project_registry: Optional[ProjectRegistry] = None  # Loaded at startup from config/projects.yaml
     # Slide-level mean-embedding FAISS index (cosine similarity)
@@ -6734,6 +6735,14 @@ DISCLAIMER: This is a research tool. All findings must be validated by qualified
             default=False,
             description="Apply Gaussian blur interpolation for denser visualization (False keeps truthful patch-grid rendering)",
         ),
+        refresh: bool = Query(
+            default=False,
+            description="Force regeneration and bypass disk cache for this request",
+        ),
+        analysis_run_id: Optional[str] = Query(
+            default=None,
+            description="Optional analysis run nonce; when present heatmap is regenerated",
+        ),
         project_id: Optional[str] = Query(default=None, description="Project ID to scope embeddings lookup")
     ):
         """Get a model-specific attention heatmap for one slide.
@@ -6801,17 +6810,64 @@ DISCLAIMER: This is a research tool. All findings must be validated by qualified
                 },
             )
 
-        # Check disk cache first (only for default alpha_power).
-        # Use a versioned cache key to avoid serving stale overlays generated
-        # with pre-fix coordinate assumptions.
+        def _resolve_model_checkpoint_path_and_signature(model_identifier: str) -> tuple[Optional[Path], str]:
+            """Return checkpoint path + signature used for cache invalidation."""
+            model_cfg = MODEL_CONFIGS.get(model_identifier, {})
+            model_dir = model_cfg.get("model_dir")
+            if not model_dir:
+                return None, "model_dir_missing"
+
+            checkpoint_path = _project_root / "outputs" / str(model_dir) / "best_model.pt"
+            if not checkpoint_path.exists():
+                return checkpoint_path, "checkpoint_missing"
+
+            stat = checkpoint_path.stat()
+            signature = f"{int(stat.st_mtime_ns)}_{int(stat.st_size)}"
+            return checkpoint_path, signature
+
+        force_refresh = bool(refresh or (analysis_run_id and analysis_run_id.strip()))
+        _checkpoint_path, checkpoint_signature = _resolve_model_checkpoint_path_and_signature(model_id)
+        previous_signature = model_checkpoint_signatures.get(model_id)
+        checkpoint_changed = previous_signature is not None and checkpoint_signature != previous_signature
+        model_checkpoint_signatures[model_id] = checkpoint_signature
+
+        if checkpoint_changed and multi_model_inference is not None:
+            # Ensure in-memory model is reloaded from updated checkpoint.
+            try:
+                if hasattr(multi_model_inference, "models"):
+                    multi_model_inference.models.pop(model_id, None)
+                if hasattr(multi_model_inference, "model_configs"):
+                    multi_model_inference.model_configs.pop(model_id, None)
+                logger.info(
+                    "Detected checkpoint update for %s (%s -> %s); forcing model reload",
+                    model_id,
+                    previous_signature,
+                    checkpoint_signature,
+                )
+            except Exception as reload_err:
+                logger.warning(f"Failed to clear cached model {model_id} after checkpoint update: {reload_err}")
+            force_refresh = True
+
+        if force_refresh:
+            logger.info(
+                "Forcing model heatmap regeneration for %s/%s (refresh=%s, analysis_run_id=%s, checkpoint=%s)",
+                slide_id,
+                model_id,
+                refresh,
+                analysis_run_id,
+                checkpoint_signature,
+            )
+
+        # Check disk cache first (only for default alpha_power and no explicit refresh).
         cache_dir = emb_path.parent / "heatmap_cache"
         cache_dir.mkdir(exist_ok=True)
         is_default_alpha = abs(alpha_power - 0.7) < 0.01
         mode_suffix = "smooth" if smooth else "truthful"
         cache_suffix = project_id if project_id else "global"
-        cache_path = cache_dir / f"{cache_suffix}_{slide_id}_{model_id}_{mode_suffix}_v3.png"
+        checkpoint_suffix = checkpoint_signature.replace("/", "_").replace(":", "_")
+        cache_path = cache_dir / f"{cache_suffix}_{slide_id}_{model_id}_{mode_suffix}_{checkpoint_suffix}_v4.png"
 
-        if is_default_alpha and cache_path.exists():
+        if is_default_alpha and cache_path.exists() and not force_refresh:
             # Serve cached heatmap — still need slide dims for headers
             slide_path = resolve_slide_path(slide_id, project_id=project_id)
             _slide_dims = None
@@ -6827,7 +6883,7 @@ DISCLAIMER: This is a research tool. All findings must be validated by qualified
                 _ca = np.load(coord_path).astype(np.int64, copy=False)
                 _slide_dims = (int(_ca[:, 0].max()) + patch_size_c, int(_ca[:, 1].max()) + patch_size_c)
             _coverage = compute_heatmap_grid_coverage(_slide_dims[0], _slide_dims[1], patch_size=224)
-            logger.info(f"Serving cached heatmap for {slide_id}/{model_id}")
+            logger.info(f"Serving cached heatmap for {slide_id}/{model_id} (checkpoint={checkpoint_signature})")
             return FileResponse(
                 str(cache_path),
                 media_type="image/png",
@@ -6838,6 +6894,9 @@ DISCLAIMER: This is a research tool. All findings must be validated by qualified
                     "X-Slide-Height": str(_slide_dims[1]),
                     "X-Coverage-Width": str(_coverage.coverage_width),
                     "X-Coverage-Height": str(_coverage.coverage_height),
+                    "Cache-Control": "no-store, max-age=0",
+                    "Pragma": "no-cache",
+                    "Expires": "0",
                     "Access-Control-Expose-Headers": "X-Model-Id, X-Model-Name, X-Slide-Width, X-Slide-Height, X-Coverage-Width, X-Coverage-Height",
                 }
             )
@@ -6940,6 +6999,9 @@ DISCLAIMER: This is a research tool. All findings must be validated by qualified
                     "X-Slide-Height": str(slide_dims[1]),
                     "X-Coverage-Width": str(_coverage.coverage_width),
                     "X-Coverage-Height": str(_coverage.coverage_height),
+                    "Cache-Control": "no-store, max-age=0",
+                    "Pragma": "no-cache",
+                    "Expires": "0",
                     "Access-Control-Expose-Headers": "X-Model-Id, X-Model-Name, X-Slide-Width, X-Slide-Height, X-Coverage-Width, X-Coverage-Height",
                 }
             )

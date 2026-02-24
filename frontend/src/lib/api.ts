@@ -744,6 +744,7 @@ export function getHeatmapUrl(
   alphaPower?: number,
   projectId?: string,
   smooth?: boolean,
+  analysisRunId?: number | string,
 ): string {
   const params = new URLSearchParams();
   if (level !== undefined) params.set('level', String(level));
@@ -752,6 +753,10 @@ export function getHeatmapUrl(
   }
   if (projectId) params.set('project_id', projectId);
   if (smooth) params.set('smooth', 'true');
+  if (modelId && analysisRunId !== undefined && analysisRunId !== null) {
+    params.set('analysis_run_id', String(analysisRunId));
+    params.set('refresh', 'true');
+  }
   const qs = params.toString() ? `?${params.toString()}` : '';
   if (modelId) {
     return `/api/heatmap/${encodeURIComponent(slideId)}/${encodeURIComponent(modelId)}${qs}`;
