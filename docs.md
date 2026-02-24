@@ -1056,9 +1056,15 @@ In the current main page (`frontend/src/app/page.tsx`), that panel is intentiona
 
 # 7. Database Schema
 
-## 7.1 Schema Version 5
+## 7.1 Current Schema (v5)
 
-The database schema (defined in `src/enso_atlas/api/database.py`) consists of ten tables across five migration versions:
+The PostgreSQL schema is defined in `src/enso_atlas/api/database.py`.
+
+Current state:
+- 10 tables total
+- schema migrations `v1` through `v5`
+- project membership is now modeled with junction tables (`project_slides`, `project_models`)
+- `slides.project_id` is still present as a legacy compatibility column
 
 ### ER Diagram
 
@@ -1068,10 +1074,9 @@ erDiagram
     slides ||--o{ slide_metadata : "has"
     slides ||--o{ analysis_results : "has"
     slides ||--o{ embedding_tasks : "has"
-    slides ||--o{ annotations : "has"
-    projects ||--o{ project_slides : "has"
     slides ||--o{ project_slides : "assigned to"
-    projects ||--o{ project_models : "has"
+    projects ||--o{ project_slides : "contains"
+    projects ||--o{ project_models : "allows"
 
     patients {
         text patient_id PK
@@ -1091,7 +1096,6 @@ erDiagram
     slides {
         text slide_id PK
         text patient_id FK
-        text display_name
         text filename
         integer width
         integer height
@@ -1101,10 +1105,11 @@ erDiagram
         boolean has_embeddings
         boolean has_level0_embeddings
         text label
-        text project_id
         timestamptz embedding_date
         text file_path
         bigint file_size_bytes
+        text project_id "legacy"
+        text display_name
         timestamptz created_at
         timestamptz updated_at
     }
@@ -1182,17 +1187,22 @@ erDiagram
     }
 ```
 
+Notes:
+- `annotations.slide_id` is indexed but currently not declared as a DB foreign key.
+- `projects.name` is `NOT NULL` in DDL.
+- `embedding_tasks` exists in schema, but current embedding job progress is tracked in-memory by `EmbeddingTaskManager` (`src/enso_atlas/api/embedding_tasks.py`).
+
 ## 7.2 Migration History
 
-| Version | Migration | Description |
+| Version | Migration | What changed |
 |---|---|---|
-| v1 | Initial schema | patients, slides, slide_metadata, analysis_results, embedding_tasks, projects, schema_version |
-| v2 | `_migrate_project_columns` | Added `project_id` column to slides table |
-| v3 | `_migrate_project_scoped_tables` | Created project_models and project_slides junction tables, seeded initial data |
-| v4 | `_migrate_display_name` | Added `display_name` column to slides table for user-assigned aliases |
-| v5 | `_migrate_annotations_table` | Created annotations table with JSONB coordinates, label, notes, color, category |
+| v1 | Initial schema | Created core tables (`patients`, `slides`, `slide_metadata`, `analysis_results`, `embedding_tasks`, `projects`, `project_models`, `project_slides`, `schema_version`) and indexes. |
+| v2 | `_migrate_project_columns` | Added legacy `slides.project_id` column (default `'ovarian-platinum'`) and index `idx_slides_project`. |
+| v3 | `_migrate_project_scoped_tables` | Ensured `project_slides`/`project_models` tables + indexes exist, then seeded `ovarian-platinum` assignments when that project exists. |
+| v4 | `_migrate_display_name` | Added `slides.display_name` (user-facing alias). |
+| v5 | `_migrate_annotations_table` | Added `annotations` table + `idx_annotations_slide`. |
 
-## 7.3 Connection Pool
+## 7.3 Connection Pool and Startup Behavior
 
 ```python
 _pool = await asyncpg.create_pool(
@@ -1203,21 +1213,33 @@ _pool = await asyncpg.create_pool(
 )
 ```
 
-10 retry attempts with 2-second delay for database startup synchronization.
+Startup behavior:
+- up to 10 connection attempts
+- 2-second delay between retries
+- migrations run during `init_schema()` in order: v2 -> v3 -> v4 -> v5
 
-## 7.4 Query Performance
+## 7.4 Query Behavior (Current Backend)
 
-| Query | PostgreSQL | Flat-File Fallback |
-|---|---|---|
-| List all slides (208) | 2-5ms | 30-60s |
-| Get single slide | <1ms | N/A |
-| Search with filters | 5-10ms | 100-500ms |
-| Cached result lookup | 0.8ms | N/A |
-| Annotations for slide | <2ms | N/A |
-| Count slides | <1ms | N/A |
+| Area | Current behavior |
+|---|---|
+| Global slide listing (`GET /api/slides`) | Uses `db.get_all_slides()` (`slides` LEFT JOIN `patients`) when DB is available. |
+| Project-scoped slide listing (`GET /api/slides?project_id=...`) | Intentionally uses flat-file/project-directory scan for fresh patch counts; project filtering uses authoritative IDs from DB/labels with guardrails against cross-project leakage. |
+| Project slide membership | Resolution order in backend: `project_slides` (authoritative) -> legacy `slides.project_id` -> project labels file -> embeddings-dir fallback (optional in some paths). |
+| Project model scope | Resolution order: `project_models` assignments -> `projects.yaml` `classification_models` fallback. |
+| Cached model outputs | `analysis_results` stores all runs; reads return latest per model using `DISTINCT ON (model_id)` + `ORDER BY created_at DESC`. |
+| Slide metadata | Stored as key/value rows in `slide_metadata`; uniqueness is enforced on `(slide_id, key, value)`. |
+| Annotations | CRUD is PostgreSQL-backed via `annotations`; list endpoint returns rows ordered by `created_at`. |
+
+## 7.5 Practical Performance Notes
+
+The DB path replaces expensive directory scans for common global queries. In normal operation:
+- global slide list and single-slide lookups are low-latency SQL calls
+- cached result fetch is a cheap indexed lookup on `analysis_results`
+- annotation reads are index-assisted by `idx_annotations_slide`
+
+Project-scoped list views are the deliberate exception: they prioritize live filesystem state over DB-cached patch counts.
 
 ---
-
 # 8. Frontend Architecture
 
 ## 8.1 Tech Stack
