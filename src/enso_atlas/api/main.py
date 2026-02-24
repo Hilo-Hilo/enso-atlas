@@ -217,13 +217,52 @@ import sys
 _project_root = Path(__file__).parent.parent.parent.parent
 sys.path.insert(0, str(_project_root))
 try:
-    from scripts.multi_model_inference import MultiModelInference, MODEL_CONFIGS
+    from scripts.multi_model_inference import MultiModelInference, MODEL_CONFIGS, score_to_prediction
     MULTI_MODEL_AVAILABLE = True
 except ImportError:
     logger.warning("MultiModelInference not available - multi-model endpoints disabled")
     MULTI_MODEL_AVAILABLE = False
     MultiModelInference = None
     MODEL_CONFIGS = {}
+
+    def score_to_prediction(
+        score: float,
+        decision_threshold: float,
+        positive_label: str,
+        negative_label: str,
+    ) -> Dict[str, Any]:
+        """Fallback threshold-to-label conversion when multi-model module is unavailable."""
+        try:
+            score_f = float(score)
+        except Exception:
+            score_f = 0.0
+        score_f = float(min(1.0, max(0.0, score_f)))
+
+        try:
+            threshold = float(decision_threshold)
+        except Exception:
+            threshold = 0.5
+        threshold = float(min(0.99, max(0.01, threshold)))
+
+        pos_label = str(positive_label or "Positive")
+        neg_label = str(negative_label or "Negative")
+        is_positive = score_f >= threshold
+        label = pos_label if is_positive else neg_label
+
+        if is_positive:
+            denom = max(1e-6, 1.0 - threshold)
+            confidence = (score_f - threshold) / denom
+        else:
+            denom = max(1e-6, threshold)
+            confidence = (threshold - score_f) / denom
+        confidence = float(min(max(confidence, 0.0), 0.99))
+
+        return {
+            "score": score_f,
+            "decision_threshold": threshold,
+            "label": label,
+            "confidence": confidence,
+        }
 
 # Agent workflow for multi-step analysis
 try:
@@ -611,6 +650,7 @@ class ModelPrediction(BaseModel):
     model_name: str
     category: str  # cancer-specific category or general_pathology
     score: float
+    decision_threshold: float = 0.5
     label: str
     positive_label: str
     negative_label: str
@@ -6308,16 +6348,31 @@ DISCLAIMER: This is a research tool. All findings must be validated by qualified
                         mid = row["model_id"]
                         if requested_models and mid not in requested_models:
                             continue
+
                         cfg = MODEL_CONFIGS.get(mid, {})
+                        positive_label = cfg.get("positive_label", "Positive")
+                        negative_label = cfg.get("negative_label", "Negative")
+                        current_threshold = cfg.get("decision_threshold", cfg.get("threshold", 0.5))
+
+                        # Recompute label/confidence from cached score using current YAML threshold.
+                        # This ensures threshold updates take effect immediately without cache invalidation.
+                        cached_eval = score_to_prediction(
+                            score=row.get("score", 0.0),
+                            decision_threshold=current_threshold,
+                            positive_label=positive_label,
+                            negative_label=negative_label,
+                        )
+
                         pred_dict = {
                             "model_id": mid,
                             "model_name": cfg.get("display_name", mid),
                             "category": cfg.get("category", "general_pathology"),
-                            "score": row["score"],
-                            "label": row["label"],
-                            "positive_label": cfg.get("positive_label", "Positive"),
-                            "negative_label": cfg.get("negative_label", "Negative"),
-                            "confidence": min(row["confidence"], 0.99) if row["confidence"] else 0,
+                            "score": cached_eval["score"],
+                            "decision_threshold": cached_eval["decision_threshold"],
+                            "label": cached_eval["label"],
+                            "positive_label": positive_label,
+                            "negative_label": negative_label,
+                            "confidence": min(cached_eval["confidence"], 0.99),
                             "auc": cfg.get("auc", 0.0),
                             "n_training_slides": cfg.get("n_training_slides", cfg.get("n_slides", 0)),
                             "description": cfg.get("description", ""),
@@ -6389,11 +6444,18 @@ DISCLAIMER: This is a research tool. All findings must be validated by qualified
 
         def _normalize_prediction_dict(p: Dict[str, Any]) -> Dict[str, Any]:
             out = {k: v for k, v in p.items() if k != "attention"}
+            model_id = str(out.get("model_id") or "")
+            cfg = MODEL_CONFIGS.get(model_id, {})
+
+            if out.get("decision_threshold") is None:
+                out["decision_threshold"] = cfg.get("decision_threshold", cfg.get("threshold", 0.5))
+
             if "confidence" in out and out["confidence"] is not None:
                 try:
                     out["confidence"] = min(float(out["confidence"]), 0.99)
                 except Exception:
                     pass
+
             return out
 
         predictions = {}
@@ -6443,6 +6505,7 @@ DISCLAIMER: This is a research tool. All findings must be validated by qualified
                     score=pred.score,
                     label=pred.label,
                     confidence=pred.confidence,
+                    threshold=pred.decision_threshold,
                 )
             logger.info(f"Saved {len(predictions)} analysis results to cache for {slide_id}")
         except Exception as e:
