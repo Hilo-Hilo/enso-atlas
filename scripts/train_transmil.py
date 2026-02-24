@@ -2,14 +2,32 @@
 """
 TransMIL Training Script - Optimized for DGX Spark
 
-Features:
+⚠️  DEPRECATED: This is the initial training script (v1).
+    Use scripts/train_transmil_finetune.py instead, which provides:
+    - Patient-level stratified k-fold cross-validation
+    - Focal loss for class imbalance
+    - PR-AUC alongside ROC-AUC
+    - Calibration curve plotting
+    - Comprehensive metrics logging
+
+Features (v1 — retained for reference only):
 - Mixed precision training (AMP)
 - Gradient accumulation
 - Early stopping
 - Checkpoint saving
 - Progress logging
-- Stratified train/val split
+- Stratified train/val split (SLIDE-LEVEL ONLY — NO patient grouping)
 """
+
+import warnings
+warnings.warn(
+    "train_transmil.py is DEPRECATED. Use train_transmil_finetune.py for "
+    "patient-level cross-validation and proper metrics. This script uses "
+    "slide-level splitting which risks data leakage when multiple slides "
+    "come from the same patient.",
+    DeprecationWarning,
+    stacklevel=1,
+)
 
 import os
 import sys

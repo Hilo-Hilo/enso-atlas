@@ -72,6 +72,7 @@ classification_models:
     category: "general_pathology"
     positive_label: "High Grade"
     negative_label: "Low Grade"
+    decision_threshold: 0.9935
     compatible_foundation: "path_foundation"
   survival_5y:
     model_dir: "transmil_surv5y"

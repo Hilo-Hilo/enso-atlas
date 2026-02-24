@@ -2,11 +2,23 @@
 """
 Optimal Threshold Selection for TransMIL Classifier.
 
-Loads a trained TransMIL checkpoint, runs inference on all slides,
-and computes the optimal decision threshold using:
+Loads a trained TransMIL checkpoint, runs inference on ALL slides
+(both train and validation), and computes the optimal decision
+threshold using:
 
   1. Youden's J statistic  (sensitivity + specificity - 1)
   2. F1-optimal threshold
+
+⚠️  IMPORTANT — Metric Context:
+    The AUC reported by this script is a **RESUBSTITUTION AUC**:
+    it evaluates the model on the same data used (in full or in part)
+    for training. This is NOT a valid out-of-sample performance estimate.
+
+    The honest cross-validated AUC comes from train_transmil_finetune.py
+    (patient-level 5-fold CV).
+
+    Use this script's threshold for production calibration, but cite
+    the CV AUC for performance claims.
 
 Generates:
   - Score distribution histogram (positive vs negative)
@@ -417,13 +429,19 @@ def main() -> None:
     logger.info("Class distribution: %d positive, %d negative (%.1f%% positive)",
                 n_pos, n_neg, 100.0 * n_pos / len(y_true))
 
-    # Compute AUC
-    from sklearn.metrics import roc_auc_score
+    # Compute AUC (RESUBSTITUTION — see docstring warning)
+    from sklearn.metrics import roc_auc_score, average_precision_score
     try:
         auc_val = roc_auc_score(y_true, y_prob)
     except ValueError:
         auc_val = 0.5
-    logger.info("AUC-ROC: %.4f", auc_val)
+    try:
+        pr_auc_val = average_precision_score(y_true, y_prob)
+    except ValueError:
+        pr_auc_val = 0.0
+    logger.info("RESUBSTITUTION AUC-ROC: %.4f (full-dataset, NOT out-of-sample)", auc_val)
+    logger.info("RESUBSTITUTION PR-AUC:  %.4f (full-dataset, NOT out-of-sample)", pr_auc_val)
+    logger.info("For honest out-of-sample AUC, see train_transmil_finetune.py cross-validation results.")
 
     # Find optimal thresholds
     logger.info("Computing optimal thresholds...")
@@ -478,7 +496,9 @@ def main() -> None:
     threshold_config = {
         "model_checkpoint": str(args.checkpoint),
         "architecture": arch,
-        "auc_roc": round(auc_val, 4),
+        "auc_roc_resubstitution": round(auc_val, 4),
+        "pr_auc_resubstitution": round(pr_auc_val, 4),
+        "WARNING": "AUC values are RESUBSTITUTION (full-dataset). For out-of-sample AUC see train_transmil_finetune.py results.",
         "n_slides": len(matched_ids),
         "n_positive": n_pos,
         "n_negative": n_neg,

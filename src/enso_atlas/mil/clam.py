@@ -9,6 +9,8 @@ This module provides the attention-based MIL head for slide-level classification
 with interpretable attention weights for evidence generation.
 """
 
+import gc
+import os
 from pathlib import Path
 from typing import Tuple, Optional, List, Dict
 import logging
@@ -18,6 +20,29 @@ import numpy as np
 from enso_atlas.config import MILConfig
 
 logger = logging.getLogger(__name__)
+
+
+def _release_torch_cuda_cache() -> None:
+    """
+    Best-effort release of unused CUDA cached memory in the current process.
+    """
+    try:
+        import torch
+    except Exception:
+        return
+
+    try:
+        gc.collect()
+    except Exception:
+        pass
+
+    try:
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+            if hasattr(torch.cuda, "ipc_collect"):
+                torch.cuda.ipc_collect()
+    except Exception:
+        pass
 
 
 
@@ -501,12 +526,17 @@ class CLAMClassifier:
 
         self._model.eval()
 
-        x = torch.from_numpy(embeddings).float().to(self._device)
+        x = None
+        try:
+            x = torch.from_numpy(embeddings).float().to(self._device)
 
-        with torch.no_grad():
-            prob, attention = self._model(x, return_attention=True)
+            with torch.no_grad():
+                prob, attention = self._model(x, return_attention=True)
 
-        return prob.item(), attention.cpu().numpy()
+            return prob.item(), attention.detach().cpu().numpy()
+        finally:
+            del x
+            _release_torch_cuda_cache()
 
     def classify(self, embeddings: np.ndarray) -> Tuple[str, float, np.ndarray]:
         """
@@ -650,6 +680,7 @@ class TransMILClassifier:
         self._device = None
         self._is_trained = False
         self._threshold = CLAMClassifier._resolve_threshold(config)
+        self._min_safe_patches = self._resolve_min_attention_patches()
 
     @property
     def threshold(self) -> float:
@@ -705,6 +736,61 @@ class TransMILClassifier:
             dropout=c.get("dropout", self.config.dropout),
         )
         return self._model
+
+    def _resolve_min_attention_patches(self) -> int:
+        """
+        Minimum sampled patch count used when progressively shrinking large bags
+        to stay on GPU.
+        """
+        raw = str(os.environ.get("MIL_MIN_PATCHES_FOR_ATTENTION", "128")).strip()
+        try:
+            val = int(raw)
+        except ValueError:
+            logger.warning(
+                "Invalid MIL_MIN_PATCHES_FOR_ATTENTION=%r; falling back to 128",
+                raw,
+            )
+            val = 128
+        return max(16, val)
+
+    @staticmethod
+    def _uniform_subsample_indices(total: int, target: int) -> np.ndarray:
+        """
+        Deterministic uniform subsampling over [0, total).
+        """
+        if target >= total:
+            return np.arange(total, dtype=np.int64)
+        idx = np.linspace(0, total - 1, num=target, dtype=np.int64)
+        return np.unique(idx)
+
+    @staticmethod
+    def _is_oom_error(exc: BaseException) -> bool:
+        """
+        True when exception indicates memory exhaustion.
+        """
+        msg = str(exc).lower()
+        return (
+            isinstance(exc, MemoryError)
+            or "out of memory" in msg
+            or ("cuda" in msg and "memory" in msg)
+        )
+
+    @staticmethod
+    def _project_attention_to_full_bag(
+        sampled_attention: np.ndarray,
+        sampled_indices: np.ndarray,
+        total_patches: int,
+    ) -> np.ndarray:
+        """
+        Reconstruct a full-length attention vector aligned to original bag order.
+        Unsampled patches receive 0 attention; sampled weights are renormalized.
+        """
+        full = np.zeros(total_patches, dtype=np.float32)
+        full[sampled_indices] = sampled_attention.astype(np.float32, copy=False)
+        s = float(full.sum())
+        if s > 0.0:
+            full /= s
+        return full
 
     # ----- public API (mirrors CLAMClassifier) -----
 
@@ -775,12 +861,75 @@ class TransMILClassifier:
 
         self._model.eval()
 
-        x = torch.from_numpy(embeddings).float().to(self._device)
+        emb = np.asarray(embeddings, dtype=np.float32)
+        if emb.ndim != 2:
+            raise ValueError(f"Expected embeddings shape (N, D), got {emb.shape}")
 
-        with torch.no_grad():
-            prob, attention = self._model(x, return_attention=True)
+        n_patches = int(emb.shape[0])
+        if n_patches == 0:
+            raise ValueError("Received empty embedding bag")
 
-        return prob.item(), attention.cpu().numpy()
+        sampled_indices = np.arange(n_patches, dtype=np.int64)
+
+        def _forward(idx: np.ndarray) -> Tuple[float, np.ndarray]:
+            x = None
+            try:
+                x = torch.from_numpy(emb[idx]).float().to(self._device)
+                with torch.no_grad():
+                    prob, attention = self._model(x, return_attention=True)
+                return prob.item(), attention.detach().cpu().numpy().astype(np.float32, copy=False)
+            finally:
+                del x
+
+        current_indices = sampled_indices
+        try:
+            while True:
+                try:
+                    score, sampled_attention = _forward(current_indices)
+                    break
+                except Exception as exc:
+                    if not self._is_oom_error(exc):
+                        raise
+
+                    current_size = int(current_indices.size)
+                    if current_size > self._min_safe_patches:
+                        new_size = max(self._min_safe_patches, current_size // 2)
+                        if new_size < current_size:
+                            logger.warning(
+                                "OOM during TransMIL prediction (patches=%d on %s). "
+                                "Retrying on same device with %d sampled patches.",
+                                current_size,
+                                self._device,
+                                new_size,
+                            )
+                            _release_torch_cuda_cache()
+                            current_indices = self._uniform_subsample_indices(n_patches, new_size)
+                            continue
+
+                    # Keep inference on the configured device (GPU-first policy).
+                    raise RuntimeError(
+                        "TransMIL inference OOM even at minimum sampled patches "
+                        f"({self._min_safe_patches}) on device {self._device}. "
+                        "Reduce MIL_MIN_PATCHES_FOR_ATTENTION."
+                    ) from exc
+
+            if sampled_attention.shape[0] != current_indices.size:
+                raise RuntimeError(
+                    "TransMIL attention length mismatch: "
+                    f"got {sampled_attention.shape[0]}, expected {current_indices.size}"
+                )
+
+            if current_indices.size == n_patches:
+                return score, sampled_attention
+
+            full_attention = self._project_attention_to_full_bag(
+                sampled_attention=sampled_attention,
+                sampled_indices=current_indices,
+                total_patches=n_patches,
+            )
+            return score, full_attention
+        finally:
+            _release_torch_cuda_cache()
 
     def classify(self, embeddings: np.ndarray) -> Tuple[str, float, np.ndarray]:
         """

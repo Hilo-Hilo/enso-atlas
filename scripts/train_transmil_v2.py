@@ -2,12 +2,33 @@
 """
 TransMIL Training Script v2 - Fixed for class imbalance
 
-Fixes:
+⚠️  DEPRECATED: This is the v2 training script.
+    Use scripts/train_transmil_finetune.py instead, which provides:
+    - Patient-level stratified k-fold cross-validation
+    - Focal loss for class imbalance (corrected)
+    - PR-AUC alongside ROC-AUC
+    - Calibration curve plotting
+    - Comprehensive metrics logging
+
+Fixes in v2 (retained for reference only):
 - Weighted BCE loss for class imbalance
 - Proper learning rate warmup
 - Better gradient handling
 - Debug output for predictions
+
+⚠️  Note: v2 and v1 use slide-level splitting which risks data leakage
+    when multiple slides come from the same patient.
 """
+
+import warnings
+warnings.warn(
+    "train_transmil_v2.py is DEPRECATED. Use train_transmil_finetune.py for "
+    "patient-level cross-validation and proper metrics. This script uses "
+    "slide-level splitting which risks data leakage when multiple slides "
+    "come from the same patient.",
+    DeprecationWarning,
+    stacklevel=1,
+)
 
 import os
 import sys

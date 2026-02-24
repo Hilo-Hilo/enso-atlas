@@ -700,12 +700,22 @@ def plot_attention_visualization(
 def load_model(model_path: Path):
     """Load trained CLAM model."""
     import torch
-    import torch.nn as nn
     
     # Import training config and model
     from train_clam_production import CLAMProductionModel, TrainingConfig
-    
-    checkpoint = torch.load(model_path, map_location='cpu')
+
+    # Newer PyTorch defaults to a safer "weights_only" mode that can reject
+    # wrapped checkpoints containing numpy scalar metadata (common in freshly
+    # trained checkpoints). Fall back to weights_only=False when needed.
+    try:
+        checkpoint = torch.load(model_path, map_location="cpu", weights_only=True)
+    except Exception as e:
+        checkpoint = torch.load(model_path, map_location="cpu", weights_only=False)
+        logger.warning(
+            "Loaded checkpoint with weights_only=False due to safe-load failure: %s. "
+            "Use only trusted model files.",
+            e,
+        )
     
     # Create config from saved config
     config_dict = checkpoint.get("config", {})
