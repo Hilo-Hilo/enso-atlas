@@ -1070,124 +1070,128 @@ Current state:
 
 ```mermaid
 erDiagram
-    patients ||--o{ slides : "has"
-    slides ||--o{ slide_metadata : "has"
-    slides ||--o{ analysis_results : "has"
-    slides ||--o{ embedding_tasks : "has"
-    slides ||--o{ project_slides : "assigned to"
-    projects ||--o{ project_slides : "contains"
-    projects ||--o{ project_models : "allows"
+    patients ||--o{ slides : has
+    slides ||--o{ slide_metadata : has
+    slides ||--o{ analysis_results : has
+    slides ||--o{ embedding_tasks : has
+    slides ||--o{ annotations : has
+    projects ||--o{ project_slides : contains
+    slides ||--o{ project_slides : assigned_to
+    projects ||--o{ project_models : allows
 
     patients {
-        text patient_id PK
-        integer age
-        text sex
-        text stage
-        text grade
-        integer prior_lines
-        text histology
-        text treatment_response
-        text diagnosis
-        text vital_status
-        timestamptz created_at
-        timestamptz updated_at
+        string patient_id PK
+        int age
+        string sex
+        string stage
+        string grade
+        int prior_lines
+        string histology
+        string treatment_response
+        string diagnosis
+        string vital_status
+        datetime created_at
+        datetime updated_at
     }
 
     slides {
-        text slide_id PK
-        text patient_id FK
-        text filename
-        integer width
-        integer height
+        string slide_id PK
+        string patient_id FK
+        string filename
+        int width
+        int height
         float mpp
-        text magnification
-        integer num_patches
+        string magnification
+        int num_patches
         boolean has_embeddings
         boolean has_level0_embeddings
-        text label
-        timestamptz embedding_date
-        text file_path
-        bigint file_size_bytes
-        text project_id "legacy"
-        text display_name
-        timestamptz created_at
-        timestamptz updated_at
+        string label
+        datetime embedding_date
+        string file_path
+        int file_size_bytes
+        string project_id_legacy
+        string display_name
+        datetime created_at
+        datetime updated_at
     }
 
     slide_metadata {
-        bigserial id PK
-        text slide_id FK
-        text key
-        text value
-        timestamptz created_at
-        timestamptz updated_at
+        int id PK
+        string slide_id FK
+        string meta_key
+        string value
+        datetime created_at
+        datetime updated_at
     }
 
     analysis_results {
-        bigserial id PK
-        text slide_id FK
-        text model_id
+        int id PK
+        string slide_id FK
+        string model_id
         float score
-        text label
+        string label
         float confidence
         float threshold
-        text attention_hash
-        timestamptz created_at
+        string attention_hash
+        datetime created_at
     }
 
     embedding_tasks {
-        text task_id PK
-        text slide_id FK
-        integer level
-        text status
+        string task_id PK
+        string slide_id FK
+        int level
+        string status
         float progress
-        timestamptz created_at
-        timestamptz completed_at
-        text error
+        datetime created_at
+        datetime completed_at
+        string error
     }
 
     projects {
-        text id PK
-        text name
-        text cancer_type
-        text prediction_target
-        jsonb config_json
-        timestamptz created_at
-        timestamptz updated_at
+        string id PK
+        string name
+        string cancer_type
+        string prediction_target
+        json config_json
+        datetime created_at
+        datetime updated_at
     }
 
     project_slides {
-        text project_id PK_FK
-        text slide_id PK_FK
-        timestamptz created_at
+        string project_id PK,FK
+        string slide_id PK,FK
+        datetime created_at
     }
 
     project_models {
-        text project_id PK_FK
-        text model_id PK
-        timestamptz created_at
+        string project_id PK,FK
+        string model_id PK
+        datetime created_at
     }
 
     annotations {
-        text id PK
-        text slide_id
-        text type
-        jsonb coordinates
-        text label
-        text notes
-        text color
-        text category
-        timestamptz created_at
-        timestamptz updated_at
+        string id PK
+        string slide_id
+        string type
+        json coordinates
+        string label
+        string notes
+        string color
+        string category
+        datetime created_at
+        datetime updated_at
     }
 
     schema_version {
-        integer version PK
-        timestamptz applied_at
+        int version PK
+        datetime applied_at
     }
 ```
 
 Notes:
+- Mermaid uses simplified display types (`string`, `int`, `datetime`, `json`) to keep GitHub rendering stable; actual PostgreSQL types are defined in `src/enso_atlas/api/database.py`.
+- `slide_metadata.meta_key` in the diagram corresponds to the real DB column `slide_metadata.key`.
+- `slides.project_id_legacy` in the diagram corresponds to the real DB column `slides.project_id`.
 - `annotations.slide_id` is indexed but currently not declared as a DB foreign key.
 - `projects.name` is `NOT NULL` in DDL.
 - `embedding_tasks` exists in schema, but current embedding job progress is tracked in-memory by `EmbeddingTaskManager` (`src/enso_atlas/api/embedding_tasks.py`).
