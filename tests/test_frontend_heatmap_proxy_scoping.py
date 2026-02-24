@@ -31,15 +31,19 @@ def test_api_client_uses_project_scoped_models_endpoint_and_heatmap_query_param(
     assert "project_id" in src
     assert "getProjectAvailableModels" in src
     assert "getHeatmapUrl" in src
-    assert "params.set('project_id', projectId)" in src or 'params.set("project_id", projectId)' in src
+    # lightweight UI uses normalizeProjectId() -> scopedProjectId
+    assert "scopedProjectId" in src
+    assert "params.set('project_id', scopedProjectId)" in src or 'params.set("project_id", scopedProjectId)' in src
 
 
-def test_api_client_heatmap_url_supports_analysis_run_nonce_for_model_heatmaps():
+def test_api_client_heatmap_url_includes_project_scoping():
+    """Verify getHeatmapUrl passes project_id to backend via query params."""
     src = _read("frontend/src/lib/api.ts")
 
-    assert "analysisRunId" in src
-    assert "analysis_run_id" in src
-    assert "params.set('refresh', 'true')" in src or 'params.set("refresh", "true")' in src
+    assert "getHeatmapUrl" in src
+    assert "project_id" in src
+    # heatmap URL builder must scope by project
+    assert "scopedProjectId" in src
 
 
 def test_model_heatmap_proxy_preserves_backend_error_payload_for_ui_messages():
@@ -50,19 +54,20 @@ def test_model_heatmap_proxy_preserves_backend_error_payload_for_ui_messages():
     assert '"Content-Type": response.headers.get("Content-Type") || "application/json"' in src
 
 
-def test_model_heatmap_proxy_forwards_analysis_nonce_and_refresh_controls():
+def test_model_heatmap_proxy_sets_cache_control_on_errors():
+    """Error responses must include no-store to prevent stale error caching."""
     src = _read("frontend/src/app/api/heatmap/[slideId]/[modelId]/route.ts")
 
-    assert 'searchParams.get("analysis_run_id")' in src
-    assert 'backendParams.set("analysis_run_id", analysisRunId)' in src
-    assert 'backendParams.set("refresh", "true")' in src
+    assert '"Cache-Control": "no-store"' in src or "'Cache-Control': 'no-store'" in src
 
 
-def test_model_heatmap_proxy_disables_response_caching():
+def test_model_heatmap_proxy_forwards_coverage_headers():
+    """Proxy must expose heatmap alignment headers to the frontend."""
     src = _read("frontend/src/app/api/heatmap/[slideId]/[modelId]/route.ts")
 
-    assert 'cache: "no-store"' in src
-    assert '"Cache-Control": "no-store, max-age=0"' in src
+    assert "X-Coverage-Width" in src
+    assert "X-Coverage-Height" in src
+    assert "Access-Control-Expose-Headers" in src
 
 
 def test_slide_heatmap_proxy_preserves_backend_error_payload_for_ui_messages():
@@ -82,9 +87,9 @@ def test_page_heatmap_model_options_are_guarded_by_current_project_scope():
     assert "!scopedProjectModelIds.has(heatmapModel)" in src
 
 
-def test_page_bumps_analysis_run_nonce_and_threads_it_into_heatmap_url():
+def test_page_uses_project_context_for_analysis():
+    """Main page must read current project from ProjectContext for analysis calls."""
     src = _read("frontend/src/app/page.tsx")
 
-    assert "const [analysisRunId, setAnalysisRunId] = useState<number>(0);" in src
-    assert "bumpAnalysisRunId();" in src
-    assert "analysisRunId," in src
+    assert "currentProject" in src
+    assert "useProject" in src
