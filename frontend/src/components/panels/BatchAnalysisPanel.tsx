@@ -1075,16 +1075,23 @@ function BatchModelCheckbox({
         onChange={onChange}
         className="h-3.5 w-3.5 rounded border-gray-300 text-clinical-600 focus:ring-clinical-500"
       />
-      <div className="flex-1 min-w-0 flex items-center gap-1.5">
-        <span className="text-xs font-medium text-gray-900 truncate">
-          {model.displayName}
-        </span>
-        {isPrimary && (
-          <Badge variant="info" size="sm" className="text-2xs">Primary</Badge>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-1.5">
+          <span className="text-xs font-medium text-gray-900 truncate">
+            {model.displayName}
+          </span>
+          {isPrimary && (
+            <Badge variant="info" size="sm" className="text-2xs">Primary</Badge>
+          )}
+          <span className="text-2xs text-gray-400 font-mono ml-auto shrink-0">
+            {model.auc.toFixed(2)}
+          </span>
+        </div>
+        {model.positiveLabel && model.negativeLabel && (
+          <p className="text-2xs text-gray-500 truncate">
+            Labels: {model.positiveLabel} vs {model.negativeLabel}
+          </p>
         )}
-        <span className="text-2xs text-gray-400 font-mono ml-auto shrink-0">
-          {model.auc.toFixed(2)}
-        </span>
       </div>
     </label>
   );

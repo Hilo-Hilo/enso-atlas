@@ -88,6 +88,28 @@ interface CreateProjectForm {
   description: string;
 }
 
+interface GdcDownloadItem {
+  status: "downloaded" | "exists" | "error";
+  requested_file_id: string;
+  resolved_file_id?: string;
+  slide_id?: string;
+  file_name?: string;
+  source?: string;
+  stale_fallback?: boolean;
+  path?: string;
+  error?: string;
+}
+
+interface GdcDownloadResponse {
+  project_id: string;
+  mode: "specific" | "random";
+  requested: number;
+  downloaded: number;
+  existing: number;
+  failed: number;
+  results: GdcDownloadItem[];
+}
+
 const EMPTY_FORM: CreateProjectForm = {
   id: "",
   name: "",
@@ -167,6 +189,36 @@ async function uploadSlide(projectId: string, file: File): Promise<Record<string
     const err = await res.json().catch(() => ({ detail: res.statusText }));
     throw new Error(err.detail || `Upload failed: ${res.status}`);
   }
+  return res.json();
+}
+
+async function downloadSlidesFromGdc(
+  projectId: string,
+  body: {
+    mode: "specific" | "random";
+    file_id?: string;
+    barcode?: string;
+    count?: number;
+    tcga_projects?: string[];
+    force?: boolean;
+    use_master_csv?: boolean;
+  }
+): Promise<GdcDownloadResponse> {
+  const res = await fetch(
+    `${API_BASE}/api/projects/${encodeURIComponent(projectId)}/download-gdc`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }
+  );
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }));
+    const detail = typeof err.detail === "string" ? err.detail : JSON.stringify(err.detail ?? err);
+    throw new Error(detail || `GDC download failed: ${res.status}`);
+  }
+
   return res.json();
 }
 
@@ -383,11 +435,23 @@ function UploadModal({
   onClose: () => void;
   onUploaded: () => void;
 }) {
+  const [source, setSource] = useState<"local" | "gdc">("local");
+
   const [files, setFiles] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState<Record<string, "pending" | "uploading" | "done" | "error">>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const [gdcMode, setGdcMode] = useState<"specific" | "random">("specific");
+  const [gdcFileId, setGdcFileId] = useState("");
+  const [gdcBarcode, setGdcBarcode] = useState("");
+  const [gdcCount, setGdcCount] = useState(1);
+  const [gdcProjectFilter, setGdcProjectFilter] = useState("");
+  const [gdcDownloading, setGdcDownloading] = useState(false);
+  const [gdcResult, setGdcResult] = useState<GdcDownloadResponse | null>(null);
+
   const toast = useToast();
+  const isBusy = uploading || gdcDownloading;
 
   const ALLOWED_EXTENSIONS = [".svs", ".tiff", ".tif", ".ndpi"];
 
@@ -420,6 +484,7 @@ function UploadModal({
 
   const handleUpload = async () => {
     setUploading(true);
+    setGdcResult(null);
     const newProgress: Record<string, "pending" | "uploading" | "done" | "error"> = {};
     const newErrors: Record<string, string> = {};
     files.forEach((f) => (newProgress[f.name] = "pending"));
@@ -446,6 +511,59 @@ function UploadModal({
     }
   };
 
+  const handleGdcDownload = async () => {
+    setGdcDownloading(true);
+    setGdcResult(null);
+    try {
+      const projectFilters = gdcProjectFilter
+        .split(",")
+        .map((s) => s.trim().toUpperCase())
+        .filter(Boolean);
+
+      const response = await downloadSlidesFromGdc(projectId, {
+        mode: gdcMode,
+        file_id: gdcMode === "specific" ? (gdcFileId.trim() || undefined) : undefined,
+        barcode: gdcMode === "specific" ? (gdcBarcode.trim() || undefined) : undefined,
+        count: gdcMode === "random" ? gdcCount : 1,
+        tcga_projects: projectFilters.length > 0 ? projectFilters : undefined,
+        force: false,
+        use_master_csv: true,
+      });
+
+      setGdcResult(response);
+
+      if (response.downloaded > 0) {
+        toast.success(
+          "GDC download complete",
+          `${response.downloaded} slide(s) downloaded to ${projectName}`
+        );
+        onUploaded();
+        return;
+      }
+
+      if (response.existing > 0 && response.failed === 0) {
+        toast.success(
+          "Slides already available",
+          `${response.existing} slide(s) already existed in ${projectName}`
+        );
+        onUploaded();
+        return;
+      }
+
+      const firstError = response.results.find((r) => r.status === "error")?.error;
+      toast.error("GDC download failed", firstError || "No slides were downloaded");
+    } catch (err) {
+      toast.error("GDC download failed", err instanceof Error ? err.message : "Unknown error");
+    } finally {
+      setGdcDownloading(false);
+    }
+  };
+
+  const canSubmitGdc =
+    gdcMode === "specific"
+      ? Boolean(gdcFileId.trim() || gdcBarcode.trim())
+      : gdcCount >= 1 && gdcCount <= 20;
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden">
@@ -454,88 +572,253 @@ function UploadModal({
             <h2 className="text-lg font-semibold text-gray-900">Upload Slides</h2>
             <p className="text-xs text-gray-500 mt-0.5">{projectName}</p>
           </div>
-          <button onClick={onClose} className="p-1 hover:bg-gray-200 rounded-lg transition-colors">
+          <button
+            onClick={onClose}
+            disabled={isBusy}
+            className="p-1 hover:bg-gray-200 rounded-lg transition-colors disabled:opacity-50"
+          >
             <X className="h-5 w-5 text-gray-500" />
           </button>
         </div>
 
         <div className="p-6 space-y-4">
-          {/* Drop zone */}
-          <div
-            onDragOver={(e) => e.preventDefault()}
-            onDrop={handleDrop}
-            className="border-2 border-dashed border-gray-200 rounded-xl p-8 text-center hover:border-clinical-400 hover:bg-clinical-50/30 transition-colors cursor-pointer"
-            onClick={() => document.getElementById("file-input")?.click()}
-          >
-            <Upload className="h-8 w-8 text-gray-400 mx-auto mb-3" />
-            <p className="text-sm text-gray-600 font-medium">
-              Drop WSI files here or click to browse
-            </p>
-            <p className="text-xs text-gray-400 mt-1">
-              Supported: {ALLOWED_EXTENSIONS.join(", ")}
-            </p>
-            <input
-              id="file-input"
-              type="file"
-              multiple
-              accept={ALLOWED_EXTENSIONS.join(",")}
-              onChange={handleFileSelect}
-              className="hidden"
-            />
+          <div className="inline-flex w-full p-1 rounded-lg bg-gray-100">
+            <button
+              type="button"
+              onClick={() => setSource("local")}
+              disabled={isBusy}
+              className={cn(
+                "flex-1 px-3 py-2 text-xs font-medium rounded-md transition-colors",
+                source === "local" ? "bg-white text-gray-900 shadow-sm" : "text-gray-600 hover:text-gray-900"
+              )}
+            >
+              Upload Local Files
+            </button>
+            <button
+              type="button"
+              onClick={() => setSource("gdc")}
+              disabled={isBusy}
+              className={cn(
+                "flex-1 px-3 py-2 text-xs font-medium rounded-md transition-colors",
+                source === "gdc" ? "bg-white text-gray-900 shadow-sm" : "text-gray-600 hover:text-gray-900"
+              )}
+            >
+              Download From GDC
+            </button>
           </div>
 
-          {/* File list */}
-          {files.length > 0 && (
-            <div className="space-y-2 max-h-48 overflow-y-auto">
-              {files.map((file, i) => (
-                <div
-                  key={`${file.name}-${i}`}
-                  className="flex items-center justify-between px-3 py-2 bg-gray-50 rounded-lg text-sm"
-                >
-                  <div className="flex items-center gap-2 min-w-0">
-                    <Microscope className="h-4 w-4 text-gray-400 flex-shrink-0" />
-                    <span className="truncate text-gray-700">{file.name}</span>
-                    <span className="text-xs text-gray-400 flex-shrink-0">
-                      {(file.size / (1024 * 1024)).toFixed(0)} MB
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {progress[file.name] === "uploading" && (
-                      <RefreshCw className="h-3.5 w-3.5 text-clinical-500 animate-spin" />
-                    )}
-                    {progress[file.name] === "done" && (
-                      <CheckCircle className="h-3.5 w-3.5 text-emerald-500" />
-                    )}
-                    {progress[file.name] === "error" && (
-                      <span className="text-xs text-red-500" title={errors[file.name]}>
-                        Failed
-                      </span>
-                    )}
-                    {!uploading && (
-                      <button
-                        onClick={() => removeFile(i)}
-                        className="p-0.5 hover:bg-gray-200 rounded"
-                      >
-                        <X className="h-3.5 w-3.5 text-gray-400" />
-                      </button>
-                    )}
-                  </div>
+          {source === "local" ? (
+            <>
+              {/* Drop zone */}
+              <div
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={handleDrop}
+                className="border-2 border-dashed border-gray-200 rounded-xl p-8 text-center hover:border-clinical-400 hover:bg-clinical-50/30 transition-colors cursor-pointer"
+                onClick={() => document.getElementById("file-input-local")?.click()}
+              >
+                <Upload className="h-8 w-8 text-gray-400 mx-auto mb-3" />
+                <p className="text-sm text-gray-600 font-medium">
+                  Drop WSI files here or click to browse
+                </p>
+                <p className="text-xs text-gray-400 mt-1">
+                  Supported: {ALLOWED_EXTENSIONS.join(", ")}
+                </p>
+                <input
+                  id="file-input-local"
+                  type="file"
+                  multiple
+                  accept={ALLOWED_EXTENSIONS.join(",")}
+                  onChange={handleFileSelect}
+                  className="hidden"
+                />
+              </div>
+
+              {/* File list */}
+              {files.length > 0 && (
+                <div className="space-y-2 max-h-48 overflow-y-auto">
+                  {files.map((file, i) => (
+                    <div
+                      key={`${file.name}-${i}`}
+                      className="flex items-center justify-between px-3 py-2 bg-gray-50 rounded-lg text-sm"
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <Microscope className="h-4 w-4 text-gray-400 flex-shrink-0" />
+                        <span className="truncate text-gray-700">{file.name}</span>
+                        <span className="text-xs text-gray-400 flex-shrink-0">
+                          {(file.size / (1024 * 1024)).toFixed(0)} MB
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {progress[file.name] === "uploading" && (
+                          <RefreshCw className="h-3.5 w-3.5 text-clinical-500 animate-spin" />
+                        )}
+                        {progress[file.name] === "done" && (
+                          <CheckCircle className="h-3.5 w-3.5 text-emerald-500" />
+                        )}
+                        {progress[file.name] === "error" && (
+                          <span className="text-xs text-red-500" title={errors[file.name]}>
+                            Failed
+                          </span>
+                        )}
+                        {!uploading && (
+                          <button
+                            type="button"
+                            onClick={() => removeFile(i)}
+                            className="p-0.5 hover:bg-gray-200 rounded"
+                          >
+                            <X className="h-3.5 w-3.5 text-gray-400" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
+              )}
+            </>
+          ) : (
+            <>
+              <div className="space-y-3 rounded-xl border border-gray-200 p-4 bg-gray-50/50">
+                <div className="inline-flex w-full p-1 rounded-lg bg-white border border-gray-200">
+                  <button
+                    type="button"
+                    onClick={() => setGdcMode("specific")}
+                    disabled={gdcDownloading}
+                    className={cn(
+                      "flex-1 px-3 py-1.5 text-xs font-medium rounded-md transition-colors",
+                      gdcMode === "specific" ? "bg-gray-900 text-white" : "text-gray-600"
+                    )}
+                  >
+                    Specific Slide
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setGdcMode("random")}
+                    disabled={gdcDownloading}
+                    className={cn(
+                      "flex-1 px-3 py-1.5 text-xs font-medium rounded-md transition-colors",
+                      gdcMode === "random" ? "bg-gray-900 text-white" : "text-gray-600"
+                    )}
+                  >
+                    Random Slides
+                  </button>
+                </div>
+
+                {gdcMode === "specific" ? (
+                  <div className="space-y-2">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                        GDC File ID (UUID)
+                      </label>
+                      <input
+                        type="text"
+                        value={gdcFileId}
+                        onChange={(e) => setGdcFileId(e.target.value.trim())}
+                        placeholder="e.g. 53d9aebf-..."
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-clinical-500 focus:border-transparent"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                        Optional TCGA Barcode
+                      </label>
+                      <input
+                        type="text"
+                        value={gdcBarcode}
+                        onChange={(e) => setGdcBarcode(e.target.value.trim())}
+                        placeholder="e.g. TCGA-2G-AAGX-01Z-00-DX1"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-clinical-500 focus:border-transparent"
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                        Number of random slides (1-20)
+                      </label>
+                      <input
+                        type="number"
+                        min={1}
+                        max={20}
+                        value={gdcCount}
+                        onChange={(e) => setGdcCount(Number(e.target.value))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-clinical-500 focus:border-transparent"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                        Optional TCGA project filters (comma-separated)
+                      </label>
+                      <input
+                        type="text"
+                        value={gdcProjectFilter}
+                        onChange={(e) => setGdcProjectFilter(e.target.value)}
+                        placeholder="e.g. TCGA-BRCA,TCGA-LUAD"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-clinical-500 focus:border-transparent"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                <p className="text-xs text-gray-500">
+                  Uses public GDC sources with stale-UUID barcode fallback, matching your embedding script strategy.
+                </p>
+              </div>
+
+              {gdcResult && (
+                <div className="rounded-xl border border-gray-200 bg-white p-3 space-y-2">
+                  <div className="text-xs font-medium text-gray-700">
+                    Downloaded {gdcResult.downloaded} · Existing {gdcResult.existing} · Failed {gdcResult.failed}
+                  </div>
+                  {gdcResult.results.slice(0, 6).map((item, idx) => (
+                    <div
+                      key={`${item.requested_file_id}-${idx}`}
+                      className="text-xs text-gray-600 bg-gray-50 rounded-md px-2 py-1"
+                    >
+                      <span className="font-mono">{item.requested_file_id}</span>{" "}
+                      <span className="uppercase">{item.status}</span>
+                      {item.source ? ` via ${item.source}` : ""}
+                      {item.error ? ` · ${item.error}` : ""}
+                    </div>
+                  ))}
+                  {gdcResult.results.length > 6 && (
+                    <div className="text-2xs text-gray-400">
+                      Showing 6 of {gdcResult.results.length} results
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
           )}
 
           {/* Actions */}
           <div className="flex justify-end gap-3 pt-2">
-            <Button variant="ghost" onClick={onClose} disabled={uploading}>
-              {uploading ? "Uploading..." : "Cancel"}
+            <Button variant="ghost" onClick={onClose} disabled={isBusy}>
+              {isBusy ? "Working..." : "Cancel"}
             </Button>
-            <Button
-              onClick={handleUpload}
-              disabled={files.length === 0 || uploading}
-            >
-              {uploading ? "Uploading..." : `Upload ${files.length} File${files.length !== 1 ? "s" : ""}`}
-            </Button>
+
+            {source === "local" ? (
+              <Button
+                onClick={handleUpload}
+                disabled={files.length === 0 || uploading}
+              >
+                {uploading ? "Uploading..." : `Upload ${files.length} File${files.length !== 1 ? "s" : ""}`}
+              </Button>
+            ) : (
+              <Button
+                onClick={handleGdcDownload}
+                disabled={!canSubmitGdc || gdcDownloading}
+              >
+                {gdcDownloading ? (
+                  <span className="inline-flex items-center gap-2">
+                    <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                    Downloading...
+                  </span>
+                ) : (
+                  "Download From GDC"
+                )}
+              </Button>
+            )}
           </div>
         </div>
       </div>

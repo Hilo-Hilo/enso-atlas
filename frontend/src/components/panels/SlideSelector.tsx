@@ -109,10 +109,9 @@ function SlideThumbnail({
     return () => observer.disconnect();
   }, []);
 
-  // Get the thumbnail URL - either from the slide data or construct from API
-  const imgSrc = hasWsi === false
-    ? undefined
-    : (thumbnailUrl || (isVisible ? getThumbnailUrl(slideId, projectId) : undefined));
+  // Always attempt thumbnail fetch when visible. Backend may materialize WSI
+  // on-demand even if hasWsi is currently stale/false in cached slide metadata.
+  const imgSrc = thumbnailUrl || (isVisible ? getThumbnailUrl(slideId, projectId) : undefined);
 
   return (
     <div 
@@ -142,7 +141,7 @@ function SlideThumbnail({
             loading="lazy"
           />
         </>
-      ) : (imageError || hasWsi === false) ? (
+      ) : imageError ? (
         <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200">
           <Layers className="h-5 w-5 text-slate-400" />
           <span className="text-[7px] font-medium text-slate-400 mt-0.5 leading-none">Embeddings</span>
@@ -154,7 +153,7 @@ function SlideThumbnail({
       )}
 
       {/* Status indicator */}
-      {hasWsi === false && (
+      {hasWsi === false && imageError && (
         <div className="absolute bottom-0.5 right-0.5 px-1 py-0.5 rounded bg-slate-700/90 text-[8px] leading-none text-white">
           Emb
         </div>
@@ -188,6 +187,7 @@ export function SlideSelector({
   const [sortField, setSortField] = useState<SortField>("filename");
   const [sortOrder, setSortOrder] = useState<SortOrder>("asc");
   const [showFilters, setShowFilters] = useState(false);
+  const [showAllCases, setShowAllCases] = useState(false);
   const [qcMetrics, setQcMetrics] = useState<Record<string, SlideQCMetrics>>({});
 
   const loadSlides = async () => {
@@ -252,6 +252,17 @@ export function SlideSelector({
   }, [slides, searchQuery, sortField, sortOrder]);
 
   const selectedSlide = slides.find((s) => s.id === selectedSlideId);
+  const visibleSlides = showAllCases ? filteredSlides : filteredSlides.slice(0, 5);
+  const visibleCaseRows = Math.min(visibleSlides.length, 5);
+  const caseListHeaderHeightPx =
+    filteredSlides.length > 0 ? 30 : 0; // "N cases found" row
+  const caseRowHeightPx = 41; // row height incl. border
+  const caseListHeightPx = caseListHeaderHeightPx + visibleCaseRows * caseRowHeightPx;
+  const shouldScrollCaseList = filteredSlides.length > 5;
+
+  useEffect(() => {
+    setShowAllCases(false);
+  }, [searchQuery, sortField, sortOrder, slides.length]);
 
   const toggleSort = (field: SortField) => {
     if (sortField === field) {
@@ -263,7 +274,7 @@ export function SlideSelector({
   };
 
   return (
-    <Card className="flex flex-col h-full">
+    <Card className="flex flex-col w-full max-w-full overflow-hidden">
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <CardTitle className="flex items-center gap-2">
@@ -313,7 +324,7 @@ export function SlideSelector({
             <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">
               Sort By
             </p>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <SortButton
                 label="Name"
                 isActive={sortField === "filename"}
@@ -337,7 +348,7 @@ export function SlideSelector({
         )}
       </CardHeader>
 
-      <CardContent className="flex-1 flex flex-col min-h-0 space-y-4 pt-0">
+      <CardContent className="flex flex-col space-y-3 pt-0 overflow-x-hidden">
         {/* Error State */}
         {error && (
           <div className="p-3 bg-red-50 border border-red-200 rounded-lg animate-fade-in">
@@ -368,7 +379,17 @@ export function SlideSelector({
 
         {/* Slide List */}
         {!isLoading && !error && (
-          <div className="flex-1 overflow-y-auto space-y-2 scrollbar-hide">
+          <div
+            className={cn(
+              "overflow-x-hidden",
+              shouldScrollCaseList ? "overflow-y-auto scrollbar-hide" : "overflow-y-hidden"
+            )}
+            style={
+              filteredSlides.length > 0
+                ? { height: `${caseListHeightPx}px` }
+                : undefined
+            }
+          >
             {filteredSlides.length === 0 ? (
               <div className="text-center py-8 text-gray-500">
                 {slides.length === 0 ? (
@@ -391,19 +412,32 @@ export function SlideSelector({
               </div>
             ) : (
               <>
-                <p className="text-xs text-gray-500 px-1">
-                  {filteredSlides.length} case{filteredSlides.length !== 1 ? "s" : ""} found
-                </p>
-                {filteredSlides.map((slide) => (
-                  <SlideItem
-                    key={slide.id}
-                    slide={slide}
-                    isSelected={selectedSlideId === slide.id}
-                    onClick={() => onSlideSelect(slide)}
-                    qcMetrics={qcMetrics[slide.id]}
-                    currentProjectId={currentProject.id}
-                  />
-                ))}
+                <div className="flex items-center justify-between px-1 pb-2">
+                  <p className="text-xs text-gray-500">
+                    {filteredSlides.length} case{filteredSlides.length !== 1 ? "s" : ""} found
+                  </p>
+                  {filteredSlides.length > 5 && (
+                    <button
+                      type="button"
+                      onClick={() => setShowAllCases((prev) => !prev)}
+                      className="text-xs text-clinical-600 hover:text-clinical-700 font-medium"
+                    >
+                      {showAllCases ? "Show less" : `Show all (${filteredSlides.length})`}
+                    </button>
+                  )}
+                </div>
+                <div className="bg-white">
+                  {visibleSlides.map((slide) => (
+                    <SlideItem
+                      key={slide.id}
+                      slide={slide}
+                      isSelected={selectedSlideId === slide.id}
+                      onClick={() => onSlideSelect(slide)}
+                      qcMetrics={qcMetrics[slide.id]}
+                      currentProjectId={currentProject.id}
+                    />
+                  ))}
+                </div>
               </>
             )}
           </div>
@@ -411,138 +445,16 @@ export function SlideSelector({
 
         {/* Selected Slide Summary */}
         {selectedSlide && (
-          <div className="p-4 bg-clinical-50 border border-clinical-200 rounded-lg animate-slide-up">
-            <div className="flex items-center gap-2 mb-3">
-              <SlideThumbnail
-                slideId={selectedSlide.id}
-                thumbnailUrl={selectedSlide.thumbnailUrl}
-                filename={selectedSlide.filename}
-                hasWsi={selectedSlide.hasWsi}
-                projectId={currentProject.id}
-                className="w-12 h-12 border-clinical-300"
-              />
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-clinical-900 truncate" title={selectedSlide.filename}>
-                  {selectedSlide.displayName || cleanSlideName(selectedSlide.filename)}
-                </p>
-                {selectedSlide.displayName && (
-                  <p className="text-2xs text-clinical-500 truncate" title={selectedSlide.filename}>{cleanSlideName(selectedSlide.filename)}</p>
-                )}
-                <p className="text-xs text-clinical-600 font-mono" title={selectedSlide.id}>
-                  {cleanSlideName(selectedSlide.id)}
-                </p>
-              </div>
-              <Check className="h-5 w-5 text-clinical-600 shrink-0" />
-            </div>
-
-            {/* Slide Metadata */}
-            <div className="grid grid-cols-2 gap-2 text-xs">
-              <div className="flex items-center gap-1.5 text-clinical-700">
-                <Layers className="h-3 w-3" />
-                <span>
-                  {selectedSlide.dimensions.width.toLocaleString()} x{" "}
-                  {selectedSlide.dimensions.height.toLocaleString()}
-                </span>
-              </div>
-              {selectedSlide.magnification && (
-                <div className="flex items-center gap-1.5 text-clinical-700">
-                  <Hash className="h-3 w-3" />
-                  <span>{selectedSlide.magnification}x magnification</span>
-                </div>
-              )}
-              {selectedSlide.numPatches && (
-                <div className="flex items-center gap-1.5 text-clinical-700">
-                  <ImageIcon className="h-3 w-3" />
-                  <span>{selectedSlide.numPatches.toLocaleString()} patches</span>
-                </div>
-              )}
-              {selectedSlide.hasWsi === false && (
-                <div className="flex items-center gap-1.5 text-amber-700">
-                  <ImageOff className="h-3 w-3" />
-                  <span>Embeddings only (WSI unavailable)</span>
-                </div>
-              )}
-              {selectedSlide.label && (
-                <div className="col-span-2">
-                  <Badge
-                    variant={
-                      selectedSlide.label.toLowerCase() === (currentProject.positive_class || "").toLowerCase() || selectedSlide.label === "1" || selectedSlide.label.toLowerCase() === "sensitive" || selectedSlide.label.toLowerCase().includes("responder")
-                        ? "success"
-                        : selectedSlide.label.toLowerCase() === (currentProject.classes?.find(c => c !== currentProject.positive_class) || "").toLowerCase() || selectedSlide.label === "0" || selectedSlide.label.toLowerCase() === "resistant" || selectedSlide.label.toLowerCase().includes("non")
-                        ? "danger"
-                        : "default"
-                    }
-                    size="sm"
-                  >
-                    {selectedSlide.label}
-                  </Badge>
-                </div>
-              )}
-            </div>
-
-            {/* Patient Demographics Card */}
-            {selectedSlide.patient && (
-              <div className="mt-3 p-3 bg-white border border-clinical-200 rounded-lg">
-                <div className="flex items-center gap-2 mb-2">
-                  <User className="h-3.5 w-3.5 text-clinical-600" />
-                  <span className="text-xs font-semibold text-clinical-800">Patient Context</span>
-                </div>
-                <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs">
-                  {selectedSlide.patient.age && (
-                    <div className="flex items-center gap-1.5 text-gray-700">
-                      <Calendar className="h-3 w-3 text-gray-400" />
-                      <span>Age: {selectedSlide.patient.age}</span>
-                    </div>
-                  )}
-                  {selectedSlide.patient.sex && (
-                    <div className="flex items-center gap-1.5 text-gray-700">
-                      <User className="h-3 w-3 text-gray-400" />
-                      <span>Sex: {selectedSlide.patient.sex}</span>
-                    </div>
-                  )}
-                  {selectedSlide.patient.stage && (
-                    <div className="flex items-center gap-1.5 text-gray-700">
-                      <Activity className="h-3 w-3 text-gray-400" />
-                      <span>Stage: {selectedSlide.patient.stage}</span>
-                    </div>
-                  )}
-                  {selectedSlide.patient.grade && (
-                    <div className="flex items-center gap-1.5 text-gray-700">
-                      <Hash className="h-3 w-3 text-gray-400" />
-                      <span>Grade: {selectedSlide.patient.grade}</span>
-                    </div>
-                  )}
-                  {selectedSlide.patient.prior_lines !== undefined && (
-                    <div className="flex items-center gap-1.5 text-gray-700 col-span-2">
-                      <Activity className="h-3 w-3 text-gray-400" />
-                      <span>Prior Lines: {selectedSlide.patient.prior_lines}</span>
-                    </div>
-                  )}
-                  {selectedSlide.patient.histology && (
-                    <div className="col-span-2 mt-1">
-                      <Badge variant="info" size="sm">
-                        {selectedSlide.patient.histology}
-                      </Badge>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Inline Rename */}
-            <SlideRenameInline
-              slideId={selectedSlide.id}
-              currentName={selectedSlide.displayName || ""}
-              onRenamed={(newName) => {
-                setSlides((prev) =>
-                  prev.map((s) =>
-                    s.id === selectedSlide.id
-                      ? { ...s, displayName: newName || null }
-                      : s
-                  )
-                );
-              }}
-            />
+          <div className="px-3 py-2 bg-clinical-50 border border-clinical-200 rounded-md animate-slide-up">
+            <p className="text-2xs uppercase tracking-wide text-clinical-700 font-semibold mb-1">
+              Selected case
+            </p>
+            <p className="text-sm font-medium text-clinical-900 truncate" title={selectedSlide.filename}>
+              {selectedSlide.displayName || cleanSlideName(selectedSlide.filename)}
+            </p>
+            <p className="text-2xs text-clinical-600 font-mono truncate" title={selectedSlide.id}>
+              {cleanSlideName(selectedSlide.id)}
+            </p>
           </div>
         )}
 
@@ -732,75 +644,28 @@ function SlideRenameInline({
   );
 }
 
-function SlideItem({ slide, isSelected, onClick, qcMetrics, currentProjectId }: SlideItemProps) {
-  const formattedDate = new Date(slide.createdAt).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-  });
-
+function SlideItem({ slide, isSelected, onClick }: SlideItemProps) {
   return (
     <button
       onClick={onClick}
       className={cn(
-        "w-full flex items-center gap-3 p-3 rounded-lg border transition-all text-left group",
-        "hover:border-clinical-400 hover:bg-clinical-50/50 hover:shadow-clinical",
-        isSelected
-          ? "border-clinical-500 bg-clinical-50 ring-1 ring-clinical-200"
-          : "border-gray-200 bg-white"
+        "w-full flex items-center justify-between gap-2 px-3 py-2 text-left transition-colors border-b border-gray-200 last:border-b-0",
+        isSelected ? "bg-clinical-50" : "bg-white hover:bg-gray-50"
       )}
     >
-      {/* Thumbnail with lazy loading */}
-      <SlideThumbnail
-        slideId={slide.id}
-        thumbnailUrl={slide.thumbnailUrl}
-        filename={slide.filename}
-        hasWsi={slide.hasWsi}
-        projectId={currentProjectId}
-        className="group-hover:border-clinical-300"
-      />
-
-      {/* Info */}
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <p className="text-sm font-medium text-gray-900 truncate flex-1" title={slide.filename}>
-            {slide.displayName || cleanSlideName(slide.filename)}
-          </p>
-          {qcMetrics && <QCBadge qc={qcMetrics} />}
-        </div>
-        {slide.displayName && (
-          <p className="text-2xs text-gray-400 truncate" title={slide.filename}>{cleanSlideName(slide.filename)}</p>
-        )}
-        <div className="flex items-center gap-2 mt-1.5">
-          <span className="text-xs text-gray-500 font-mono">
-            {slide.dimensions.width.toLocaleString()} x {slide.dimensions.height.toLocaleString()}
-          </span>
-          {slide.magnification && (
-            <Badge variant="default" size="sm" className="text-2xs">
-              {slide.magnification}x
-            </Badge>
-          )}
-        </div>
-        <div className="flex items-center gap-2 mt-1 flex-wrap">
-          <span className="text-2xs text-gray-400">{formattedDate}</span>
-          {slide.hasEmbeddings && (
-            <span className="text-2xs text-clinical-600 font-medium">
-              Embeddings ready
-            </span>
-          )}
-          {slide.hasWsi === false && (
-            <span className="text-2xs text-amber-700 font-medium">WSI unavailable</span>
-          )}
-          {slide.hasWsi === true && (
-            <span className="text-2xs text-emerald-700 font-medium">WSI preview</span>
-          )}
-        </div>
+      <div className="flex-1 min-w-0 pr-2">
+        <p className="text-sm text-gray-900 truncate" title={slide.filename}>
+          {slide.displayName || cleanSlideName(slide.filename)}
+        </p>
       </div>
-
-      {/* Selection Indicator */}
       {isSelected && (
-        <div className="shrink-0 w-6 h-6 rounded-full bg-clinical-600 flex items-center justify-center">
-          <Check className="h-4 w-4 text-white" />
-        </div>
+        <div className="shrink-0 h-2.5 w-2.5 rounded-full bg-clinical-600" />
+      )}
+      {!isSelected && slide.hasEmbeddings && (
+        <div className="shrink-0 h-2.5 w-2.5 rounded-full bg-sky-400/70" />
+      )}
+      {!isSelected && !slide.hasEmbeddings && (
+        <div className="shrink-0 h-2.5 w-2.5 rounded-full bg-gray-300" />
       )}
     </button>
   );

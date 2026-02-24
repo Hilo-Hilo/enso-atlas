@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 interface LogoProps {
   size?: "sm" | "md" | "lg";
   variant?: "full" | "icon" | "mark";
+  contrast?: "dark-bg" | "light-bg";
   className?: string;
 }
 
@@ -15,7 +16,12 @@ interface LogoProps {
  * representing the "enso" (circle of togetherness) concept and the
  * layered analysis of pathology slides.
  */
-export function Logo({ size = "md", variant = "full", className }: LogoProps) {
+export function Logo({
+  size = "md",
+  variant = "full",
+  contrast = "dark-bg",
+  className,
+}: LogoProps) {
   const sizeMap = {
     sm: { icon: 28, text: "text-sm" },
     md: { icon: 40, text: "text-lg" },
@@ -26,6 +32,7 @@ export function Logo({ size = "md", variant = "full", className }: LogoProps) {
 
   // For icon-only variant (alias for mark), just render the icon
   const showWordmark = variant === "full";
+  const isLightBg = contrast === "light-bg";
 
   return (
     <div className={cn("flex items-center gap-2 sm:gap-3", className)}>
@@ -121,10 +128,13 @@ export function Logo({ size = "md", variant = "full", className }: LogoProps) {
       {/* Wordmark */}
       {showWordmark && (
         <div className="flex flex-col min-w-0">
-          <span className={cn("font-semibold tracking-tight text-white leading-none", text)}>
-            Enso<span className="text-clinical-400">Atlas</span>
+          <span className={cn("font-semibold tracking-tight leading-none", text, isLightBg ? "text-slate-800" : "text-white")}>
+            Enso<span className={isLightBg ? "text-sky-700" : "text-clinical-400"}>Atlas</span>
           </span>
-          <span className="text-[10px] text-gray-400 tracking-wider uppercase mt-0.5 hidden sm:block">
+          <span className={cn(
+            "text-[10px] font-semibold tracking-wider uppercase mt-0.5 hidden sm:block",
+            isLightBg ? "text-sky-700" : "text-gray-400"
+          )}>
             Pathology Evidence Engine
           </span>
         </div>

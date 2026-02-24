@@ -13,7 +13,7 @@ const DEFAULT_PROJECT: Project = {
   positive_class: "favorable",
   description: "AI-powered pathology analysis for treatment response prediction",
   dataset_source: "TCGA",
-  disclaimer: "These predictions are from research models. Model reliability varies by AUC score. Clinical decisions should integrate multiple factors including patient history, other biomarkers, and clinician expertise.",
+  disclaimer: "",
   models: {
     embedder: "PathFoundation (DINOv2-L)",
     mil_architecture: "TransMIL",

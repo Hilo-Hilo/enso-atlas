@@ -202,7 +202,6 @@ export interface SemanticSearchResult {
   patch_index: number;
   similarity: number;
   coordinates?: [number, number];
-  patch_size?: number;
 }
 
 // Semantic search response
@@ -367,6 +366,7 @@ export interface ModelPrediction {
   modelName: string;
   category: string;
   score: number;
+  decisionThreshold?: number;
   label: string;
   positiveLabel: string;
   negativeLabel: string;

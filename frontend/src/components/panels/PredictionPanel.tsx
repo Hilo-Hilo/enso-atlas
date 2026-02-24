@@ -6,22 +6,16 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { ProgressStepper, InlineProgress } from "@/components/ui/ProgressStepper";
 import { SkeletonPrediction } from "@/components/ui/Skeleton";
-import { PredictionGauge, ConfidenceGauge, UncertaintyDisplay } from "@/components/ui/PredictionGauge";
+import { PredictionGauge, UncertaintyDisplay } from "@/components/ui/PredictionGauge";
 import { cn, formatProbability, humanizeIdentifier } from "@/lib/utils";
 import {
   Activity,
   AlertCircle,
-  AlertTriangle,
-  CheckCircle,
-  XCircle,
-  TrendingUp,
   Info,
   Clock,
   Target,
   RefreshCw,
   ShieldAlert,
-  FlaskConical,
-  Gauge,
   BarChart3,
 } from "lucide-react";
 import type { PredictionResult, SlideQCMetrics, UncertaintyResult } from "@/types";
@@ -66,9 +60,28 @@ export function PredictionPanel({
   const positiveLabel = currentProject.positive_class || currentProject.classes?.[1] || "Positive";
   const negativeLabel = currentProject.classes?.find(c => c !== currentProject.positive_class) || currentProject.classes?.[0] || "Negative";
   const predictionTargetLabel = humanizeIdentifier(currentProject.prediction_target);
+  const predictsTumorStage =
+    currentProject.id === "lung-stage" ||
+    currentProject.prediction_target === "tumor_stage" ||
+    currentProject.prediction_target?.includes("stage");
+  const panelTitle = predictsTumorStage
+    ? "Tumor Stage - AI Prediction"
+    : "Resistance to Therapy - AI Prediction";
+  const predictionSummaryText = predictsTumorStage
+    ? "Model predicts tumor stage."
+    : "Model predicts likelihood of sensitivity to platinum therapy.";
   const projectDisclaimer =
-    currentProject.disclaimer ||
-    "This prediction is for research and decision support only. Clinical decisions should integrate multiple factors including patient history, other biomarkers, and clinician expertise.";
+    "This prediction is for decision support and to enhance interpretability by the physician. Clinical decisions should integrate multiple factors including patient history, other biomarkers, and clinician expertise.";
+
+  const isEarlyStageLabel = (label: string): boolean => {
+    const lower = String(label || "").toLowerCase();
+    return /(early|stage\s*i\b|stage\s*ia\b|stage\s*ib\b|stage\s*ic\b|stage\s*1\b|stage\s*1a\b|stage\s*1b\b|stage\s*1c\b|\bi\b|\bia\b|\bib\b|\bic\b)/.test(lower);
+  };
+
+  const isLateStageLabel = (label: string): boolean => {
+    const lower = String(label || "").toLowerCase();
+    return /(late|stage\s*ii\b|stage\s*iii\b|stage\s*iv\b|stage\s*2\b|stage\s*3\b|stage\s*4\b|\bii\b|\biii\b|\biv\b)/.test(lower);
+  };
 
   // Show error state with retry
   if (error && !isLoading) {
@@ -77,7 +90,7 @@ export function PredictionPanel({
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Activity className="h-4 w-4 text-red-500" />
-            Prediction Results
+            {panelTitle}
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -113,7 +126,7 @@ export function PredictionPanel({
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Activity className="h-4 w-4 text-clinical-600 animate-pulse" />
-            Prediction Results
+            {panelTitle}
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -149,7 +162,7 @@ export function PredictionPanel({
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Activity className="h-4 w-4 text-gray-400" />
-            Prediction Results
+            {panelTitle}
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -171,21 +184,31 @@ export function PredictionPanel({
 
   // Determine predicted class side (threshold-based binary decision)
   const isPositivePrediction = prediction.score >= 0.5;
+  const predictedClassLabel = isPositivePrediction ? positiveLabel : negativeLabel;
+  const predictedIsEarlyStage = isEarlyStageLabel(predictedClassLabel);
+  const predictedIsLateStage = isLateStageLabel(predictedClassLabel);
+  const useFavorableStyling = predictsTumorStage
+    ? (predictedIsEarlyStage || prediction.score < 0.5)
+    : isPositivePrediction;
+  const leftLabelIsEarly = isEarlyStageLabel(negativeLabel);
+  const leftLabelIsLate = isLateStageLabel(negativeLabel);
+  const rightLabelIsEarly = isEarlyStageLabel(positiveLabel);
+  const rightLabelIsLate = isLateStageLabel(positiveLabel);
+  const labelsAmbiguousForStage =
+    predictsTumorStage &&
+    !leftLabelIsEarly &&
+    !leftLabelIsLate &&
+    !rightLabelIsEarly &&
+    !rightLabelIsLate;
+  const leftSideFavorable = predictsTumorStage
+    ? (leftLabelIsEarly || labelsAmbiguousForStage)
+    : false;
+  const rightSideFavorable = predictsTumorStage
+    ? rightLabelIsEarly
+    : true;
+
   const probabilityPercent = Math.round(prediction.score * 100);
-
-  // Risk stratification
-  const riskLevel =
-    prediction.confidence >= 0.7
-      ? "high"
-      : prediction.confidence >= 0.4
-      ? "moderate"
-      : "low";
-
-  const riskLabels = {
-    high: "High Confidence",
-    moderate: "Moderate Confidence",
-    low: "Low Confidence",
-  };
+  const confidencePercent = Math.max(0, Math.min(100, Math.round(prediction.confidence * 100)));
 
   return (
     <Card>
@@ -193,7 +216,7 @@ export function PredictionPanel({
         <div className="flex items-center justify-between">
           <CardTitle className="flex items-center gap-2">
             <Activity className="h-4 w-4 text-clinical-600" />
-            Prediction Results
+            {panelTitle}
             {isCached && (
               <Badge variant="default" size="sm" className="bg-blue-100 text-blue-700 border-blue-200">
                 Cached
@@ -236,76 +259,63 @@ export function PredictionPanel({
         </div>
       </CardHeader>
       <CardContent className="space-y-5">
-        {/* UNCALIBRATED WARNING BANNER */}
-        <div className="flex items-center gap-2 px-3 py-2 bg-amber-100 border border-amber-300 rounded-lg">
-          <FlaskConical className="h-4 w-4 text-amber-700 shrink-0" />
-          <span className="text-xs font-bold text-amber-800 uppercase tracking-wide">
-            Uncalibrated - Research Use Only
-          </span>
-        </div>
-
         {/* Primary Prediction Display */}
         <div
           className={cn(
             "p-4 rounded-xl border-2 transition-all",
-            isPositivePrediction
-              ? "bg-responder-positive-bg border-responder-positive-border"
-              : "bg-responder-negative-bg border-responder-negative-border"
+            useFavorableStyling
+              ? "bg-sky-50 border-sky-200"
+              : "bg-orange-50 border-orange-200"
           )}
         >
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
-              {isPositivePrediction ? (
-                <CheckCircle className="h-6 w-6 text-responder-positive" />
-              ) : (
-                <XCircle className="h-6 w-6 text-responder-negative" />
-              )}
+              <div
+                className={cn(
+                  "h-6 w-6 rounded-full flex items-center justify-center border shadow-sm",
+                  useFavorableStyling
+                    ? "bg-white border-sky-400 shadow-sky-200/60"
+                    : "bg-white border-orange-400 shadow-orange-200/60"
+                )}
+                aria-hidden="true"
+              >
+                <span
+                  className={cn(
+                    "h-2.5 w-2.5 rounded-full border border-white/80 shadow-inner",
+                    useFavorableStyling
+                      ? "bg-gradient-to-br from-sky-400 to-sky-600"
+                      : "bg-gradient-to-br from-orange-300 to-orange-500"
+                  )}
+                />
+              </div>
               <span
                 className={cn(
-                  "text-xl font-bold tracking-tight",
-                  isPositivePrediction
-                    ? "text-responder-positive"
-                    : "text-responder-negative"
+                  "text-[17.5px] font-bold tracking-tight",
+                  useFavorableStyling
+                    ? "text-sky-700"
+                    : "text-orange-700"
                 )}
               >
-                {isPositivePrediction ? positiveLabel.toUpperCase() : negativeLabel.toUpperCase()}
+                {predictedClassLabel.toUpperCase()}
               </span>
             </div>
-            <Badge
-              variant={
-                riskLevel === "high"
-                  ? "success"
-                  : riskLevel === "moderate"
-                  ? "warning"
-                  : "default"
-              }
-              size="sm"
-              className="font-medium"
-            >
-              {riskLabels[riskLevel]}
-            </Badge>
           </div>
 
           {/* Visual Gauge + Score Display */}
           <div className="flex items-center gap-4">
-            <PredictionGauge 
-              value={prediction.score} 
-              size="md" 
-              showLabel={true}
-            />
-            <div className="flex-1 space-y-2">
-              <div className="flex items-center gap-2 text-xs text-amber-700 bg-amber-50 px-2 py-1 rounded">
-                <AlertTriangle className="h-3 w-3 shrink-0" />
-                <span>Uncalibrated - do not interpret as true probability</span>
+              <PredictionGauge 
+                value={prediction.score} 
+                size="md" 
+                showLabel={true}
+                isFavorable={useFavorableStyling}
+              />
+              <div className="flex-1 space-y-2">
+                <p className="text-xs text-gray-600 leading-relaxed">
+                  {predictionSummaryText}
+                </p>
               </div>
-              <p className="text-xs text-gray-600 leading-relaxed">
-                {isPositivePrediction
-                  ? `Model predicts ${positiveLabel.toLowerCase()} for ${predictionTargetLabel.toLowerCase()} based on histopathological features.`
-                  : `Model predicts ${negativeLabel.toLowerCase()} for ${predictionTargetLabel.toLowerCase()}. Correlate with clinical context before action.`}
-              </p>
             </div>
           </div>
-        </div>
 
         {/* Probability Bar with Threshold */}
         <div className="space-y-2">
@@ -318,21 +328,31 @@ export function PredictionPanel({
 
           {/* Visual Probability Bar */}
           <div className="probability-bar">
-            {/* Lower-score zone (red) */}
+            {/* Lower-score zone */}
             <div
-              className="absolute left-0 top-0 h-full bg-gradient-to-r from-red-100 to-red-200"
+              className={cn(
+                "absolute left-0 top-0 h-full",
+                leftSideFavorable
+                  ? "bg-gradient-to-r from-sky-100 to-sky-200"
+                  : "bg-gradient-to-r from-orange-100 to-orange-200"
+              )}
               style={{ width: "50%" }}
             />
-            {/* Responder zone (green) */}
+            {/* Higher-score zone */}
             <div
-              className="absolute right-0 top-0 h-full bg-gradient-to-r from-green-200 to-green-100"
+              className={cn(
+                "absolute right-0 top-0 h-full",
+                rightSideFavorable
+                  ? "bg-gradient-to-r from-sky-200 to-sky-100"
+                  : "bg-gradient-to-r from-orange-200 to-orange-100"
+              )}
               style={{ width: "50%" }}
             />
             {/* Actual value indicator */}
             <div
               className={cn(
                 "absolute top-0 h-full w-1.5 rounded-full shadow-md transition-all duration-700 ease-out",
-                isPositivePrediction ? "bg-status-positive" : "bg-status-negative"
+                useFavorableStyling ? "bg-sky-500" : "bg-orange-500"
               )}
               style={{ left: `calc(${probabilityPercent}% - 3px)` }}
             />
@@ -342,18 +362,39 @@ export function PredictionPanel({
 
           {/* Scale Labels */}
           <div className="flex justify-between text-xs">
-            <span className="text-red-600 font-medium">{negativeLabel}</span>
+            <span className={cn("font-medium", leftSideFavorable ? "text-sky-600" : "text-orange-600")}>{negativeLabel}</span>
             <span className="text-gray-400">50% threshold</span>
-            <span className="text-green-600 font-medium">{positiveLabel}</span>
+            <span className={cn("font-medium", rightSideFavorable ? "text-sky-600" : "text-orange-600")}>{positiveLabel}</span>
           </div>
         </div>
 
-        {/* Confidence Visualization */}
-        <div className="p-3 bg-surface-secondary rounded-lg border border-surface-border">
-          <ConfidenceGauge
-            value={prediction.confidence}
-            level={riskLevel}
-          />
+        {/* Confidence Bar */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-gray-600 font-medium">Model Confidence</span>
+            <span className="font-mono font-semibold text-gray-900">
+              {confidencePercent}%
+            </span>
+          </div>
+
+          <div className="probability-bar h-3 bg-emerald-50">
+            <div
+              className="absolute left-0 top-0 h-full bg-gradient-to-r from-emerald-100 to-emerald-200 transition-all duration-700 ease-out"
+              style={{ width: `${confidencePercent}%` }}
+            />
+            <div className="probability-bar-threshold left-1/3 z-10 bg-emerald-300" />
+            <div className="probability-bar-threshold left-2/3 z-10 bg-emerald-300" />
+            <div
+              className="absolute top-0 h-full w-1.5 rounded-full shadow-md transition-all duration-700 ease-out bg-emerald-500"
+              style={{ left: `calc(${confidencePercent}% - 3px)` }}
+            />
+          </div>
+
+          <div className="flex justify-between text-xs">
+            <span className="text-emerald-600 font-medium">low</span>
+            <span className="text-gray-400">moderate</span>
+            <span className="text-emerald-600 font-medium">high</span>
+          </div>
         </div>
 
         {/* Uncertainty Quantification Section */}
@@ -434,23 +475,6 @@ export function PredictionPanel({
                 </p>
                 <p className="text-xs text-yellow-700 mt-1 leading-relaxed">
                   Slide quality is acceptable but not optimal. Review prediction with caution.
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Calibration Note */}
-        {prediction.calibrationNote && (
-          <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg animate-fade-in">
-            <div className="flex items-start gap-2">
-              <TrendingUp className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
-              <div>
-                <p className="text-xs font-semibold text-amber-800">
-                  Calibration Note
-                </p>
-                <p className="text-xs text-amber-700 mt-1 leading-relaxed">
-                  {prediction.calibrationNote}
                 </p>
               </div>
             </div>

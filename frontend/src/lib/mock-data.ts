@@ -206,7 +206,6 @@ export const mockReport: StructuredReport = {
     "Scanner and staining variations between the training cohort and the current slide may affect prediction accuracy.",
     "The model has not been validated in a prospective clinical setting.",
     "Attention-based evidence highlights correlation, not causation - morphological patterns may not directly drive treatment response.",
-    "Model output is UNCALIBRATED - raw scores should not be interpreted as true probabilities.",
   ],
   suggestedNextSteps: [
     "Consider confirmatory biomarker testing: IHC for CD31, VEGF-A, and Ki-67 to validate vascular and proliferative phenotype.",
@@ -217,7 +216,7 @@ export const mockReport: StructuredReport = {
     "Consider NGS panel (Foundation One, Tempus) to identify additional targetable alterations (BRCA, HRD status).",
   ],
   safetyStatement:
-    "This analysis is for research and decision support purposes only. It is NOT a diagnostic device and should NOT be used as the sole basis for treatment decisions. All findings must be interpreted by qualified healthcare professionals in the context of the complete clinical picture, patient history, and standard of care guidelines.",
+    "This prediction is for decision support and to enhance interpretability by the physician. Clinical decisions should integrate multiple factors including patient history, other biomarkers, and clinician expertise.",
   summary: `ENSO ATLAS ANALYSIS SUMMARY
 
 Case ID: slide-001

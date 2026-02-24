@@ -13,8 +13,6 @@ import {
   Eye,
   EyeOff,
   BarChart3,
-  ChevronDown,
-  ChevronUp,
   Loader2,
 } from "lucide-react";
 
@@ -39,7 +37,6 @@ export function OutlierDetectorPanel({
   const [error, setError] = useState<string | null>(null);
   const [threshold, setThreshold] = useState(2.0);
   const [showHeatmap, setShowHeatmap] = useState(false);
-  const [expanded, setExpanded] = useState(false);
   const [showAllOutliers, setShowAllOutliers] = useState(false);
 
   const handleDetect = useCallback(async () => {
@@ -108,24 +105,13 @@ export function OutlierDetectorPanel({
   return (
     <Card className={cn("transition-all", className)}>
       <CardHeader>
-        <button
-          className="flex items-center justify-between w-full text-left"
-          onClick={() => setExpanded(!expanded)}
-        >
-          <CardTitle className="flex items-center gap-2 text-sm">
-            <AlertTriangle className="h-4 w-4 text-amber-500" />
-            Outlier Tissue Detector
-          </CardTitle>
-          {expanded ? (
-            <ChevronUp className="h-4 w-4 text-gray-400" />
-          ) : (
-            <ChevronDown className="h-4 w-4 text-gray-400" />
-          )}
-        </button>
+        <CardTitle className="flex items-center gap-2 text-sm">
+          <AlertTriangle className="h-4 w-4 text-amber-500" />
+          Outlier Tissue Detector
+        </CardTitle>
       </CardHeader>
 
-      {expanded && (
-        <CardContent className="space-y-3 pt-0">
+      <CardContent className="space-y-3 pt-0">
           {/* Threshold slider */}
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
@@ -314,8 +300,7 @@ export function OutlierDetectorPanel({
               Select a slide to detect outlier tissue
             </p>
           )}
-        </CardContent>
-      )}
+      </CardContent>
     </Card>
   );
 }

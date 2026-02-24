@@ -8,6 +8,7 @@ interface PredictionGaugeProps {
   size?: "sm" | "md" | "lg";
   showLabel?: boolean;
   className?: string;
+  isFavorable?: boolean;
 }
 
 export function PredictionGauge({
@@ -15,11 +16,12 @@ export function PredictionGauge({
   size = "md",
   showLabel = true,
   className,
+  isFavorable,
 }: PredictionGaugeProps) {
   // Clamp value between 0 and 1
   const clampedValue = Math.max(0, Math.min(1, value));
   const percentage = Math.round(clampedValue * 100);
-  const isResponder = clampedValue >= 0.5;
+  const favorable = typeof isFavorable === "boolean" ? isFavorable : clampedValue >= 0.5;
   
   // SVG parameters
   const sizeMap = {
@@ -38,8 +40,7 @@ export function PredictionGauge({
   const offset = circumference * (1 - clampedValue);
   
   // Color based on prediction
-  const primaryColor = isResponder ? "#059669" : "#dc2626"; // green-600 / red-600
-  const secondaryColor = isResponder ? "#d1fae5" : "#fee2e2"; // green-100 / red-100
+  const primaryColor = favorable ? "#0284c7" : "#ea580c"; // sky-600 / orange-600
   
   return (
     <div className={cn("flex flex-col items-center gap-2", className)}>
@@ -53,13 +54,13 @@ export function PredictionGauge({
         >
           {/* Gradient definitions */}
           <defs>
-            <linearGradient id="gauge-gradient-green" x1="0%" y1="0%" x2="100%" y2="0%">
-              <stop offset="0%" stopColor="#10b981" />
-              <stop offset="100%" stopColor="#059669" />
+            <linearGradient id="gauge-gradient-positive" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stopColor="#38bdf8" />
+              <stop offset="100%" stopColor="#0284c7" />
             </linearGradient>
-            <linearGradient id="gauge-gradient-red" x1="0%" y1="0%" x2="100%" y2="0%">
-              <stop offset="0%" stopColor="#ef4444" />
-              <stop offset="100%" stopColor="#dc2626" />
+            <linearGradient id="gauge-gradient-negative" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stopColor="#fb923c" />
+              <stop offset="100%" stopColor="#ea580c" />
             </linearGradient>
             <filter id="gauge-glow">
               <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
@@ -76,8 +77,8 @@ export function PredictionGauge({
             cy={width / 2}
             r={radius}
             fill="none"
-            stroke="#f1f5f9"
-            strokeWidth={stroke}
+            stroke="#dbe5ef"
+            strokeWidth={stroke + 1}
           />
           
           {/* Threshold indicator at 50% */}
@@ -86,7 +87,7 @@ export function PredictionGauge({
             cy={width / 2}
             r={radius}
             fill="none"
-            stroke="#cbd5e1"
+            stroke="#dbe5ef"
             strokeWidth={stroke + 2}
             strokeDasharray={`${circumference * 0.015} ${circumference * 0.985}`}
             strokeDashoffset={-circumference * 0.5 + circumference * 0.0075}
@@ -99,7 +100,7 @@ export function PredictionGauge({
             cy={width / 2}
             r={radius}
             fill="none"
-            stroke={isResponder ? "url(#gauge-gradient-green)" : "url(#gauge-gradient-red)"}
+            stroke={favorable ? "url(#gauge-gradient-positive)" : "url(#gauge-gradient-negative)"}
             strokeWidth={stroke}
             strokeDasharray={circumference}
             strokeDashoffset={offset}

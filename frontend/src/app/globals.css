@@ -51,11 +51,12 @@
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
     scroll-behavior: smooth;
-    font-size: 14px;
+    font-size: 15px;
   }
 
   body {
     @apply bg-surface-secondary text-gray-900;
+    font-family: var(--font-inter), Inter, system-ui, -apple-system, sans-serif;
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
     transition: background-color var(--transition-slow) var(--ease-in-out-smooth),
                 color var(--transition-slow) var(--ease-in-out-smooth);
