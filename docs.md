@@ -1897,299 +1897,252 @@ This keeps semantic patch previews and viewer overlays operating in the same coo
 
 # 13. Hospital Deployment Guide
 
-This section provides step-by-step instructions for deploying Enso Atlas in a hospital environment. It covers hardware selection, software installation, configuration, slide ingestion, model customization, network security, and database management. A hospital IT team can follow this guide end-to-end to bring Enso Atlas into production on local infrastructure.
+This chapter is an operations runbook for hospital IT and MLOps teams deploying Enso Atlas on local infrastructure. The commands and paths below are aligned with the current repository structure (`docker/docker-compose.yaml`, `config/projects.yaml`, and `scripts/*`) and the DGX-style topology used in this codebase (backend on `8003`, frontend on `3002`, PostgreSQL on `5433`).
 
 ---
 
 ## 13.1 Hardware Requirements
 
-### Minimum: Mac mini or Desktop Workstation (CPU-only MedGemma, slower reports)
+Choose the profile that matches your workload and turnaround requirements.
+
+### Minimum: CPU-first pilot (small cohorts, slower report generation)
 
 | Component | Specification |
 |---|---|
-| CPU | Apple M2 / Intel i7-12th gen or newer |
-| RAM | 16 GB (unified or DDR5) |
-| Storage | 256 GB SSD (slides stored externally or on NAS) |
-| GPU | None required (Apple MPS or integrated) |
-| OS | macOS 14+ / Ubuntu 22.04+ / Windows WSL2 |
+| CPU | Apple M2/M4, Intel i7 12th gen+, or AMD Ryzen 7+ |
+| RAM | 16 GB (32 GB strongly preferred) |
+| Storage | 512 GB SSD minimum |
+| GPU | Optional |
+| OS | macOS 14+, Ubuntu 22.04+, or Windows via WSL2 |
 
-With 16 GB, the system runs Path Foundation (CPU, ~2 GB), TransMIL (6 project-scoped models, ~240 MB), MedSigLIP (~3 GB), and PostgreSQL (~200 MB). MedGemma 4B (~8 GB bfloat16) will fit but leaves minimal headroom; report generation will be slow (~60-120s). For comfortable operation with MedGemma, 32 GB is recommended.
+This profile supports validation, demos, and low-throughput use. MedGemma report generation can take ~60-120s on CPU.
 
-### Recommended: GPU Workstation
+### Recommended: GPU workstation (department deployment)
 
 | Component | Specification |
 |---|---|
-| CPU | AMD Ryzen 9 / Intel i9 / Apple M4 Pro |
+| CPU | Ryzen 9 / Intel i9 |
 | RAM | 32-64 GB |
-| Storage | 1 TB NVMe SSD |
-| GPU | NVIDIA RTX 4090 (24 GB VRAM) or A6000 (48 GB) |
-| OS | Ubuntu 22.04 with NVIDIA Container Toolkit |
+| Storage | 1+ TB NVMe SSD |
+| GPU | RTX 4090 (24 GB) or RTX/A-series 48 GB |
+| OS | Ubuntu 22.04 + NVIDIA Container Toolkit |
 
-With 24 GB VRAM: MedGemma 4B (~8 GB) + MedSigLIP (~800 MB) + TransMIL (~200 MB) = ~9 GB, with headroom remaining. Report generation takes ~20s on GPU.
+This profile is suitable for routine clinical workflow testing and faster report generation.
 
-### Production: DGX Spark or GPU Server
+### Production: DGX-class server
 
 | Component | Specification |
 |---|---|
-| CPU | ARM64 or x86_64 |
+| CPU | x86_64 or ARM64 |
 | RAM | 64-128 GB |
-| Storage | 2+ TB NVMe (for slide storage) |
-| GPU | NVIDIA A100/H100/Blackwell (40-128 GB VRAM) |
-| Network | 10 GbE for PACS integration |
+| Storage | 2+ TB NVMe |
+| GPU | A100/H100/Blackwell class |
+| Network | 10 GbE recommended |
 
-### Storage Sizing
+Note on DGX Spark / Blackwell: TensorFlow support for Path Foundation GPU paths may be limited. In practice, this deployment keeps Path Foundation embedding workflows CPU-safe and precomputes embeddings offline, while inference/reporting workloads use GPU acceleration.
 
-| Data Type | Per-Slide Size | 200 Slides | 1,000 Slides |
+### Storage Planning
+
+| Data Type | Per Slide | 200 Slides | 1,000 Slides |
 |---|---|---|---|
-| WSI files (.svs) | 1-3 GB | 200-600 GB | 1-3 TB |
-| Level 0 dense embeddings (.npy) | 5-15 MB | 1-3 GB | 5-15 GB |
-| Heatmap cache (.png) | 10-50 KB each | 10-50 MB | 50-250 MB |
-| PostgreSQL | ~1 KB per slide | ~1 MB | ~5 MB |
-| HuggingFace model cache | N/A | ~15 GB | ~15 GB |
+| WSI (`.svs`, `.ndpi`, etc.) | 1-3 GB | 200-600 GB | 1-3 TB |
+| Embeddings (`.npy`) | 5-15 MB | 1-3 GB | 5-15 GB |
+| Coords (`*_coords.npy`) | 1-3 MB | 0.2-0.6 GB | 1-3 GB |
+| Heatmap cache/images | 10-50 KB each | 10-50 MB | 50-250 MB |
+| PostgreSQL metadata | ~1-5 KB/slide | <5 MB | <25 MB |
+| Model artifacts/cache | N/A | 15-30 GB | 15-30 GB |
 
 ---
 
 ## 13.2 Step-by-Step Installation
 
-### Step 1: Clone the Repository
+### Step 1: Clone the repository
 
 ```bash
 git clone https://github.com/Hilo-Hilo/enso-atlas.git
 cd enso-atlas
 ```
 
-### Step 2: Download Foundation Models
+### Step 2: Download model assets before going offline
 
-Models must be downloaded once (requires internet access and a HuggingFace account with access to gated models). After download, the system runs fully offline.
+The runtime expects local model availability for air-gapped operation.
 
 ```bash
-# Install huggingface-hub CLI
-pip install huggingface-hub
-
-# Log in (required for gated models)
+python3 -m pip install --upgrade "huggingface_hub[cli]"
 huggingface-cli login
 
-# Download Path Foundation (~500 MB, TensorFlow SavedModel)
-huggingface-cli download google/path-foundation --local-dir ~/.cache/huggingface/hub/models--google--path-foundation
+# Shared Hugging Face cache (mount this into /app/cache/huggingface for Docker)
+export HF_HOME="$PWD/.hf-cache"
+mkdir -p "$HF_HOME"
 
-# Download MedGemma 4B (~8 GB, PyTorch)
-huggingface-cli download google/medgemma-4b-it
+# Path Foundation (TensorFlow SavedModel; required in HF cache)
+huggingface-cli download google/path-foundation --cache-dir "$HF_HOME"
 
-# Download MedSigLIP (~3 GB, PyTorch)
-huggingface-cli download google/medsiglip-448
-# Fallback if MedSigLIP-448 unavailable:
-# huggingface-cli download google/siglip-so400m-patch14-384
+# MedGemma report model (kept in repo-local models/ for deterministic loading)
+huggingface-cli download google/medgemma-4b-it --local-dir models/medgemma-4b-it --cache-dir "$HF_HOME"
+
+# MedSigLIP (preferred), with SigLIP fallback
+huggingface-cli download google/medsiglip-448 --local-dir models/medsiglip --cache-dir "$HF_HOME" \
+  || huggingface-cli download google/siglip-so400m-patch14-384 --local-dir models/medsiglip --cache-dir "$HF_HOME"
 ```
 
-### Step 3a: Docker Deployment (Recommended for GPU Servers)
+### Step 3A: Docker deployment (recommended for DGX/GPU hosts)
+
+Important: the repository `docker/docker-compose.yaml` currently contains developer-specific absolute mounts (for example `/home/hansonwen/med-gemma-hackathon/...`). Do not deploy those paths unchanged.
+
+Use an override file for hospital paths:
 
 ```bash
-# Build the backend container
-docker compose -f docker/docker-compose.yaml build
+cp docker/docker-compose.yaml docker/docker-compose.hospital.yaml
+# Edit docker/docker-compose.hospital.yaml:
+# - volume mounts
+# - DATABASE_URL / POSTGRES_PASSWORD
+# - optional port bindings
+```
 
-# Start backend + database
-docker compose -f docker/docker-compose.yaml up -d
+Then start services:
 
-# Monitor startup logs (wait for "Application startup complete", ~2-3 minutes)
-docker logs -f enso-atlas
-
-# Verify backend is healthy
+```bash
+docker compose -f docker/docker-compose.yaml -f docker/docker-compose.hospital.yaml up -d --build
 curl http://localhost:8003/api/health
 ```
 
-### Step 3b: Native Deployment (Mac mini / No Docker)
+### Step 3B: Native deployment (Mac mini / no Docker)
 
 ```bash
-# Create Python virtual environment
 python3 -m venv .venv
 source .venv/bin/activate
-
-# Install Python dependencies
 pip install -e .
 
-# Install and start PostgreSQL
-# macOS:
+# PostgreSQL (example: macOS)
 brew install postgresql@16
 brew services start postgresql@16
-createdb enso_atlas
+createuser enso
+createdb -O enso enso_atlas
 
-# Set environment variables
-export DATABASE_URL="postgresql://$(whoami)@localhost:5432/enso_atlas"
+# Backend env
+export DATABASE_URL="postgresql://enso@localhost:5432/enso_atlas"
 export MIL_ARCHITECTURE=transmil
 export MIL_THRESHOLD_CONFIG=models/threshold_config.json
 
-# Start the backend
-python -m uvicorn enso_atlas.api.main:app --host 0.0.0.0 --port 8003
+# Start backend on 8000 (native)
+python -m uvicorn enso_atlas.api.main:app --host 0.0.0.0 --port 8000
 ```
 
-### Step 4: Build and Start the Frontend
+### Step 4: Build and run frontend
 
 ```bash
 cd frontend
 npm install
+
+# Docker backend default:
+export NEXT_PUBLIC_API_URL=http://127.0.0.1:8003
+# If using native backend on port 8000, use:
+# export NEXT_PUBLIC_API_URL=http://127.0.0.1:8000
+# For public tunnel/same-origin proxy deployments, leave empty:
+# unset NEXT_PUBLIC_API_URL
+
 npm run build
 npx next start -p 3002
 ```
 
-The frontend is now available at `http://localhost:3002`.
+Frontend URL: `http://localhost:3002`
 
-### Step 5: Verify the Installation
+### Step 5: Verify service health
 
 ```bash
 # Backend health
 curl http://localhost:8003/api/health
-# Expected: {"status":"healthy","model_loaded":true,"slides_available":208,"db_available":true}
 
 # Database status
 curl http://localhost:8003/api/db/status
-# Expected: {"status":"connected","slides":208,"patients":98}
 
-# Available models
-curl http://localhost:8003/api/models
-# Expected: 6 project-scoped TransMIL models listed
+# Project-scoped model visibility
+curl "http://localhost:8003/api/models?project_id=ovarian-platinum"
 
-# Open browser
-open http://localhost:3002
+# Project-scoped slides
+curl "http://localhost:8003/api/slides?project_id=ovarian-platinum"
 ```
 
-### Step 6: Enable Air-Gapped Mode (Production)
+### Step 6: Enable strict offline mode
 
-After confirming the system works, lock it down so it never attempts to download models:
+After validating model availability and startup behavior, enforce offline operation:
 
 ```bash
-# In docker-compose.yaml or shell environment:
+# Environment (compose or shell)
 export TRANSFORMERS_OFFLINE=1
 export HF_HUB_OFFLINE=1
 ```
 
-Restart the backend. It will now refuse any network model downloads and use only local cache.
+Then restart backend services.
 
 ---
 
-## 13.3 YAML Configuration Guide
+## 13.3 YAML Configuration Guide (`config/projects.yaml`)
 
-All project configuration lives in `config/projects.yaml`. This file defines foundation models, classification models, and projects. Editing this file customizes Enso Atlas for a specific institution.
+`config/projects.yaml` is the deployment control plane. It defines:
 
-### 13.3.1 Foundation Model Registry
+1. `foundation_models` (embedding backbones)
+2. `classification_models` (TransMIL heads and metadata)
+3. `projects` (dataset paths, model assignments, feature flags)
 
-The `foundation_models` section registers embedding models. Each model produces a fixed-dimensional embedding vector. Classification models must use a compatible foundation model (matching `embedding_dim`).
+### 13.3.1 Foundation model registry
+
+Each foundation model must declare the output embedding dimension:
 
 ```yaml
 foundation_models:
-  # Google Path Foundation (included)
   path_foundation:
     name: "Path Foundation"
     embedding_dim: 384
     description: "Google Health pathology foundation model (ViT-S, 384-dim)"
 
-  # Additional foundation model example
-  dinov2:
-    name: "DINOv2"
-    embedding_dim: 768
-    description: "Meta DINOv2 self-supervised vision transformer (768-dim)"
-
   uni:
     name: "UNI"
     embedding_dim: 1024
-    description: "Mass General pathology foundation model (1024-dim)"
-
-  conch:
-    name: "CONCH"
-    embedding_dim: 512
-    description: "Contrastive learning pathology model (512-dim)"
-
-  # Hospital-specific fine-tuned model
-  institutional_vit:
-    name: "Institutional ViT"
-    embedding_dim: 512
-    description: "In-house ViT fine-tuned on institutional H&E slides"
+    description: "Mass General pathology foundation model"
 ```
 
-**Constraint:** The `embedding_dim` must exactly match the output dimension of the model. All classification models referencing this foundation model must have `compatible_foundation` set to the same key.
+### 13.3.2 Classification model registry
 
-### 13.3.2 Classification Model Registry
-
-The `classification_models` section registers TransMIL (or other MIL) models. Each entry points to a directory under `outputs/` containing the trained checkpoint.
+`model_dir` must map to a folder under `outputs/` containing `best_model.pt`.
 
 ```yaml
 classification_models:
-  platinum_sensitivity:
-    model_dir: "transmil_v2"          # Directory under outputs/
-    display_name: "Platinum Sensitivity"
-    auc: 0.907
-    n_slides: 199
-    category: "ovarian_cancer"
-    positive_label: "Sensitive"
-    negative_label: "Resistant"
+  lung_stage:
+    model_dir: "luad_transmil_stage"
+    display_name: "Tumor Stage"
+    auc: 0.648
+    positive_label: "Advanced (III/IV)"
+    negative_label: "Early (I/II)"
     compatible_foundation: "path_foundation"
 
   tumor_grade:
     model_dir: "transmil_grade"
     display_name: "Tumor Grade"
     auc: 0.752
-    n_slides: 918
-    category: "general_pathology"
-    positive_label: "High Grade"
-    negative_label: "Low Grade"
     decision_threshold: 0.9935
     compatible_foundation: "path_foundation"
-
-  lung_stage:
-    model_dir: "luad_transmil_stage"
-    display_name: "Tumor Stage"
-    auc: 0.648
-    n_slides: 130
-    category: "lung_cancer"
-    positive_label: "Advanced (III/IV)"
-    negative_label: "Early (I/II)"
-    compatible_foundation: "path_foundation"
 ```
 
-**Directory structure expected for each model:**
+Expected model artifact layout:
 
-```
+```text
 outputs/
-  luad_transmil_stage/            # Matches model_dir
-    best_model.pt                 # PyTorch checkpoint (TransMIL state_dict)
-    config.json                   # Optional: training hyperparameters
-    threshold_config.json         # Optional: optimized threshold
-    training_curves.png           # Optional: training visualization
+  luad_transmil_stage/
+    best_model.pt
+    config.json
+    threshold_config.json
 ```
 
-The checkpoint file must contain either a bare `state_dict` or a dict with a `model_state_dict` key. The TransMIL architecture (input_dim, hidden_dim=512, num_heads=8, num_layers=2) must match the training configuration.
+### 13.3.3 Project definitions
 
-### 13.3.3 Project Configuration
-
-Projects tie together a foundation model, one or more classification models, a dataset, and feature toggles.
+Projects scope dataset paths, visible models, and enabled features.
 
 ```yaml
 projects:
-  ovarian-platinum:
-    name: "Ovarian Cancer - Platinum Sensitivity"
-    cancer_type: Ovarian Cancer
-    prediction_target: platinum_sensitivity
-    classes: ["resistant", "sensitive"]
-    positive_class: sensitive
-    foundation_model: path_foundation
-    dataset:
-      slides_dir: data/projects/ovarian-platinum/slides
-      embeddings_dir: data/projects/ovarian-platinum/embeddings
-      labels_file: data/projects/ovarian-platinum/labels.csv
-      label_column: platinum_sensitivity
-    classification_models:
-      - platinum_sensitivity
-      - tumor_grade
-      - survival_5y
-      - survival_3y
-      - survival_1y
-    threshold: 0.9229
-
   lung-stage:
     name: "Lung Adenocarcinoma - Stage Classification"
-    cancer_type: Lung Cancer
-    prediction_target: tumor_stage
-    classes: ["early", "advanced"]
-    positive_class: advanced
     foundation_model: path_foundation
     dataset:
       slides_dir: data/projects/lung-stage/slides
@@ -2198,50 +2151,36 @@ projects:
       label_column: tumor_stage
     classification_models:
       - lung_stage
+    features:
+      medgemma_reports: true
+      medsiglip_search: false
+      semantic_search: false
     threshold: 0.5
 ```
 
-### 13.3.4 Feature Toggles
+### 13.3.4 Feature toggles
 
-| Feature | Effect When `false` |
+| Feature | If disabled (`false`) |
 |---|---|
-| `medgemma_reports` | Disables MedGemma report generation; system uses template reports only |
-| `medsiglip_search` | Disables MedSigLIP semantic search; saves ~800 MB VRAM |
-| `semantic_search` | Hides semantic search panel in the frontend UI |
-
-For resource-constrained deployments (e.g., 16 GB Mac mini), disabling `medsiglip_search` saves memory. Template reports can substitute for MedGemma if report generation is too slow without a GPU.
+| `medgemma_reports` | Report generation endpoints return fallback behavior |
+| `medsiglip_search` | Text-to-patch retrieval disabled |
+| `semantic_search` | Similar-case semantic panel hidden/disabled |
 
 ---
 
 ## 13.4 Plugin Model System: Adding Custom Models
 
-### 13.4.1 Training a New TransMIL Model
+### 13.4.1 Train a new TransMIL model
 
-**Prerequisites:**
-- Pre-computed embeddings (`.npy` files, one per slide)
-- Labels file (CSV with slide_id and binary label)
-- Python environment with PyTorch, scikit-learn, numpy
-
-**Step 1: Prepare the labels file.**
-
-Format must include `slide_id` (matching the `.npy` filenames) and a binary label column:
+1) Prepare labels as numeric binary targets for training scripts (`label` must be `0/1`):
 
 ```csv
-slide_id,label
-SLIDE-001,1
-SLIDE-002,0
-SLIDE-003,1
+slide_id,label,patient_id
+SLIDE-001,1,PAT-001
+SLIDE-002,0,PAT-002
 ```
 
-Or the expanded clinical format:
-
-```csv
-patient_id,slide_file,treatment_response,age,sex,stage,grade,histology
-PATIENT-001,SLIDE-001.svs,responder,58,F,IIIA,High,Serous
-PATIENT-002,SLIDE-002.svs,non-responder,67,F,IV,High,Serous
-```
-
-**Step 2: Generate embeddings (if not already done).**
+2) Generate embeddings:
 
 ```bash
 python scripts/embed_level0_pipelined.py \
@@ -2251,9 +2190,7 @@ python scripts/embed_level0_pipelined.py \
   --batch-size 512
 ```
 
-This produces `{slide_id}.npy` (N x 384) and `{slide_id}_coords.npy` (N x 2) for each slide.
-
-**Step 3: Train with patient-level CV (recommended).**
+3) Train:
 
 ```bash
 python scripts/train_transmil_finetune.py \
@@ -2267,180 +2204,97 @@ python scripts/train_transmil_finetune.py \
   --max_eval_patches 1024
 ```
 
-Default behavior in this script:
-- Patient-level `StratifiedGroupKFold` splitting (with `patient_id` grouping) to prevent leakage
-- Class-balanced per-epoch sampling
-- Optional minority augmentation (noise, feature dropout, mixup)
-- PR-AUC logging alongside ROC-AUC and other metrics
-- Calibration curve export from pooled CV predictions
-
-For quick iteration, run a single grouped split while keeping patient isolation:
-
-```bash
-python scripts/train_transmil_finetune.py \
-  --embeddings_dir data/projects/breast-her2/embeddings \
-  --labels_file data/projects/breast-her2/labels.csv \
-  --output_dir outputs/transmil_her2_single_split \
-  --single_split \
-  --val_frac 0.2
-```
-
-**Training output:**
-```
-outputs/transmil_her2/
-  best_model.pt                # Best checkpoint (by validation AUC)
-  config.json                  # Hyperparameters used
-  training_curves_fold1.png    # Loss/AUC/PR-AUC curves per fold
-  summary_metrics.png          # Cross-validation summary
-  calibration_curve.png        # Pooled CV reliability curve
-  results.json                 # Full metrics (AUC, PR-AUC, sensitivity, specificity)
-```
-
-**Step 4: Optimize the classification threshold.**
+4) Optimize threshold:
 
 ```bash
 python scripts/optimize_threshold.py \
+  --checkpoint outputs/transmil_her2/best_model.pt \
   --embeddings_dir data/projects/breast-her2/embeddings \
   --labels_file data/projects/breast-her2/labels.csv \
-  --checkpoint outputs/transmil_her2/best_model.pt \
   --output_dir outputs/transmil_her2
 ```
 
-This produces a `threshold_config.json` with the Youden J optimal threshold:
-```json
-{
-  "method": "youden_j",
-  "threshold": 0.62,
-  "sensitivity": 0.88,
-  "specificity": 0.79,
-  "auc": 0.82
-}
-```
+### 13.4.2 Register and activate model
 
-### 13.4.2 Registering a New Model
-
-**Step 1:** Add the classification model to `config/projects.yaml` under `classification_models` (see Section 13.3.2).
-
-**Step 2:** Add or update a project that references the new model (see Section 13.3.3).
-
-**Step 3:** Restart the backend. The `MultiModelInference` loader automatically discovers models under `outputs/` matching the `model_dir` field.
-
-**Step 4:** Verify via API:
+1. Add the model under `classification_models`
+2. Add it to the target project's `classification_models` list
+3. Restart backend
+4. Verify:
 
 ```bash
-curl http://localhost:8003/api/models | python3 -m json.tool
-# Should list the new model with its display_name and AUC
+curl "http://localhost:8003/api/models?project_id=<project_id>" | python3 -m json.tool
 ```
 
-### 13.4.3 Foundation Model Compatibility
+### 13.4.3 Compatibility rules
 
-The TransMIL input dimension must match the foundation model's embedding dimension. The default configuration uses Path Foundation (384-dim). To use a different foundation model:
-
-1. Register it in `foundation_models` with the correct `embedding_dim`
-2. Set `compatible_foundation` in the classification model entry
-3. Modify the `--hidden_dim` in training if needed (the TransMIL input projection adapts automatically to `input_dim`)
-4. Re-embed all slides with the new foundation model before training
-
-**Supported foundation models and their dimensions:**
-
-| Model | embedding_dim | Framework | Notes |
-|---|---|---|---|
-| Path Foundation | 384 | TensorFlow | Default, runs on CPU |
-| DINOv2-Large | 768 | PyTorch | Requires GPU for embedding |
-| UNI | 1024 | PyTorch | Mass General model |
-| CONCH | 512 | PyTorch | Contrastive learning model |
-| Custom ViT | varies | varies | Must output fixed-dim vectors |
-
-Changing foundation models requires re-embedding all slides and retraining all classification models. The system does not support mixing embeddings from different foundation models within a single project.
+- `compatible_foundation` in each classifier must match the project `foundation_model`
+- Embedding dimensions must match training-time configuration
+- Switching foundation models requires full re-embedding + retraining
 
 ---
 
 ## 13.5 Slide Ingestion
 
-### 13.5.1 Supported Formats
+### 13.5.1 Supported WSI formats
 
-| Format | Extension | Scanner |
-|---|---|---|
-| Aperio | .svs | Leica/Aperio |
-| TIFF | .tiff, .tif | Various |
-| Hamamatsu | .ndpi | Hamamatsu |
-| MIRAX | .mrxs | 3DHISTECH |
-| Ventana | .vms | Ventana |
-| Leica | .scn | Leica |
+| Format | Extension |
+|---|---|
+| Aperio | `.svs` |
+| TIFF | `.tiff`, `.tif` |
+| Hamamatsu | `.ndpi` |
+| MIRAX | `.mrxs` |
+| Ventana | `.vms` |
+| Leica | `.scn` |
 
-### 13.5.2 Adding Slides
+### 13.5.2 Add slides
 
-**Option A: Copy files to the slides directory.**
+Option A: copy directly into project directory
 
 ```bash
-# Copy slides to the target project's slides directory
 cp /path/to/new_slides/*.svs data/projects/ovarian-platinum/slides/
-
-# Trigger database repopulation to pick up new slides
 curl -X POST http://localhost:8003/api/db/repopulate
 ```
 
-**Option B: Upload via the API.**
+Option B: upload via API
 
 ```bash
 curl -X POST http://localhost:8003/api/projects/lung-stage/upload \
   -F "file=@/path/to/LUAD-001.svs"
 ```
 
-**Option C: Upload via the frontend.**
+Option C: upload from frontend `/projects` page.
 
-Navigate to the Projects page, select the target project, and use the drag-and-drop slide upload interface.
+### 13.5.3 Generate embeddings for new slides
 
-### 13.5.3 Generating Embeddings for New Slides
-
-After adding slides, generate embeddings:
-
-**Option A: Via the API (per-slide, with progress tracking).**
+Per-slide async embedding:
 
 ```bash
-# Start background embedding (level 0 = full resolution)
 curl -X POST http://localhost:8003/api/embed-slide \
   -H "Content-Type: application/json" \
-  -d '{"slide_id": "SLIDE-001", "level": 0}'
+  -d '{"slide_id":"LUAD-001","level":0,"force":false}'
 
-# Response:
-# {"status":"started","task_id":"abc123","estimated_time_minutes":15}
-
-# Poll for progress
-curl http://localhost:8003/api/embed-slide/status/abc123
-# {"status":"running","progress":55,"message":"Generating embeddings: 3000/6000 patches"}
+curl http://localhost:8003/api/embed-slide/status/<task_id>
 ```
 
-**Option B: Batch embedding via the API.**
+Batch embedding through API:
 
 ```bash
 curl -X POST http://localhost:8003/api/embed-slides/batch \
   -H "Content-Type: application/json" \
-  -d '{"level": 0, "force": false, "concurrency": 1}'
-
-# Embeds all slides that don't yet have embeddings
+  -d '{"level":0,"force":true,"concurrency":1}'
 ```
 
-**Option C: Batch embedding via command line (fastest).**
+Batch embedding through script (useful on DGX overnight):
 
 ```bash
-python scripts/embed_level0_pipelined.py \
-  --slide-dir data/projects/ovarian-platinum/slides \
-  --output-dir data/projects/ovarian-platinum/embeddings \
-  --batch-size 512
+python scripts/batch_reembed_level0.py --api-url http://127.0.0.1:8003
+# Tailnet example:
+# python scripts/batch_reembed_level0.py --api-url http://100.x.y.z:8003
 ```
 
-### 13.5.4 Adding Labels
+### 13.5.4 Update labels and refresh DB
 
-Create or update the project labels file (for example `data/projects/ovarian-platinum/labels.csv`):
-
-```csv
-patient_id,slide_file,treatment_response,age,sex,stage,grade,histology
-NEW-001,SLIDE-001.svs,responder,55,F,IIB,High,Serous
-NEW-002,SLIDE-002.svs,non-responder,63,F,IIIC,High,Serous
-```
-
-Then repopulate the database:
+After modifying `labels.csv`/`labels.json` in a project dataset, repopulate:
 
 ```bash
 curl -X POST http://localhost:8003/api/db/repopulate
@@ -2450,504 +2304,229 @@ curl -X POST http://localhost:8003/api/db/repopulate
 
 ## 13.6 Docker Compose Configuration
 
-### 13.6.1 Production docker-compose.yaml
+### 13.6.1 Production hardening for current compose file
 
-Adapt the volume mounts to the local directory structure:
+Before production use, update these repo defaults:
 
-```yaml
-services:
-  enso-atlas:
-    build:
-      context: ..
-      dockerfile: docker/Dockerfile
-    container_name: enso-atlas
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
-    environment:
-      NVIDIA_VISIBLE_DEVICES: all
-      MIL_ARCHITECTURE: transmil
-      MIL_THRESHOLD_CONFIG: /app/models/threshold_config.json
-      DATABASE_URL: "postgresql://enso:${POSTGRES_PASSWORD}@atlas-db:5432/enso_atlas"
-      TRANSFORMERS_OFFLINE: "1"      # Air-gapped: no model downloads
-      HF_HUB_OFFLINE: "1"
-    volumes:
-      # EDIT THESE PATHS for the local installation:
-      - /data/enso-atlas/data:/app/data                 # Slides + embeddings
-      - /data/enso-atlas/outputs:/app/outputs           # Trained model checkpoints
-      - /data/enso-atlas/huggingface:/root/.cache/huggingface  # Pre-downloaded models
-      - /data/enso-atlas/models:/app/models             # TransMIL default checkpoints
-      - /data/enso-atlas/config:/app/config             # projects.yaml
-    ports:
-      - "8003:8000"                   # API
-    restart: unless-stopped
-    depends_on:
-      atlas-db:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 180s             # MedGemma warmup takes ~2-3 min
+- Replace developer-specific host mounts (`/home/hansonwen/med-gemma-hackathon/...`)
+- Remove hardcoded DB credentials from committed compose config
+- Bind PostgreSQL to localhost (`127.0.0.1:5433:5432`) unless remote DB access is required
+- Keep source-code bind mounts only for development (`/app/src:ro`)
+- Keep `8003:8000`; expose `7862` only if Gradio/UI experiments are needed
 
-  atlas-db:
-    image: postgres:16
-    container_name: atlas-db
-    environment:
-      POSTGRES_DB: enso_atlas
-      POSTGRES_USER: enso
-      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-change_me_in_production}"
-    volumes:
-      - atlas-pgdata:/var/lib/postgresql/data
-    ports:
-      - "5433:5432"
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U enso -d enso_atlas"]
-      interval: 5s
-      timeout: 3s
-      retries: 10
-      start_period: 10s
+Recommended override pattern:
 
-volumes:
-  atlas-pgdata:
-    driver: local
+```bash
+docker compose -f docker/docker-compose.yaml -f docker/docker-compose.hospital.yaml up -d
 ```
 
-### 13.6.2 Environment Variables Reference
+### 13.6.2 Reference environment variables
 
-| Variable | Required | Default | Description |
-|---|---|---|---|
-| `DATABASE_URL` | Yes | `postgresql://enso:...@atlas-db:5432/enso_atlas` | PostgreSQL connection string |
-| `POSTGRES_PASSWORD` | Yes | `enso_atlas_2024` | Change in production |
-| `MIL_ARCHITECTURE` | No | `clam` (compose overrides to `transmil`) | MIL model type |
-| `MIL_THRESHOLD_CONFIG` | No | `models/threshold_config.json` | Threshold config path |
-| `MIL_MODEL_PATH` | No | (auto-detected) | Override default model checkpoint |
-| `TRANSFORMERS_OFFLINE` | No | `0` | Set to `1` for air-gapped deployment |
-| `HF_HUB_OFFLINE` | No | `0` | Set to `1` for air-gapped deployment |
-| `NVIDIA_VISIBLE_DEVICES` | No | `all` | GPU device selection |
-| `NEXT_PUBLIC_API_URL` | No | *(empty, same-origin `/api`)* | Frontend API URL (leave empty for public tunnel deployments) |
-| `EMBEDDINGS_DIR` | No | `data/embeddings` | Override embeddings directory |
-
-### 13.6.3 Volume Mounts
-
-| Container Path | Purpose | Mode |
+| Variable | Required | Description |
 |---|---|---|
-| `/app/data` | Slides (.svs), embeddings (.npy), labels (.csv), heatmap cache | rw |
-| `/app/outputs` | Trained TransMIL model checkpoints | rw |
-| `/root/.cache/huggingface` | Pre-downloaded HuggingFace models (Path Foundation, MedGemma, MedSigLIP) | ro |
-| `/app/models` | Default TransMIL checkpoint and threshold config | ro |
-| `/app/config` | `projects.yaml` and `default.yaml` | ro |
+| `DATABASE_URL` | Yes | PostgreSQL DSN used by backend |
+| `MIL_ARCHITECTURE` | No | `transmil` or `clam` |
+| `MIL_MODEL_PATH` | No | Explicit checkpoint path override |
+| `MIL_THRESHOLD_CONFIG` | No | Threshold config JSON path |
+| `ENSO_CONFIG` | No | Path to `config/default.yaml` |
+| `EMBEDDINGS_DIR` | No | Override default embeddings root |
+| `HF_HOME` | No | Hugging Face cache root (useful for offline Docker mounts) |
+| `TRANSFORMERS_OFFLINE` | No | Set `1` for air-gapped mode |
+| `HF_HUB_OFFLINE` | No | Set `1` for air-gapped mode |
+| `NEXT_PUBLIC_API_URL` | Frontend | Backend base URL for frontend/proxy |
 
-### 13.6.4 Without GPU (Mac mini / CPU-only)
+### 13.6.3 CPU-only deployment notes
 
-Remove the `deploy.resources` GPU section from docker-compose.yaml. PyTorch automatically falls back to CPU for TransMIL. MedGemma is significantly slower on CPU (~60-120s per report instead of ~20s). For Mac mini, native deployment (Step 3b) is preferable over Docker for access to Apple MPS acceleration.
+If GPU is unavailable:
+
+- Remove `deploy.resources.reservations.devices` from compose
+- Keep `concurrency=1` for long embedding runs
+- Expect slower MedGemma report generation
+- Consider disabling `medgemma_reports` or `medsiglip_search` per project
 
 ---
 
 ## 13.7 Network and Security
 
-### 13.7.1 Network Architecture
+### 13.7.1 Recommended DGX network topology
 
-Enso Atlas requires no inbound internet access at runtime. All models are pre-downloaded.
+```text
+Hospital LAN / Tailnet
 
-```
-+---------------------------------------------------------------+
-|  Hospital Network                                             |
-|                                                               |
-|  +-------------------+      +----------------------------+   |
-|  |  PACS / LIS       |----->|  Enso Atlas Server         |   |
-|  |  (Slide Export)    |      |  Backend:  localhost:8003  |   |
-|  +-------------------+      |  Frontend: localhost:3002  |   |
-|                              |  Database: localhost:5433  |   |
-|  +-------------------+      +----------------------------+   |
-|  |  Clinician        |<---->|           ^                    |
-|  |  Workstation      |      |           |                    |
-|  +-------------------+      +-----------+                    |
-|                                                               |
-+---------------------------------------------------------------+
-            |
-            X  No outbound data transfer
-            |
+Clinician Browser ---> Frontend (Next.js, :3002)
+                           |
+                           | /api proxy
+                           v
+                     Backend API (FastAPI, :8003)
+                           |
+                           v
+                    PostgreSQL (atlas-db, :5433)
 ```
 
-### 13.7.2 Firewall Configuration
+Operational rule: keep backend and DB private to LAN/Tailnet. Expose frontend only when external access is required.
 
-**Internal access only (default):** No ports need to be exposed to the internet.
+### 13.7.2 Firewall baseline
 
-| Port | Service | Access |
+| Port | Service | Recommendation |
 |---|---|---|
-| 3002 | Frontend (Next.js) | Hospital LAN only |
-| 8003 | Backend API | Hospital LAN only |
-| 5433 | PostgreSQL | localhost only (or hospital LAN) |
+| 3002 | Frontend | Allow hospital LAN; optional public tunnel |
+| 8003 | Backend API | LAN/Tailnet only |
+| 5433 | PostgreSQL | Localhost only in most deployments |
 
-**Restrict PostgreSQL** to localhost if the database runs on the same machine:
+### 13.7.3 Public/demo tunnel options
 
-```yaml
-# In docker-compose.yaml, change:
-ports:
-  - "127.0.0.1:5433:5432"  # Bind to localhost only
-```
-
-### 13.7.3 Public Tunnel Access (Optional)
-
-For temporary public/demo access without opening inbound firewall ports:
-
-#### Option A: Tailscale Funnel
+Tailscale Funnel:
 
 ```bash
-# Install Tailscale on the server
-curl -fsSL https://tailscale.com/install.sh | sh
 tailscale up
-
-# Expose the frontend publicly via HTTPS
 tailscale funnel 3002
-# Accessible at https://<node>.ts.net/
 ```
 
-#### Option B: Cloudflare Tunnel (recommended for public demos)
+Cloudflare Tunnel:
 
 ```bash
-# Install cloudflared on the host and expose frontend
 cloudflared tunnel --url http://127.0.0.1:3002
-# Accessible at https://<name>.trycloudflare.com (or named tunnel host)
 ```
 
-Operational rule for both options:
-- expose only frontend (`3002`), not backend (`8003`)
-- keep frontend API calls same-origin through Next.js proxy (`/api/...`)
-- leave `NEXT_PUBLIC_API_URL` empty for public tunnel deployments
+For public tunnel deployments:
 
-If `NEXT_PUBLIC_API_URL` is set to a private/Tailnet address (for example `http://100.x.y.z:8003`), public users can load the UI but backend calls fail with disconnected errors.
+- expose only frontend (`3002`)
+- keep backend private
+- avoid publishing private Tailnet backend URLs in browser-exposed `NEXT_PUBLIC_API_URL`
 
-### 13.7.4 HIPAA Compliance Notes
+### 13.7.4 HIPAA implementation notes
 
-Enso Atlas is designed for HIPAA alignment, though formal certification is the hospital's responsibility:
+Enso Atlas supports HIPAA-aligned deployments, but institutional compliance remains the operator's responsibility.
 
-| HIPAA Requirement | Enso Atlas Implementation |
+| Control Domain | Recommended Implementation |
 |---|---|
-| Access controls | Network-perimeter authentication; no built-in auth (delegate to hospital SSO/VPN) |
-| Audit trail | All analyses, reports, annotations, and exports logged with timestamps |
-| Data encryption at rest | Delegate to OS-level disk encryption (BitLocker, FileVault, LUKS) |
-| Data encryption in transit | HTTPS via Tailscale/Cloudflare tunnel or reverse proxy; PostgreSQL SSL configurable |
-| Minimum necessary | Project-scoped slide/model access; no unnecessary data exposure |
-| Backup and recovery | PostgreSQL backup procedures (see Section 13.8) |
-| No cloud transmission | `TRANSFORMERS_OFFLINE=1` enforced; no telemetry; no outbound connections |
-
-**Recommendation:** Run Enso Atlas on an encrypted volume. Place it behind the institution's existing authentication proxy (e.g., OAuth2 proxy, Shibboleth). The audit log (`GET /api/audit-log`) provides a compliance-ready event stream.
+| Access control | Place frontend behind hospital SSO/VPN/reverse proxy |
+| Auditability | Retain `/api/audit-log` and infrastructure logs |
+| Encryption at rest | Use FileVault/LUKS/BitLocker + encrypted backups |
+| Encryption in transit | TLS via reverse proxy, tunnel, or internal PKI |
+| Data locality | Air-gapped mode + no cloud inference dependencies |
 
 ---
 
 ## 13.8 Database Management
 
-### 13.8.1 PostgreSQL Setup
+### 13.8.1 PostgreSQL setup
 
-The Docker Compose configuration includes a PostgreSQL 16 container that starts automatically. For native deployment:
+Docker compose includes `atlas-db` (PostgreSQL 16). For native installs:
 
 ```bash
-# macOS
-brew install postgresql@16
-brew services start postgresql@16
-createuser enso
-createdb -O enso enso_atlas
-
-# Ubuntu
+# Ubuntu example
 sudo apt install postgresql-16
 sudo -u postgres createuser enso
 sudo -u postgres createdb -O enso enso_atlas
-sudo -u postgres psql -c "ALTER USER enso PASSWORD 'your_secure_password';"
+sudo -u postgres psql -c "ALTER USER enso PASSWORD 'change_me';"
 ```
 
-### 13.8.2 Schema Initialization
+### 13.8.2 Schema and migrations
 
-The schema is created automatically on first startup. The backend runs migrations through v5:
+Schema bootstrap/migrations run automatically at startup (currently through v5). Repeated startup is idempotent.
 
-| Version | Tables Created/Modified |
-|---|---|
-| v1 | patients, slides, slide_metadata, analysis_results, embedding_tasks, projects, schema_version |
-| v2 | Added `project_id` column to slides |
-| v3 | project_models and project_slides junction tables |
-| v4 | Added `display_name` column to slides |
-| v5 | annotations table |
+### 13.8.3 Backup and restore
 
-Migrations are idempotent and safe to re-run.
-
-### 13.8.3 Backup and Restore
-
-**Backup (run regularly via cron):**
+Backup:
 
 ```bash
-# Docker deployment
-docker exec atlas-db pg_dump -U enso enso_atlas > enso_atlas_backup_$(date +%Y%m%d).sql
+# Docker
+docker exec atlas-db pg_dump -U enso enso_atlas > enso_atlas_$(date +%Y%m%d).sql
 
-# Native deployment
-pg_dump -U enso enso_atlas > enso_atlas_backup_$(date +%Y%m%d).sql
+# Native
+pg_dump -U enso enso_atlas > enso_atlas_$(date +%Y%m%d).sql
 ```
 
-**Restore from backup:**
+Restore:
 
 ```bash
-# Docker deployment
-docker exec -i atlas-db psql -U enso enso_atlas < enso_atlas_backup_20250210.sql
+# Docker
+docker exec -i atlas-db psql -U enso enso_atlas < enso_atlas_20260224.sql
 
-# Native deployment
-psql -U enso enso_atlas < enso_atlas_backup_20250210.sql
+# Native
+psql -U enso enso_atlas < enso_atlas_20260224.sql
 ```
 
-**Automated daily backup (cron):**
-
-```bash
-# Add to crontab -e
-0 2 * * * docker exec atlas-db pg_dump -U enso enso_atlas | gzip > /backups/enso_atlas_$(date +\%Y\%m\%d).sql.gz
-# Keep last 30 days
-0 3 * * * find /backups -name "enso_atlas_*.sql.gz" -mtime +30 -delete
-```
-
-### 13.8.4 Database Repopulation
-
-If slides, labels, or embeddings are modified outside the API:
+### 13.8.4 Repopulate metadata after file changes
 
 ```bash
 curl -X POST http://localhost:8003/api/db/repopulate
-# Re-reads all CSV, .npy, and .svs files and updates the database
 ```
 
-This is safe to run at any time -- it uses `ON CONFLICT DO UPDATE` for idempotency.
+Use after adding/removing slides, embeddings, or labels outside API workflows.
 
-### 13.8.5 Changing the Database Password
+### 13.8.5 Rotate DB credentials
 
-**Step 1:** Update the PostgreSQL password:
-```bash
-docker exec -it atlas-db psql -U enso -c "ALTER USER enso PASSWORD 'new_secure_password';"
-```
-
-**Step 2:** Update `DATABASE_URL` in docker-compose.yaml:
-```yaml
-DATABASE_URL: "postgresql://enso:new_secure_password@atlas-db:5432/enso_atlas"
-```
-
-**Step 3:** Restart the backend:
-```bash
-docker compose -f docker/docker-compose.yaml restart enso-atlas
-```
+1. Rotate PostgreSQL user password
+2. Update `DATABASE_URL` in runtime environment
+3. Restart backend services
+4. Verify with `GET /api/db/status`
 
 ---
 
 ## 13.9 Post-Deployment Checklist
 
-Checklist for verifying a complete hospital deployment:
+Use this checklist before clinical pilot rollout:
 
-```
-[ ] Hardware meets minimum requirements (16 GB RAM, 256 GB SSD)
-[ ] Repository cloned and dependencies installed
-[ ] HuggingFace models downloaded (Path Foundation, MedGemma, MedSigLIP)
-[ ] PostgreSQL running and accessible
-[ ] Backend starts and passes health check (curl /api/health)
-[ ] Frontend builds and loads in browser (http://localhost:3002)
-[ ] At least one project configured in config/projects.yaml
-[ ] Slide files copied to the configured slides_dir
-[ ] Embeddings generated for all slides (check /api/slides for has_embeddings=true)
-[ ] Labels file populated with clinical data
-[ ] Database populated (curl /api/db/status shows correct slide count)
-[ ] Multi-model analysis works (test with one slide in the UI)
-[ ] Heatmap overlay renders correctly on the WSI viewer
-[ ] PDF report generation works (try "Generate Report" button)
-[ ] Air-gapped mode enabled (TRANSFORMERS_OFFLINE=1)
-[ ] Database backup scheduled (cron job)
-[ ] Firewall rules restrict access to hospital LAN
-[ ] PostgreSQL password changed from default
-[ ] Disk encryption enabled on the host
+```text
+[ ] Hardware sized for expected throughput and cohort growth
+[ ] docker-compose paths and credentials replaced from repo defaults
+[ ] Path Foundation, MedGemma, and MedSigLIP assets available locally
+[ ] Backend health endpoint returns healthy
+[ ] Frontend reachable on hospital LAN at :3002
+[ ] /api/models and /api/slides return project-scoped results
+[ ] New slide upload + embedding + analysis tested end-to-end
+[ ] Database backup/restore tested with a real backup artifact
+[ ] Offline mode enabled (TRANSFORMERS_OFFLINE=1, HF_HUB_OFFLINE=1)
+[ ] Firewall rules restrict backend/database exposure
+[ ] Audit logging and authentication controls reviewed with IT/security
 ```
 
 ---
 
 ## 13.10 Upgrading
 
-To upgrade Enso Atlas to a new version:
+### Docker deployment
 
 ```bash
-# Pull latest code
 cd enso-atlas
 git pull origin main
 
-# Rebuild backend container
-docker compose -f docker/docker-compose.yaml build enso-atlas
-docker compose -f docker/docker-compose.yaml up -d enso-atlas
+docker compose -f docker/docker-compose.yaml -f docker/docker-compose.hospital.yaml up -d --build
 
-# Rebuild frontend
 cd frontend
 npm install
 npm run build
 npx next start -p 3002
 ```
 
-Database migrations run automatically on startup. Data, models, and configuration are preserved (they live in mounted volumes, not inside the container).
-
-For native deployments:
+### Native deployment
 
 ```bash
+cd enso-atlas
 git pull origin main
-pip install -e .  # Update Python dependencies
-cd frontend && npm install && npm run build  # Update frontend
-# Restart the backend process
+source .venv/bin/activate
+pip install -e .
+
+cd frontend
+npm install
+npm run build
+npx next start -p 3002
 ```
 
-## 13.6 Hospital Deployment Walkthrough
-
-This section provides a step-by-step guide for hospital IT teams to deploy Enso Atlas on local infrastructure with local data and models.
-
-### Step 1: Hardware Selection
-
-| Configuration | RAM | GPU | Use Case |
-|---|---|---|---|
-| Mac mini M2/M4 (minimum) | 16 GB | Integrated (MPS) | Small cohorts (<500 slides), CPU embedding |
-| Mac mini M4 Pro/Max | 32-64 GB | Integrated (MPS) | Medium cohorts, faster MedGemma inference |
-| Linux workstation + A40/L40 | 32+ GB + 48 GB VRAM | NVIDIA CUDA | Full performance, GPU embedding |
-| NVIDIA DGX Spark | 128 GB unified | Blackwell (limited TF support) | Reference deployment |
-
-### Step 2: Install and Start
-
-```bash
-git clone https://github.com/Hilo-Hilo/enso-atlas.git
-cd enso-atlas/docker
-docker compose up -d
-```
-
-Wait approximately 3-4 minutes for model loading and warmup. Verify with:
+After either upgrade path, run:
 
 ```bash
 curl http://localhost:8003/api/health
+curl http://localhost:8003/api/db/status
 ```
 
-### Step 3: Add a New Cancer Type
-
-Edit `config/projects.yaml` to add a new project. Example for lung adenocarcinoma:
-
-```yaml
-foundation_models:
-  path_foundation:
-    name: "Path Foundation"
-    embedding_dim: 384
-    description: "Google Health pathology foundation model"
-  # Additional foundation model:
-  uni_v2:
-    name: "UNI v2"
-    embedding_dim: 1024
-    description: "Mass General Brigham universal pathology encoder"
-
-classification_models:
-  # Custom trained model:
-  egfr_mutation:
-    model_dir: "egfr_transmil_v1"
-    display_name: "EGFR Mutation Prediction"
-    auc: 0.83
-    n_slides: 450
-    category: "lung_cancer"
-    positive_label: "EGFR Mutant"
-    negative_label: "Wild Type"
-    compatible_foundation: "path_foundation"
-    embedding_dim: 384
-
-projects:
-  # Keep existing demo project:
-  ovarian-platinum:
-    # ... (unchanged)
-
-  # New project:
-  lung-egfr:
-    name: "Lung Adenocarcinoma - EGFR Mutation"
-    cancer_type: "Lung Cancer"
-    prediction_target: egfr_mutation
-    classes: ["wild_type", "mutant"]
-    positive_class: mutant
-    foundation_model: path_foundation
-    classification_models:
-      - egfr_mutation
-    features:
-      medgemma_reports: true
-      medsiglip_search: false    # Disable if not needed
-      semantic_search: false
-    threshold: 0.5               # Adjust after validation
-```
-
-### Step 4: Train a Classification Model
+If model metadata changed, re-check:
 
 ```bash
-# 1. Place WSI files in a slides directory
-mkdir -p /data/lung_slides
-
-# 2. Extract patches and generate embeddings
-python scripts/embed_level0_pipelined.py \
-  --slide-dir /data/lung_slides \
-  --output-dir /data/lung_embeddings \
-  --batch-size 512
-
-# 3. Prepare labels CSV (slide_id, label columns)
-# Format: slide_id,egfr_status
-# Example: TCGA-XX-XXXX.svs,mutant
-
-# 4. Train TransMIL
-python scripts/train_transmil_finetune.py \
-  --embeddings_dir /data/lung_embeddings \
-  --labels_file /data/lung_labels.csv \
-  --output_dir outputs/egfr_transmil_v1
-
-# 5. Copy weights to the models directory
-# No copy needed if training output_dir is already outputs/egfr_transmil_v1
-
-# 6. Restart the server
-cd docker && docker compose restart enso-atlas
+curl "http://localhost:8003/api/models?project_id=ovarian-platinum"
 ```
-
-### Step 5: Swap Foundation Models
-
-To use a different foundation model (e.g., UNI instead of Path Foundation), follow these steps:
-
-1. Register the model in `foundation_models` section of `projects.yaml` with the correct `embedding_dim`
-2. Implement the embedding interface in `src/enso_atlas/embeddings/` (a function that takes image patches and returns vectors)
-3. Update the project `foundation_model` field to reference the new model
-4. Re-embed slides using the new model (existing embeddings are model-specific)
-5. Re-train classification heads on the new embeddings (embedding dimensions must match)
-
-The classification models specify `compatible_foundation` and `embedding_dim` to prevent mismatched embeddings from being used.
-
-### Step 6: Configure Feature Toggles
-
-Each project independently controls which features are available:
-
-```yaml
-features:
-  medgemma_reports: true    # AI-generated clinical reports (requires MedGemma)
-  medsiglip_search: true    # Semantic text-to-patch search (requires MedSigLIP)
-  semantic_search: true     # Similar case retrieval (requires FAISS index)
-```
-
-Setting any feature to `false` disables it for that project. This is useful when:
-- MedGemma or MedSigLIP are not installed (e.g., CPU-only deployment)
-- Certain features are not relevant for the cancer type
-- A simplified interface is needed for specific user groups
-
-### Step 7: Network and Security
-
-- **Air-gapped deployment:** The system runs entirely on-premise. No external API calls are made during inference.
-- **Tailscale (optional):** For secure remote access without opening firewall ports: `tailscale funnel 3002`
-- **Reverse proxy:** Place behind nginx or Caddy for TLS termination and authentication integration with the hospital SSO (SAML, LDAP)
-- **Database backups:** PostgreSQL data is stored in the Docker volume. Schedule `pg_dump` via cron for backup.
-
-```bash
-# Backup database
-docker exec atlas-db pg_dump -U postgres enso_atlas > backup_$(date +%Y%m%d).sql
-
-# Restore
-cat backup_20260210.sql | docker exec -i atlas-db psql -U postgres enso_atlas
-```
-
----
 
 # 14. Data Pipeline
 
