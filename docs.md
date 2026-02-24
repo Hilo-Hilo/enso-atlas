@@ -2602,14 +2602,15 @@ Training/evaluation scripts consume these files through explicit CLI arguments (
 
 # 15. Security and Compliance
 
-## 15.1 On-Premise Design
+## 15.1 On-Premise Deployment Posture
 
-No data leaves the hospital network:
+Enso Atlas is designed to run on local infrastructure, but true air-gapped operation depends on deployment policy as well as application settings.
 
-- **Offline-capable runtime:** Set `TRANSFORMERS_OFFLINE=1` and `HF_HUB_OFFLINE=1` to enforce air-gapped operation after model pre-caching (compose defaults are `0`)
-- **No telemetry:** All analytics disabled
-- **Local database:** PostgreSQL co-located Docker container
-- **Local storage:** All embeddings, slides, and model weights on local volumes
+- **Local runtime:** `docker/docker-compose.yaml` deploys the API service and PostgreSQL on the same host/network.
+- **Local data paths:** Slides, embeddings, model weights, and cache directories are mounted as local volumes/bind mounts.
+- **Offline model loading (when enabled):** Set `TRANSFORMERS_OFFLINE=1` and `HF_HUB_OFFLINE=1` after pre-caching model artifacts. The embedding loader then uses local-only Hugging Face resolution.
+- **Telemetry surface:** The default config sets `enable_telemetry: false`; no external telemetry backend is wired in the current codebase.
+- **Network boundary requirement:** The application itself does not enforce egress firewall rules. If you require zero outbound traffic, enforce it at the network layer.
 
 ```
 +-------------------------------------------------------+
@@ -2628,37 +2629,46 @@ No data leaves the hospital network:
 |                           +-----------------+         |
 +-------------------------------------------------------+
            |
-           X  No outbound data transfer
+           X  Outbound paths should be blocked by policy
            |
 ```
 
-## 15.2 HIPAA Considerations
+## 15.2 HIPAA-Oriented Controls (Current Implementation)
 
-- **Audit Trail:** All analyses, reports, annotations, and exports logged with timestamps and user IDs
-- **No PHI in Logs:** Logging configured to avoid patient-identifiable information
-- **Access Control:** Runs within hospital network; authentication delegated to network perimeter
-- **Data Encryption:** PostgreSQL SSL configurable; disk encryption recommended at OS level
+The codebase includes several controls that support HIPAA-aligned deployments, but some controls are deployment responsibilities rather than built-in guarantees.
 
-### Audit Event Types
+- **Audit logging exists, but is in-memory by default:** The API writes audit events to an in-process deque (`maxlen=500`) and serves them via `GET /api/audit-log`.
+- **Event content:** Audit records include timestamp, event type, `slide_id`, `user_id`, and structured details. Treat identifiers as potentially sensitive based on local naming practices.
+- **Access control is externalized:** There is no built-in app-level authentication/authorization layer in the API; production deployments should place Enso Atlas behind institutional identity/access controls.
+- **Encryption is configurable at deployment time:** TLS and PostgreSQL SSL are not enforced by default in Compose; enable them through your reverse proxy/DB connection settings and infrastructure hardening.
+
+### Audit Event Types (Implemented)
 
 | Event Type | Trigger |
 |---|---|
-| `analysis_completed` | Slide analysis |
-| `multi_model_analysis` | Multi-model ensemble |
-| `batch_analysis_slide` | Batch slide analysis |
-| `batch_analysis_async_completed` | Async batch completed |
-| `uncertainty_analysis_completed` | MC Dropout analysis |
-| `batch_analysis_completed` | Batch slide analysis (synchronous) |
+| `analysis_completed` | Single-slide analysis completion |
+| `multi_model_analysis` | Multi-model analysis run |
+| `batch_analysis_slide` | Per-slide event during batch analysis |
+| `batch_analysis_completed` | Synchronous batch completion |
+| `batch_analysis_async_completed` | Asynchronous batch completion |
+| `batch_analysis_cancelled` | Batch cancellation request |
+| `uncertainty_analysis_completed` | MC Dropout uncertainty analysis |
 | `pdf_exported` | PDF export |
-| `annotation_created` | Annotation created |
-| `annotation_deleted` | Annotation deleted |
-| `visual_search` | Image-to-image search |
-| `patch_classification` | Few-shot classification |
+| `annotation_created` | Annotation creation |
+| `annotation_deleted` | Annotation deletion |
+| `visual_search` | Visual similarity search |
+| `patch_classification` | Few-shot patch classification |
 | `outlier_detection` | Outlier tissue detection |
 
-## 15.3 Research-Only Disclaimers
+## 15.3 Research-Use Safeguards
 
-Every report includes mandatory safety statements. The PDF export includes a header warning: "UNCALIBRATED MODEL - RESEARCH USE ONLY". Prohibited phrase validation prevents the system from making direct treatment recommendations.
+Current report-generation paths include explicit research-use protections:
+
+- Generated MedGemma report payloads include a required `safety_statement` field.
+- PDF export adds a prominent "UNCALIBRATED MODEL - RESEARCH USE ONLY" warning banner.
+- Report validation rejects a small set of treatment-directive phrases (for example, "start treatment" and "prescribe").
+
+These safeguards reduce obvious misuse, but they are not a substitute for clinical validation, governance review, or regulatory clearance.
 
 ---
 
