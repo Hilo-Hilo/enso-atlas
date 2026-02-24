@@ -6,7 +6,7 @@
 
 **On-Premise Multi-Cancer Pathology Evidence Platform for Project-Scoped Clinical AI**
 
-Enso Atlas is an on-premise pathology evidence platform that analyzes whole-slide images (WSIs) using TransMIL attention-based classification, Path Foundation embeddings, MedSigLIP retrieval, and MedGemma reporting across multiple cancer projects with project isolation.
+Enso Atlas is an on-premise pathology evidence platform that analyzes whole-slide images (WSIs) using CLAM/TransMIL attention-based classification, Path Foundation embeddings, MedSigLIP retrieval, and MedGemma reporting across multiple cancer projects with strict project isolation. The platform is disease-agnostic; the ovarian and lung setups in this repository are reference demos.
 
 ## Competition Context
 
@@ -15,13 +15,13 @@ This repository is developed for the **Kaggle-Google Med Gemma Impact Challenge*
 - Writeups page: https://www.kaggle.com/competitions/med-gemma-impact-challenge
 - Challenge prompt: **The MedGemma Impact Challenge — Build human-centered AI applications with MedGemma and other open models from Google’s Health AI Developer Foundations (HAI-DEF).**
 
-**Last Updated:** February 22, 2026
+**Last Updated:** February 24, 2026
 
 ---
 
 ## Highlights
 
-- **Multi-project platform**: Project definitions are driven by `config/projects.yaml`.
+- **Multi-project platform**: Project definitions are driven by `config/projects.yaml`; current reference projects are:
   - `ovarian-platinum` — **Ovarian Cancer - Platinum Sensitivity**
   - `lung-stage` — **Lung Adenocarcinoma - Stage Classification**
 - **Strict project isolation**: Slide listing, model selection, heatmaps, similar-case retrieval, report generation, batch analysis, and async tasks are scoped by `project_id` with no cross-project fallback.
@@ -33,6 +33,19 @@ This repository is developed for the **Kaggle-Google Med Gemma Impact Challenge*
 - **Heatmap rendering modes**: Truthful patch-grid overlays plus optional interpolated/smoothed view.
 - **Project-aware frontend UX**: ModelPicker prunes stale model IDs on project switch; prediction panels, AI assistant, and patch zoom use project-specific language.
 - **Local-first deployment**: Runs on-premise; no PHI leaves the hospital network.
+
+## Recent Model and Pipeline Updates
+
+- `scripts/train_transmil_finetune.py` now supports patient-level stratified k-fold CV, class-balanced epoch sampling, minority-class feature augmentation (noise injection, feature dropout, mixup), configurable patch caps (`max_train_patches`, `max_eval_patches`), single-split mode, and per-fold PR-AUC plus calibration curves.
+- `scripts/multi_model_inference.py` now supports per-model decision thresholds (from `config/projects.yaml` or training outputs), wrapped checkpoint loading, CUDA OOM fallback with patch subsampling, and threshold-relative confidence calibration.
+- `src/enso_atlas/mil/clam.py` now includes a `TransMILClassifier` implementation alongside CLAM, with the same public inference interface.
+- `src/enso_atlas/reporting/medgemma.py` now includes structured report parsing, safety-constrained prompting, multi-section fallback behavior, and stronger generation error handling.
+- New data preparation scripts are included for barcode-balanced pool rebuilding, lung stage pool prep, ovarian endpoint pool prep, and bucket H5-to-NPY conversion:
+  - `scripts/rebuild_multimodel_pools_barcode_balanced.py`
+  - `scripts/prepare_lung_stage_api_pool.py`
+  - `scripts/prepare_ov_endpoint_api_pool.py`
+  - `scripts/convert_bucket_h5_to_npy.py`
+- `config/projects.yaml` now defines `decision_threshold: 0.9935` for `tumor_grade`.
 
 ---
 
@@ -134,8 +147,8 @@ npm run dev
                  |                      |                             |
                  v                      v                             v
           +-------------+        +--------------+              +-------------+
-          | Path        |        | TransMIL     |              | MedGemma    |
-          | Foundation  |        | Classifiers  |              | Reporting   |
+          | Path        |        | CLAM +       |              | MedGemma    |
+          | Foundation  |        | TransMIL     |              | Reporting   |
           | (level-0)   |        | (project set)|              | (async)     |
           +-------------+        +--------------+              +-------------+
                  |                      |                             |
@@ -156,7 +169,7 @@ npm run dev
 | **Project-Scoped Routing** | Endpoints enforce `project_id` scope for slides, models, analysis, retrieval, and reports |
 | **WSI Processing** | OpenSlide-based processing with tissue detection |
 | **Path Foundation** | 384-dim patch embeddings; level-0 dense embeddings are the default analysis path |
-| **TransMIL** | Transformer-based MIL for slide-level classification |
+| **CLAM + TransMIL** | Attention-based MIL options for slide-level classification (shared classifier interface) |
 | **MedSigLIP** | Text-to-patch semantic search (project-scoped availability) |
 | **FAISS Retrieval** | Similar case search constrained to slides in the selected project |
 | **MedGemma 1.5 4B** | Structured clinical report generation with project-aware context |
@@ -182,7 +195,7 @@ Total: **6 project-scoped classification models** (5 ovarian + 1 lung).
 | WSI I/O | OpenSlide |
 | Embeddings | Path Foundation (ViT-S, 384-dim) |
 | Semantic Search | MedSigLIP (text-to-patch retrieval) |
-| Classification | TransMIL (Transformer-based MIL) |
+| Classification | CLAM + TransMIL (attention-based MIL) |
 | Retrieval | FAISS |
 | Reporting | MedGemma 1.5 4B |
 | Backend | FastAPI + Python 3.10+ + asyncpg |
@@ -273,7 +286,7 @@ med-gemma-hackathon/
 |   |-- api/           # FastAPI endpoints
 |   |-- embedding/     # Path Foundation embedder
 |   |-- evidence/      # Heatmaps and FAISS retrieval
-|   |-- mil/           # TransMIL attention classifier
+|   |-- mil/           # CLAM + TransMIL attention classifiers
 |   |-- reporting/     # MedGemma report generation
 |   |-- wsi/           # WSI processing
 |-- frontend/          # Next.js 14.2 application
@@ -330,17 +343,19 @@ If this check fails, level-0 heatmaps and analysis can report missing level-0 em
 
 Projects are managed via `config/projects.yaml` and `/api/projects` CRUD endpoints.
 
-Configured projects:
+Current reference projects:
 - `ovarian-platinum`: Ovarian Cancer - Platinum Sensitivity
 - `lung-stage`: Lung Adenocarcinoma - Stage Classification
 
 Project isolation is enforced in API routing and task execution, including batch analysis and async report generation.
 
+Model-level decision thresholds can also be set in `config/projects.yaml` (for example, `tumor_grade` currently uses `decision_threshold: 0.9935`).
+
 ---
 
 ## Dataset
 
-The platform currently supports two project datasets:
+This repository currently includes two reference project datasets:
 
 - **Ovarian cancer cohort** for platinum sensitivity, tumor grade, and survival classification
 - **Lung adenocarcinoma cohort** for stage classification

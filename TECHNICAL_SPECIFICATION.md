@@ -313,34 +313,34 @@ graph TB
 
 ```mermaid
 flowchart LR
-    subgraph "Offline Pipeline"
-        WSI[WSI .svs File] --> PATCH[Patch Extraction<br/>224x224 @ Level 0 (dense)]
-        PATCH --> PF_EMB[Path Foundation<br/>Embedding (dense level-0 grid)]
-        PF_EMB --> NPY[.npy Files<br/>N x 384]
+    subgraph Offline_Pipeline ["Offline Pipeline"]
+        WSI["WSI (.svs file)"] --> PATCH["Patch extraction (224x224, level 0 dense)"]
+        PATCH --> PF_EMB["Path Foundation embedding (dense level-0 grid)"]
+        PF_EMB --> NPY[".npy embeddings (N x 384)"]
     end
 
-    subgraph "Online Analysis"
-        NPY --> TRANSMIL[TransMIL x6<br/>Classification]
-        TRANSMIL --> PRED[Prediction<br/>+ Attention Weights]
-        PRED --> HEATMAP[Attention Heatmap<br/>Per-Model Cached PNG]
-        PRED --> EVIDENCE[Top-K Evidence<br/>Patches]
-        NPY --> FAISS_Q[FAISS<br/>Query]
-        FAISS_Q --> SIMILAR[Similar<br/>Cases]
-        NPY --> SIGLIP[MedSigLIP<br/>Semantic Search]
-        SIGLIP --> TEXT_MATCH[Text-Matched<br/>Patches]
-        NPY --> OUTLIER[Outlier<br/>Detection]
-        OUTLIER --> UNUSUAL[Unusual<br/>Patches]
-        NPY --> FEWSHOT[Few-Shot<br/>Classifier]
-        FEWSHOT --> TISSUE_MAP[Tissue<br/>Classification]
+    subgraph Online_Analysis ["Online Analysis"]
+        NPY --> TRANSMIL["TransMIL models (project scoped)"]
+        TRANSMIL --> PRED["Predictions + attention weights"]
+        PRED --> HEATMAP["Attention heatmap (regenerated per analysis run)"]
+        PRED --> EVIDENCE["Top-K evidence patches"]
+        NPY --> FAISS_Q["FAISS retrieval query"]
+        FAISS_Q --> SIMILAR["Similar cases"]
+        NPY --> SIGLIP["MedSigLIP semantic search"]
+        SIGLIP --> TEXT_MATCH["Text-matched patches"]
+        NPY --> OUTLIER["Outlier detection"]
+        OUTLIER --> UNUSUAL["Unusual patches"]
+        NPY --> FEWSHOT["Few-shot classifier"]
+        FEWSHOT --> TISSUE_MAP["Tissue classification"]
     end
 
-    subgraph "Reporting"
-        PRED --> MEDGEMMA[MedGemma 4B<br/>Report Generator]
+    subgraph Reporting ["Reporting"]
+        PRED --> MEDGEMMA["MedGemma 4B report generator"]
         EVIDENCE --> MEDGEMMA
         SIMILAR --> MEDGEMMA
-        MEDGEMMA --> JSON_REPORT[Structured<br/>JSON Report]
-        JSON_REPORT --> PDF_GEN[PDF<br/>Generator]
-        PDF_GEN --> PDF_OUT[Tumor Board<br/>PDF]
+        MEDGEMMA --> JSON_REPORT["Structured JSON report"]
+        JSON_REPORT --> PDF_GEN["PDF generator"]
+        PDF_GEN --> PDF_OUT["Tumor board PDF"]
     end
 ```
 
@@ -505,11 +505,12 @@ The reporting layer accepts any LLM that can produce structured JSON from a clin
 
 1. **Model Loading:** Lazy-loaded with thread-safe locking in bfloat16 on GPU
 2. **Warmup:** Test inference at startup pre-compiles CUDA kernels (60-120s)
-3. **Prompt Engineering:** Compact JSON-first prompt forcing structured output
-4. **Generation:** `torch.inference_mode()` with configurable max tokens and time limits via custom `StoppingCriteria`
+3. **Prompt Engineering:** JSON-first prompt with explicit section-level requirements (overview, key findings, patch significance, next steps, optional decision-support block)
+4. **Generation:** `torch.inference_mode()` with configurable max tokens and time limits via `max_time` or custom `StoppingCriteria`
 5. **Non-Blocking:** Inference runs in worker threads: `asyncio.to_thread()` in async paths and dedicated `threading.Thread` + timeout in report-task execution
-6. **JSON Parsing:** Progressive repair strategies for truncated JSON with regex fallback
-7. **Safety Validation:** Every report checked against prohibited phrases (e.g., "start treatment", "prescribe")
+6. **Structured Parsing:** Multi-stage parser handles code-fenced JSON, truncated JSON repair, field alias normalization, list coercion, and regex extraction fallback when parsing fails
+7. **Safety Constraints:** Validation enforces required fields and rejects prohibited treatment-directive phrases (e.g., "start treatment", "prescribe")
+8. **Fallback Handling:** If generation/validation still fails after retries, the system emits a deterministic fallback report with safety language and manual-review guidance
 
 ### Report Schema
 
@@ -577,11 +578,14 @@ classification_models:
     compatible_foundation: "path_foundation"   # Must match embedding_dim
 ```
 
-The demo deployment uses TransMIL. The following subsections document it as the reference classification architecture.
+The demo deployment currently ships with TransMIL checkpoints, while the runtime also supports CLAM through the same MIL interface. The active architecture is selected at startup via `MIL_ARCHITECTURE` (`transmil` or `clam`).
 
-## 4.1 TransMIL -- Demo Classification Architecture
+## 4.1 MIL Architectures in Runtime (TransMIL + CLAM)
 
-TransMIL extends the MIL paradigm with Transformer self-attention, allowing the model to capture inter-patch relationships and spatial context. Attention signals provide interpretability for clinical adoption. The current implementation supports TransMIL and CLAM; additional architectures require implementation before integration.
+TransMIL is the primary architecture used by the demo ovarian/lung model set in this repository. It uses multi-head self-attention plus learnable positional encoding (PPEG) to model relationships across large bags of patches. CLAM remains a supported alternative for deployments that prefer gated-attention MIL behavior.
+
+- `MIL_ARCHITECTURE=transmil` loads `TransMILClassifier`
+- `MIL_ARCHITECTURE=clam` loads `CLAMClassifier`
 
 ## 4.2 Architecture Details
 
@@ -612,52 +616,62 @@ graph TD
 | Dropout | 0.1 or 0.25 (checkpoint/training-config dependent; disabled during eval) | Via `--dropout` training arg |
 | Total Parameters | ~2.48M (2,477,569 with default 384->512, 2 layers, 8 heads) | Varies with hidden_dim/layers |
 
+CLAM checkpoints can be loaded through the same model registry, but checkpoint architecture and runtime architecture must match.
+
 ## 4.3 Multi-Model Inference
 
-The platform supports any number of classification models per project. The current deployment exposes six TransMIL models across ovarian and lung projects:
+The platform supports any number of classification models per project. The current deployment exposes six models across ovarian and lung demo projects:
 
-| Model ID | Display Name | Category | AUC | Training Slides |
-|---|---|---|---|---|
-| `platinum_sensitivity` | Platinum Sensitivity | Ovarian Cancer | 0.907 | 199 |
-| `tumor_grade` | Tumor Grade | General Pathology | 0.752 | 918 |
-| `survival_5y` | 5-Year Survival | Ovarian Cancer | 0.697 | 965 |
-| `survival_3y` | 3-Year Survival | Ovarian Cancer | 0.645 | 1,106 |
-| `survival_1y` | 1-Year Survival | Ovarian Cancer | 0.639 | 1,135 |
-| `lung_stage` | Tumor Stage | Lung Cancer | 0.648 | 130 |
+| Model ID | Display Name | Category | AUC | Training Slides | Decision Threshold |
+|---|---|---|---|---|---|
+| `platinum_sensitivity` | Platinum Sensitivity | Ovarian Cancer | 0.907 | 199 | 0.5 (default) |
+| `tumor_grade` | Tumor Grade | General Pathology | 0.752 | 918 | 0.9935 |
+| `survival_5y` | 5-Year Survival | Ovarian Cancer | 0.697 | 965 | 0.5 (default) |
+| `survival_3y` | 3-Year Survival | Ovarian Cancer | 0.645 | 1,106 | 0.5 (default) |
+| `survival_1y` | 1-Year Survival | Ovarian Cancer | 0.639 | 1,135 | 0.5 (default) |
+| `lung_stage` | Tumor Stage | Lung Cancer | 0.648 | 130 | 0.5 (default) |
 
 Multi-model inference runs only the models allowed for the request scope (`project_id`) and caches results to PostgreSQL's `analysis_results` table for instant retrieval on subsequent views (~0.8ms).
 
-## 4.4 Threshold Optimization
+## 4.4 Inference Runtime Behavior
 
-The classification threshold is optimized using the Youden J statistic:
+The inference runtime includes several safeguards and configuration-driven controls:
 
-```json
-{
-  "auc_roc": 0.879,
-  "n_slides": 152,
-  "n_positive": 139,
-  "n_negative": 13,
-  "optimal_threshold_youden": null,
-  "optimal_threshold_f1": null,
-  "recommended_threshold": 0.5,
-  "note": "Placeholder -- run scripts/optimize_threshold.py on DGX Spark to compute the real optimal threshold."
-}
+1. **Wrapped checkpoint loading:** Inference accepts both plain `state_dict` checkpoints and wrapped checkpoints (`{"model_state_dict": ..., "config": ...}`), with safe fallback loading when `weights_only=True` is not sufficient.
+2. **Per-model threshold resolution:** Threshold precedence is `MULTIMODEL_THRESHOLD_<MODEL_ID>` env override -> model `decision_threshold`/`threshold` in YAML -> model default.
+3. **CUDA OOM fallback:** If a bag is too large for GPU memory, inference retries with uniform patch subsampling (`N -> N/2 -> ...`) down to `MULTIMODEL_MIN_PATCHES_FOR_ATTENTION`.
+4. **Threshold-relative confidence normalization:** Confidence is measured as distance from each model's own decision boundary (not from 0.5 midpoint).
+
+Confidence scaling:
+
+```text
+if score >= threshold:
+    confidence = (score - threshold) / (1 - threshold)
+else:
+    confidence = (threshold - score) / threshold
 ```
 
-Current repository threshold config is a placeholder (`recommended_threshold=0.5`); a Youden-J optimized threshold is not yet materialized in `models/threshold_config.json`.
+This replaces the older midpoint-based normalization `abs(score - 0.5) * 2`.
 
-## 4.5 Training Pipeline
+## 4.5 Training Methodology
 
 | Parameter | Value |
 |---|---|
-| Optimizer | AdamW (lr=2e-4, weight_decay=1e-5) |
-| Scheduler | CosineAnnealingWarmRestarts (T_0=10, T_mult=2, eta_min=1e-6) |
-| Gradient Accumulation | 4 steps |
-| Mixed Precision | AMP (autocast + GradScaler) |
+| Split Strategy (default) | Patient-level stratified CV with `StratifiedGroupKFold` (grouped by patient_id to prevent leakage) |
+| Stratification Target | Label by default; label+specimen when class counts support grouped stratification |
+| Single-Split Mode | `--single_split --val_frac <x>` keeps patient isolation and chooses a grouped split close to target validation fraction |
+| Optimizer | AdamW |
+| Scheduler | CosineAnnealingWarmRestarts (`T_0=10`, `T_mult=2`, `eta_min=1e-6`) |
+| Loss | Focal loss with class weighting (`neg_class_weight = n_pos / n_neg`) |
+| Class-Balanced Sampling | Optional per-epoch inverse-frequency sampling (`WeightedRandomSampler`) |
+| Minority Augmentation | Optional feature-space augmentation: Gaussian noise, feature dropout, same-class mixup |
+| Patch Caps | Uniform subsampling with configurable caps (`--max_train_patches`, `--max_eval_patches`) |
+| Mixed Precision | AMP on CUDA (autocast + GradScaler) |
 | Gradient Clipping | Max norm 1.0 |
-| Early Stopping | Patience 15 epochs |
-| Train/Val Split | 80/20, stratified |
-| Epochs | 100 maximum |
+| Early Stopping | Patience-based stopping (`--patience`) |
+| Max Epochs | 100 (default) |
+| Evaluation Metrics | ROC-AUC, PR-AUC, accuracy, sensitivity, specificity |
+| Calibration Output | Pooled calibration curve generated across CV folds (`calibration_curve.png`) |
 
 ---
 
@@ -1313,6 +1327,12 @@ classification_models:
     auc: 0.907
     category: "ovarian_cancer"
     compatible_foundation: "path_foundation"
+  tumor_grade:
+    model_dir: "transmil_grade"
+    auc: 0.752
+    category: "general_pathology"
+    decision_threshold: 0.9935
+    compatible_foundation: "path_foundation"
   lung_stage:
     model_dir: "luad_transmil_stage"
     auc: 0.648
@@ -1826,6 +1846,17 @@ classification_models:
     negative_label: "Resistant"
     compatible_foundation: "path_foundation"
 
+  tumor_grade:
+    model_dir: "transmil_grade"
+    display_name: "Tumor Grade"
+    auc: 0.752
+    n_slides: 918
+    category: "general_pathology"
+    positive_label: "High Grade"
+    negative_label: "Low Grade"
+    decision_threshold: 0.9935
+    compatible_foundation: "path_foundation"
+
   lung_stage:
     model_dir: "luad_transmil_stage"
     display_name: "Tumor Stage"
@@ -1945,32 +1976,36 @@ python scripts/embed_level0_pipelined.py \
 
 This produces `{slide_id}.npy` (N x 384) and `{slide_id}_coords.npy` (N x 2) for each slide.
 
-**Step 3: Train the TransMIL model.**
-
-```bash
-python scripts/train_transmil.py \
-  --embeddings_dir data/projects/breast-her2/embeddings \
-  --labels_file data/projects/breast-her2/labels.json \
-  --output-dir outputs/transmil_her2 \
-  --epochs 100 \
-  --lr 2e-4 \
-  --hidden_dim 512 \
-  --num_heads 8 \
-  --num_layers 2 \
-  --dropout 0.1 \
-  --patience 15 \
-  --accumulation_steps 4
-```
-
-Alternatively, the fine-tuning script supports 5-fold cross-validation:
+**Step 3: Train with patient-level CV (recommended).**
 
 ```bash
 python scripts/train_transmil_finetune.py \
   --embeddings_dir data/projects/breast-her2/embeddings \
-  --labels_file data/projects/breast-her2/labels.json \
-  --output-dir outputs/transmil_her2 \
+  --labels_file data/projects/breast-her2/labels.csv \
+  --output_dir outputs/transmil_her2 \
   --n_folds 5 \
-  --epochs 100
+  --epochs 100 \
+  --augment_minority \
+  --max_train_patches 1024 \
+  --max_eval_patches 1024
+```
+
+Default behavior in this script:
+- Patient-level `StratifiedGroupKFold` splitting (with `patient_id` grouping) to prevent leakage
+- Class-balanced per-epoch sampling
+- Optional minority augmentation (noise, feature dropout, mixup)
+- PR-AUC logging alongside ROC-AUC and other metrics
+- Calibration curve export from pooled CV predictions
+
+For quick iteration, run a single grouped split while keeping patient isolation:
+
+```bash
+python scripts/train_transmil_finetune.py \
+  --embeddings_dir data/projects/breast-her2/embeddings \
+  --labels_file data/projects/breast-her2/labels.csv \
+  --output_dir outputs/transmil_her2_single_split \
+  --single_split \
+  --val_frac 0.2
 ```
 
 **Training output:**
@@ -1978,9 +2013,10 @@ python scripts/train_transmil_finetune.py \
 outputs/transmil_her2/
   best_model.pt                # Best checkpoint (by validation AUC)
   config.json                  # Hyperparameters used
-  training_curves_fold1.png    # Loss/AUC curves per fold
+  training_curves_fold1.png    # Loss/AUC/PR-AUC curves per fold
   summary_metrics.png          # Cross-validation summary
-  results.json                 # Full metrics (AUC, sensitivity, specificity)
+  calibration_curve.png        # Pooled CV reliability curve
+  results.json                 # Full metrics (AUC, PR-AUC, sensitivity, specificity)
 ```
 
 **Step 4: Optimize the classification threshold.**
@@ -1988,7 +2024,7 @@ outputs/transmil_her2/
 ```bash
 python scripts/optimize_threshold.py \
   --embeddings_dir data/projects/breast-her2/embeddings \
-  --labels_file data/projects/breast-her2/labels.json \
+  --labels_file data/projects/breast-her2/labels.csv \
   --checkpoint outputs/transmil_her2/best_model.pt \
   --output_dir outputs/transmil_her2
 ```
@@ -2670,6 +2706,17 @@ The extraction script (`scripts/embed_level0_pipelined.py`) generates dense leve
 - `{slide_id}_coords.npy` -- Coordinate array (N x 2)
 
 Runtime routing uses `_resolve_embedding_path()` for `/api/analyze-multi` and heatmap endpoints to enforce level-0 dense lookup. Some legacy analysis/report endpoints still load `{embeddings_dir}/{slide_id}.npy` directly.
+
+## 14.4 Dataset Preparation and Pool Rebuilding
+
+The repository includes reusable dataset-preparation scripts used by the ovarian and lung demo projects. The same pattern applies to additional projects.
+
+- `scripts/prepare_ov_endpoint_api_pool.py`: builds endpoint-ready ovarian pools and labels from TCGA OV source data.
+- `scripts/prepare_lung_stage_api_pool.py`: builds lung-stage endpoint pools from LUAD source data.
+- `scripts/prepare_platinum_api_expanded_pool.py` and `scripts/prepare_platinum_bucket_pool.py`: generate expanded/bucketed ovarian training pools.
+- `scripts/rebuild_multimodel_pools_barcode_balanced.py`: rebuilds model-specific train/validation pools with barcode-balanced sampling, optional one-slide-per-patient handling, and per-target label normalization.
+
+These scripts produce stable train/validation pool files under `data/tcga_full/trainval_pool/`, which are then consumed by the TransMIL training scripts.
 
 ---
 
