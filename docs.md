@@ -1649,26 +1649,41 @@ Current limitation:
 
 ## 11.1 Overview
 
-The annotation system provides markup tools for WSI review, persisted to PostgreSQL for multi-session access.
+The annotation system supports pathologist review workflows on the WSI viewer. Annotations are stored in PostgreSQL and loaded per slide, so they persist across sessions when the backend is available.
 
-## 11.2 Annotation Types
+In the current frontend, create/list/delete are server-backed. If create fails, the UI falls back to a local (non-persisted) annotation so review can continue.
 
-| Type | Drawing Method | Coordinates |
-|---|---|---|
-| Circle | Click + drag | {x, y, width, height} |
-| Rectangle | Click + drag | {x, y, width, height} |
-| Freehand | Click + draw path | {x, y, width, height, points: [{x, y}]} |
-| Point | Single click | {x, y, width: 0, height: 0} |
+## 11.2 Annotation Types in Practice
 
-## 11.3 SVG Rendering
+The API accepts these types:
+- `circle`
+- `rectangle`
+- `freehand`
+- `point`
+- `marker`
+- `note`
+- `measurement`
 
-Annotations are rendered as an SVG overlay positioned in OpenSeadragon viewport coordinates:
+Current drawing behavior in `WSIViewer` is:
+- Interactive drawing: `circle`, `rectangle`, `freehand`, `point`
+- `freehand` stores a `points` array plus a computed bounding box
+- `note`, `marker`, and `measurement` are supported as stored types and panel-generated metadata entries
 
-- Drawing preview updates in real-time as the user drags
-- Completed annotations are stored with image-space coordinates
-- SVG elements are styled with the annotation's color property
-- Selected annotations are highlighted with a distinct border
-- Annotations remain correctly positioned during zoom/pan
+## 11.3 Coordinate and Rendering Model
+
+Annotations are stored in slide image coordinates (pixel space), not viewport pixels.
+
+Frontend coordinate flow:
+1. Mouse event in screen pixels
+2. Screen -> OpenSeadragon viewport coordinates
+3. Viewport -> image coordinates (rounded)
+
+Rendering flow:
+1. Stored image coordinates are transformed back to screen space on render
+2. An SVG overlay is drawn on top of the viewer
+3. Selected annotations use stronger visual emphasis (higher stroke width/opacity)
+
+This keeps annotations spatially aligned with the slide as users zoom and pan.
 
 ## 11.4 PostgreSQL Persistence
 
@@ -1676,7 +1691,7 @@ Annotations are rendered as an SVG overlay positioned in OpenSeadragon viewport 
 CREATE TABLE annotations (
     id TEXT PRIMARY KEY,           -- "ann_{uuid12}"
     slide_id TEXT NOT NULL,
-    type TEXT NOT NULL,            -- circle, rectangle, freehand, point
+    type TEXT NOT NULL,
     coordinates JSONB NOT NULL,    -- {x, y, width, height, points?}
     label TEXT,
     notes TEXT,
@@ -1687,16 +1702,26 @@ CREATE TABLE annotations (
 );
 ```
 
-## 11.5 API
+Index:
+- `idx_annotations_slide` on `(slide_id)`
 
-Full CRUD operations:
-- `GET /api/slides/{id}/annotations` -- List all annotations
-- `POST /api/slides/{id}/annotations` -- Create (auto-generates ID)
-- `PUT /api/slides/{id}/annotations/{ann_id}` -- Update label/notes/color/category
-- `DELETE /api/slides/{id}/annotations/{ann_id}` -- Delete
-- `GET /api/slides/{id}/annotations/summary` -- Count by label
+## 11.5 API and Audit Behavior
 
-Annotation create/delete operations are logged to the audit trail; update/list/summary operations are currently not audit-logged.
+Endpoints:
+- `GET /api/slides/{id}/annotations` -- list annotations for a slide
+- `POST /api/slides/{id}/annotations` -- create annotation (`id` auto-generated as `ann_{12hex}`)
+- `PUT /api/slides/{id}/annotations/{ann_id}` -- update `label`, `notes`, `color`, `category`
+- `DELETE /api/slides/{id}/annotations/{ann_id}` -- delete annotation by ID
+- `GET /api/slides/{id}/annotations/summary` -- aggregate counts (prefers `label`, falls back to `category`)
+
+Request/response notes:
+- On create, `text` is accepted and mapped to `notes` if `notes` is not provided
+- `GET`/`POST`/`PUT` responses include `text` derived from `notes` or `label`
+- Current frontend API client consumes create/list/delete; update and summary are available but not wired into the primary UI flow
+
+Audit logging:
+- Logged: annotation create/delete
+- Not logged: list/update/summary
 
 ---
 
