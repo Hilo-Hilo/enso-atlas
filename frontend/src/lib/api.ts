@@ -505,29 +505,40 @@ export async function analyzeSlide(
       // because they sum to 1 over all patches (often thousands).
       // Rescale so the highest-attention patch in top_evidence maps to ~1.0.
       const maxAttn = Math.max(...backend.top_evidence.map(e => e.attention_weight), 1e-12);
-      return backend.top_evidence.map(e => ({
-        id: `patch_${e.patch_index}`,
-        patchId: `patch_${e.patch_index}`,
-        coordinates: {
-          x: e.coordinates?.[0] ?? 0,
-          y: e.coordinates?.[1] ?? 0,
-          width: 224,
-          height: 224,
-          level: 0,
-        },
-        attentionWeight: e.attention_weight / maxAttn,
-        thumbnailUrl: "",
-        rank: e.rank,
-        tissueType: e.tissue_type as import("@/types").TissueType | undefined,
-        tissueConfidence: e.tissue_confidence,
-      }));
+      return backend.top_evidence.map(e => {
+        const patchId = `patch_${e.patch_index}`;
+        const x = e.coordinates?.[0];
+        const y = e.coordinates?.[1];
+        return ({
+          id: patchId,
+          patchId,
+          coordinates: {
+            x: x ?? 0,
+            y: y ?? 0,
+            width: 224,
+            height: 224,
+            level: 0,
+          },
+          attentionWeight: e.attention_weight / maxAttn,
+          thumbnailUrl: getPatchUrl(backend.slide_id, patchId, {
+            projectId,
+            size: 224,
+            x,
+            y,
+            patchSize: 224,
+          }),
+          rank: e.rank,
+          tissueType: e.tissue_type as import("@/types").TissueType | undefined,
+          tissueConfidence: e.tissue_confidence,
+        });
+      });
     })(),
     similarCases: backend.similar_cases.map(s => ({
       slideId: s.slide_id,
       similarity: s.similarity_score,
       distance: s.distance,
       label: s.label || undefined,
-      thumbnailUrl: `/api/slides/${s.slide_id}/thumbnail?size=128`,
+      thumbnailUrl: getThumbnailUrl(s.slide_id, projectId, 128),
     })),
     heatmap: {
       imageUrl: `/api/heatmap/${backend.slide_id}`,
@@ -578,7 +589,7 @@ export async function fetchSimilarCases(
       similarity: s.similarity_score,
       distance: s.distance,
       label: s.label || undefined,
-      thumbnailUrl: `/api/slides/${s.slide_id}/thumbnail?size=128`,
+      thumbnailUrl: getThumbnailUrl(s.slide_id, scopedProjectId, 128),
     }));
   } catch (error) {
     console.warn("[API] Failed to fetch similar cases:", error);
@@ -826,10 +837,13 @@ export function getHeatmapUrl(
  * 
  * Uses local Next.js API proxy to avoid CORS issues.
  */
-export function getThumbnailUrl(slideId: string, projectId?: string): string {
+export function getThumbnailUrl(slideId: string, projectId?: string | null, size?: number): string {
   const params = new URLSearchParams();
   const scopedProjectId = normalizeProjectId(projectId);
   if (scopedProjectId) params.set("project_id", scopedProjectId);
+  if (typeof size === "number" && Number.isFinite(size) && size > 0) {
+    params.set("size", String(Math.round(size)));
+  }
   const qs = params.toString() ? `?${params.toString()}` : "";
   return `/api/slides/${encodeURIComponent(slideId)}/thumbnail${qs}`;
 }
@@ -839,8 +853,34 @@ export function getThumbnailUrl(slideId: string, projectId?: string): string {
  * 
  * Uses local Next.js API proxy to avoid CORS issues.
  */
-export function getPatchUrl(slideId: string, patchId: string): string {
-  return `/api/slides/${encodeURIComponent(slideId)}/patches/${encodeURIComponent(patchId)}`;
+export function getPatchUrl(
+  slideId: string,
+  patchId: string,
+  opts?: {
+    projectId?: string | null;
+    size?: number;
+    x?: number;
+    y?: number;
+    patchSize?: number;
+  }
+): string {
+  const params = new URLSearchParams();
+  const scopedProjectId = normalizeProjectId(opts?.projectId);
+  if (scopedProjectId) params.set("project_id", scopedProjectId);
+  if (typeof opts?.size === "number" && Number.isFinite(opts.size) && opts.size > 0) {
+    params.set("size", String(Math.round(opts.size)));
+  }
+  if (typeof opts?.x === "number" && Number.isFinite(opts.x)) {
+    params.set("x", String(Math.round(opts.x)));
+  }
+  if (typeof opts?.y === "number" && Number.isFinite(opts.y)) {
+    params.set("y", String(Math.round(opts.y)));
+  }
+  if (typeof opts?.patchSize === "number" && Number.isFinite(opts.patchSize) && opts.patchSize > 0) {
+    params.set("patch_size", String(Math.round(opts.patchSize)));
+  }
+  const qs = params.toString() ? `?${params.toString()}` : "";
+  return `/api/slides/${encodeURIComponent(slideId)}/patches/${encodeURIComponent(patchId)}${qs}`;
 }
 
 /**
