@@ -1520,92 +1520,128 @@ Current behavior notes:
 
 ## 10.1 Outlier Tissue Detector
 
-The outlier detector identifies morphologically unusual tissue patches by measuring each patch's distance from the embedding centroid. Current implementation loads `{slide_id}.npy` from the global `embeddings_dir` and does not take `project_id`, so this endpoint is not fully project-scoped.
+### Backend implementation (current)
 
-### Algorithm
+The backend endpoint is:
 
-```
-1. Load foundation model embeddings (N x D) for the slide
-2. Compute centroid = mean(embeddings, axis=0)
-3. Compute distances = ||embedding_i - centroid||_2 for all patches
-4. Compute mean_dist, std_dist
-5. Flag patches where distance > mean_dist + threshold * std_dist
-6. Normalize all distances to [0, 1] for heatmap rendering
-7. Return outlier patches sorted by distance (descending)
-```
-
-### API
-
-```
+```http
 POST /api/slides/{slide_id}/outlier-detection?threshold=2.0
 ```
 
-**Response:** `OutlierDetectionResponse` with:
-- `outlier_patches`: List of outlier patches with (x, y, distance, z_score)
-- `heatmap_data`: All patches with normalized scores for canvas overlay
-- Statistics: `mean_distance`, `std_distance`, `outlier_count`, `total_patches`
+It loads:
+- embeddings: `{embeddings_dir}/{slide_id}.npy`
+- coordinates: `{embeddings_dir}/{slide_id}_coords.npy`
 
-### Frontend Integration
+`embeddings_dir` comes from app startup config (`EMBEDDINGS_DIR` or `data/embeddings`; if unset and `data/embeddings/level0` exists, level-0 is auto-selected).
 
-The `OutlierDetectorPanel` component:
-- Configurable z-score threshold (default 2.0)
-- Toggle heatmap overlay on/off (renders on dedicated canvas, not OSD)
-- Click outlier patches to navigate WSI viewer to that location
-- Shows top outliers with z-scores and coordinates
+The endpoint is slide-based only (`slide_id` path param). It does not accept `project_id`.
+
+Algorithm in code:
+
+1. Compute centroid of all patch embeddings (`mean` over axis 0)
+2. Compute Euclidean distance from each patch embedding to centroid
+3. Compute `mean_dist` and `std_dist`
+4. Flag outliers where `distance > mean_dist + threshold * std_dist` (strict `>`)
+5. Build `outlier_patches` with `(patch_idx, x, y, distance, z_score)`
+6. Sort outliers by raw distance descending
+7. Min-max normalize all patch distances to `[0, 1]` for `heatmap_data`
+
+Validation/error behavior:
+- Returns `404` if embedding or coordinate file is missing
+- Returns `400` if embedding array is empty
+- If `std_dist == 0`, `z_score` is set to `0.0`
+
+Response fields (`OutlierDetectionResponse`):
+- `outlier_patches`
+- `total_patches`, `outlier_count`
+- `mean_distance`, `std_distance`, `threshold`
+- `heatmap_data` for all patches
+
+### Frontend behavior (current)
+
+`OutlierDetectorPanel` is active in `page.tsx`.
+
+- Threshold slider: `1.0` to `4.0` SD (default `2.0`)
+- Runs backend detection on demand
+- Shows counts, distance stats, and top outliers
+- Clicking an outlier recenters the viewer at `(x, y)` with a `224x224` patch box
+
+Heatmap behavior detail:
+- Backend returns normalized scores for all patches
+- Panel currently filters to only detected outlier coordinates before rendering overlay
+- Overlay is drawn on the viewer canvas layer (not the model-attention OpenSeadragon heatmap)
 
 ## 10.2 Few-Shot Patch Classifier
 
-The few-shot classifier enables pathologists to define custom tissue classes by selecting example patches, then classifies all patches in the slide. Current implementation loads embeddings from the global `embeddings_dir` by `slide_id` and does not take `project_id`, so it is not fully project-scoped.
+### Backend implementation (current)
 
-### Algorithm
+The backend endpoint is:
 
-```
-1. User defines 2+ classes with example patch indices
-   (via text input "1,2,3,10-20" or spatial click selection on viewer)
-2. Load foundation model embeddings for example patches
-3. Train LogisticRegression(max_iter=1000) on example embeddings
-4. Predict all N patches in the slide
-5. Compute per-class probabilities
-6. Leave-one-out cross-validation for accuracy estimate
-7. Return per-patch predictions with confidence and class heatmap data
-```
-
-### API
-
-```
+```http
 POST /api/slides/{slide_id}/patch-classify
+```
+
+Request shape:
+
+```json
 {
   "classes": {
-    "tumor": [10, 42, 103, 255],
-    "stroma": [5, 88, 190, 301]
+    "tumor": [10, 42, 103],
+    "stroma": [5, 88, 190]
   }
 }
 ```
 
-**Response:** `PatchClassifyResponse` with:
-- `predictions`: Per-patch (patch_idx, x, y, predicted_class, confidence, probabilities)
-- `class_counts`: Distribution across classes
-- `accuracy_estimate`: Leave-one-out accuracy on training examples
-- `heatmap_data`: Per-patch (x, y, class_idx, confidence) for canvas overlay
+Validation rules in code:
+- At least 2 classes required
+- Each class must contain at least 1 patch index
+- Every patch index must be in `[0, n_patches - 1]`
 
-### Spatial Selection Mode
+Data loading is the same pattern as outlier detection:
+- `{embeddings_dir}/{slide_id}.npy`
+- `{embeddings_dir}/{slide_id}_coords.npy`
 
-The frontend supports click-to-select on the WSI viewer:
+This endpoint is also slide-based only and does not accept `project_id`.
 
-1. User creates class names in PatchClassifierPanel
-2. Clicks "Select on Map" for a class, entering spatial selection mode
-3. Clicks on the WSI viewer. The nearest patch (by coordinate) is added to the class
-4. Patch coordinates are loaded via `GET /api/slides/{id}/patch-coords`
-5. Selected patches highlighted with class-specific colors on the viewer
+Classification flow:
 
-### Frontend Integration
+1. Collect training examples from user-provided indices
+2. Sort class names alphabetically (`class_names = sorted(request.classes.keys())`)
+3. Train `LogisticRegression(max_iter=1000, random_state=42)` on selected embeddings
+4. Predict class and probabilities for all patches in the slide
+5. Build per-patch output (`patch_idx`, `x`, `y`, `predicted_class`, `confidence`, `probabilities`)
+6. Build `heatmap_data` with `(x, y, class_idx, confidence)`
 
-The `PatchClassifierPanel` component:
-- Add/remove classes with auto-assigned colors (8 predefined colors)
-- Input patch indices via text or spatial selection
-- Parse ranges (e.g., "10-20")
-- Run classification and display class distribution
-- Toggle class heatmap overlay (canvas-based, separate from OSD heatmap)
+`class_idx` is based on the sorted `class_names` order.
+
+Accuracy estimate:
+- Uses leave-one-out retraining over the selected examples
+- Computed only when total examples `> number_of_classes`
+- Returns `accuracy_estimate` as `null` when not computed
+
+Response fields (`PatchClassifyResponse`):
+- `classes`, `total_patches`
+- `predictions` (all patches)
+- `class_counts`
+- `accuracy_estimate`
+- `heatmap_data`
+
+### Frontend status (current)
+
+Backend/API wiring exists, but the user-facing panel is not currently mounted in the main page.
+
+What is implemented in frontend code:
+- `classifyPatches()` API client
+- `PatchClassifierPanel` component with:
+  - class add/remove (2-8 classes)
+  - index parsing with ranges (for example `10-20`)
+  - optional spatial selection mode support
+  - class distribution and heatmap toggle after inference
+- `WSIViewer` logic for click-to-nearest-patch selection using loaded patch coordinates
+
+Current limitation:
+- `PatchClassifierPanel` is imported but not rendered in `frontend/src/app/page.tsx` (marked as disabled), so few-shot classification is not exposed in the primary UI without additional wiring.
+
 
 ---
 
