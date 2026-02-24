@@ -2532,47 +2532,71 @@ curl "http://localhost:8003/api/models?project_id=ovarian-platinum"
 
 ## 14.1 Project-Scoped Datasets
 
-Datasets are organized per project and declared centrally in `config/projects.yaml`. Current production projects include:
+Datasets are defined per project in `config/projects.yaml`. Current runtime projects are:
 
-- `ovarian-platinum`: TCGA ovarian cohort for platinum response prediction
+- `ovarian-platinum`: TCGA ovarian cohort for platinum sensitivity and related ovarian endpoints
 - `lung-stage`: TCGA LUAD cohort for stage classification (early vs advanced)
+
+Each project is expected to stay within `data/projects/<project_id>/...`. The repository includes modularity checks (`scripts/validate_project_modularity.py`) to catch path drift and cross-project leakage.
 
 ## 14.2 Canonical Data Layout
 
 ```text
 data/
   projects/
-    ovarian-platinum/
+    <project_id>/
       slides/
       embeddings/
-      labels.csv
-    lung-stage/
-      slides/
-      embeddings/
-      labels.json
+        *.npy
+        *_coords.npy
+        level0/
+          *.npy
+          *_coords.npy
+      labels.csv | labels.json
 ```
 
-The backend resolves project-scoped dataset paths from `config/projects.yaml` when `project_id` is provided. Legacy non-project requests still use compatibility fallbacks (including `data/tcga_full` paths).
+Notes:
 
-## 14.3 Embedding Generation and Routing
+- `dataset.embeddings_dir` in `projects.yaml` may point to `.../embeddings` or `.../embeddings/level0`.
+- Current guardrails expect root `embeddings/` and `embeddings/level0/` to stay synchronized for slide IDs and coordinate pairs.
+- Non-project/legacy paths (for example `data/tcga_full`) still exist as compatibility fallbacks in some code paths.
 
-The extraction script (`scripts/embed_level0_pipelined.py`) generates dense level-0 patch embeddings and coordinate arrays:
+## 14.3 Embedding Generation and Runtime Routing
 
-- `{slide_id}.npy` -- Embedding array (N x 384)
-- `{slide_id}_coords.npy` -- Coordinate array (N x 2)
+Primary dense embedding workflow:
 
-Runtime routing uses `_resolve_embedding_path()` for `/api/analyze-multi` and heatmap endpoints to enforce level-0 dense lookup. Some legacy analysis/report endpoints still load `{embeddings_dir}/{slide_id}.npy` directly.
+- `scripts/embed_level0_pipelined.py` extracts level-0 patches and writes:
+  - `{slide_id}.npy` (embedding matrix, typically N x 384)
+  - `{slide_id}_coords.npy` (level-0 patch coordinates, N x 2)
+
+Operational caveat:
+
+- Some historical ingestion scripts can leave embeddings without coords. Use `scripts/recover_missing_coords.py` when needed before heatmap generation.
+
+Runtime behavior in the API:
+
+- `/api/analyze-multi` and both heatmap endpoints use `_resolve_embedding_path(...)` with strict level-0 lookup.
+- Heatmap endpoints require `*_coords.npy`; missing coords return an explicit error instead of synthetic fallback grids.
+- Several legacy endpoints (`/api/analyze`, `/api/analyze-batch`, `/api/report`, async report variants) still read `{project_embeddings_dir}/{slide_id}.npy` directly.
 
 ## 14.4 Dataset Preparation and Pool Rebuilding
 
-The repository includes reusable dataset-preparation scripts used by the ovarian and lung demo projects. The same pattern applies to additional projects.
+Pool-generation scripts are CLI-driven and reusable across projects:
 
-- `scripts/prepare_ov_endpoint_api_pool.py`: builds endpoint-ready ovarian pools and labels from TCGA OV source data.
-- `scripts/prepare_lung_stage_api_pool.py`: builds lung-stage endpoint pools from LUAD source data.
-- `scripts/prepare_platinum_api_expanded_pool.py` and `scripts/prepare_platinum_bucket_pool.py`: generate expanded/bucketed ovarian training pools.
-- `scripts/rebuild_multimodel_pools_barcode_balanced.py`: rebuilds model-specific train/validation pools with barcode-balanced sampling, optional one-slide-per-patient handling, and per-target label normalization.
+- `scripts/prepare_ov_endpoint_api_pool.py`: builds OV endpoint pools (`survival_1y/3y/5y`, `tumor_grade`) from GDC + bucket manifests.
+- `scripts/prepare_lung_stage_api_pool.py`: builds LUAD stage pools from GDC + bucket manifests.
+- `scripts/prepare_platinum_api_expanded_pool.py` and `scripts/prepare_platinum_bucket_pool.py`: build ovarian platinum pools with strict/expanded labeling variants.
+- `scripts/rebuild_multimodel_pools_barcode_balanced.py`: rebuilds multi-endpoint pools using barcode matching, balancing, and reproducible sampling.
 
-These scripts produce stable train/validation pool files under `data/tcga_full/trainval_pool/`, which are then consumed by the TransMIL training scripts.
+Output location is configurable via `--out_dir` (commonly `data/tcga_full/trainval_pool/`). Typical artifacts are:
+
+- `<prefix>_meta.csv`
+- `<prefix>_labels.csv`
+- `<prefix>_file_ids.txt`
+- `<prefix>_h5_uris.txt`
+- balanced variants for scripts that emit them
+
+Training/evaluation scripts consume these files through explicit CLI arguments (`--labels_file`, `--embeddings_dir`, etc.), so pool location is not hardcoded.
 
 ---
 
