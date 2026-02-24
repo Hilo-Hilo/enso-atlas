@@ -776,8 +776,26 @@ export function getThumbnailUrl(slideId: string, projectId?: string): string {
  * 
  * Uses local Next.js API proxy to avoid CORS issues.
  */
-export function getPatchUrl(slideId: string, patchId: string): string {
-  return `/api/slides/${encodeURIComponent(slideId)}/patches/${encodeURIComponent(patchId)}`;
+export function getPatchUrl(
+  slideId: string,
+  patchId: string,
+  options?: {
+    projectId?: string;
+    coordinates?: [number, number];
+    patchSize?: number;
+    size?: number;
+  }
+): string {
+  const params = new URLSearchParams();
+  if (options?.projectId) params.set("project_id", options.projectId);
+  if (options?.coordinates) {
+    params.set("x", String(options.coordinates[0]));
+    params.set("y", String(options.coordinates[1]));
+  }
+  if (options?.patchSize !== undefined) params.set("patch_size", String(options.patchSize));
+  if (options?.size !== undefined) params.set("size", String(options.size));
+  const qs = params.toString() ? `?${params.toString()}` : "";
+  return `/api/slides/${encodeURIComponent(slideId)}/patches/${encodeURIComponent(patchId)}${qs}`;
 }
 
 /**
@@ -854,6 +872,7 @@ interface BackendSemanticSearchResult {
   patch_index: number;
   similarity_score: number;
   coordinates?: [number, number];
+  patch_size?: number;
   attention_weight?: number;
 }
 
@@ -895,6 +914,7 @@ export async function semanticSearch(
       patch_index: r.patch_index,
       similarity: r.similarity_score,  // Map similarity_score -> similarity
       coordinates: r.coordinates,
+      patch_size: r.patch_size,
     })),
   };
 }

@@ -2021,6 +2021,7 @@ function HomePage() {
       {/* Semantic Search */}
       <SemanticSearchPanel
         slideId={selectedSlide?.id ?? null}
+        projectId={currentProject.id}
         isAnalyzed={!!analysisResult}
         onSearch={handleSemanticSearch}
         results={semanticResults}

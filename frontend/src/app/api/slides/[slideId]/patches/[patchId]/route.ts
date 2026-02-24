@@ -12,9 +12,15 @@ export async function GET(
   const { slideId, patchId } = await params;
   
   try {
-    const backendUrl = `${BACKEND_URL}/api/slides/${encodeURIComponent(slideId)}/patches/${encodeURIComponent(patchId)}`;
-    
-    const response = await fetch(backendUrl, {
+    const backendUrl = new URL(
+      `${BACKEND_URL}/api/slides/${encodeURIComponent(slideId)}/patches/${encodeURIComponent(patchId)}`
+    );
+    const requestUrl = new URL(request.url);
+    requestUrl.searchParams.forEach((value, key) => {
+      backendUrl.searchParams.set(key, value);
+    });
+
+    const response = await fetch(backendUrl.toString(), {
       method: "GET",
     });
 

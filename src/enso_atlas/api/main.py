@@ -201,6 +201,113 @@ def _filter_project_candidate_slide_ids(
     return sorted(filtered)
 
 
+def _infer_patch_size_from_coords(
+    coords: Optional[np.ndarray],
+    *,
+    default_patch_size: int = 224,
+    max_patch_size: int = 2048,
+) -> int:
+    """Infer patch span in level-0 pixels from coordinate spacing.
+
+    The semantic-search cache may contain coordinates from level-0 dense grids
+    (step ~= 224) or lower-magnification grids (step > 224). This helper picks
+    the smallest positive grid delta as the best estimate and clamps it to a
+    safe range.
+    """
+    if coords is None:
+        return default_patch_size
+
+    arr = np.asarray(coords)
+    if arr.ndim != 2 or arr.shape[0] == 0 or arr.shape[1] < 2:
+        return default_patch_size
+
+    min_deltas: list[int] = []
+    for axis in (0, 1):
+        unique_vals = np.unique(arr[:, axis].astype(np.int64, copy=False))
+        if unique_vals.size < 2:
+            continue
+        deltas = np.diff(unique_vals)
+        deltas = deltas[deltas > 0]
+        if deltas.size > 0:
+            min_deltas.append(int(deltas.min()))
+
+    if not min_deltas:
+        return default_patch_size
+
+    inferred = max(default_patch_size, min(min_deltas))
+    return max(default_patch_size, min(inferred, max_patch_size))
+
+
+def _normalize_coords_to_level0(
+    coords: Optional[np.ndarray],
+    *,
+    slide_dims: Optional[tuple[int, int]],
+    patch_size: int = 224,
+) -> tuple[Optional[np.ndarray], int]:
+    """Normalize cached coordinates to level-0 pixel space when needed.
+
+    Some legacy SigLIP caches persisted level-1 coordinates. We detect this by
+    comparing coordinate coverage against slide dimensions and apply a small
+    integer upscale (2/4/8/16) only when it clearly improves alignment.
+
+    Returns:
+      (normalized_coords, scale_factor)
+    """
+    if coords is None:
+        return None, 1
+
+    arr = np.asarray(coords)
+    if arr.ndim != 2 or arr.shape[0] == 0 or arr.shape[1] < 2:
+        return arr, 1
+
+    if not slide_dims or slide_dims[0] <= 0 or slide_dims[1] <= 0:
+        return arr, 1
+
+    work = arr[:, :2].astype(np.int64, copy=False)
+    max_x = int(work[:, 0].max()) if work.size else 0
+    max_y = int(work[:, 1].max()) if work.size else 0
+    slide_w, slide_h = int(slide_dims[0]), int(slide_dims[1])
+
+    if max_x <= 0 or max_y <= 0:
+        return arr, 1
+
+    def _coverage_error(scale: int) -> float:
+        cov_x = (max_x + patch_size) * scale
+        cov_y = (max_y + patch_size) * scale
+        err_x = abs(cov_x - slide_w) / max(slide_w, 1)
+        err_y = abs(cov_y - slide_h) / max(slide_h, 1)
+        return (err_x + err_y) / 2.0
+
+    base_error = _coverage_error(1)
+    raw_cov_x = (max_x + patch_size) / max(slide_w, 1)
+    raw_cov_y = (max_y + patch_size) / max(slide_h, 1)
+    candidate_scales = (2, 4, 8, 16)
+
+    best_scale = 1
+    best_error = base_error
+    for scale in candidate_scales:
+        err = _coverage_error(scale)
+        if err < best_error:
+            best_scale = scale
+            best_error = err
+
+    # Apply upscale only when it is clearly better, plausibly fills the slide,
+    # and the raw coordinates already cover a meaningful fraction of the slide
+    # (prevents false positives for localized tissue regions).
+    if (
+        best_scale > 1
+        and (base_error - best_error) >= 0.2
+        and best_error <= 0.35
+        and max(raw_cov_x, raw_cov_y) >= 0.2
+    ):
+        scaled = arr.astype(np.int64, copy=True)
+        scaled[:, 0] *= best_scale
+        scaled[:, 1] *= best_scale
+        return scaled, best_scale
+
+    return arr, 1
+
+
 # PDF Export (optional) - second import block kept for compatibility
 if not PDF_EXPORT_AVAILABLE:
     try:
@@ -591,6 +698,7 @@ class SemanticSearchResult(BaseModel):
     patch_index: int
     similarity_score: float
     coordinates: Optional[List[int]] = None
+    patch_size: Optional[int] = None  # level-0 patch span in pixels
     attention_weight: Optional[float] = None
 
 
@@ -4537,6 +4645,26 @@ DISCLAIMER: This is a research tool. All findings must be validated by qualified
         # Load PF embeddings (for attention computation and metadata sizing)
         pf_embeddings = np.load(emb_path)
 
+        # Legacy SigLIP caches may store level-1 coordinates. Normalize to level-0
+        # so preview extraction and viewer navigation share the same coordinate space.
+        if siglip_coords is not None:
+            slide_dims = None
+            slide_path = resolve_slide_path(slide_id, project_id=request.project_id)
+            if slide_path is not None and slide_path.exists():
+                try:
+                    import openslide
+                    with openslide.OpenSlide(str(slide_path)) as slide_obj:
+                        slide_dims = (int(slide_obj.dimensions[0]), int(slide_obj.dimensions[1]))
+                except Exception as e:
+                    logger.debug(f"Could not read slide dimensions for semantic coord normalization: {e}")
+            siglip_coords, siglip_scale = _normalize_coords_to_level0(
+                siglip_coords,
+                slide_dims=slide_dims,
+                patch_size=224,
+            )
+            if siglip_scale > 1:
+                logger.info(f"Normalized SigLIP coordinates to level-0 for {slide_id} (x{siglip_scale})")
+
         # Attention weights are helpful but should never break search (CUDA asserts, etc.)
         attention_weights = None
         if classifier is not None:
@@ -4550,9 +4678,14 @@ DISCLAIMER: This is a research tool. All findings must be validated by qualified
         # have different coordinates than level-0 PF patches)
         num_patches = len(siglip_embeddings) if siglip_embeddings is not None else len(pf_embeddings)
         effective_coords = siglip_coords if siglip_coords is not None else coords
+        patch_size_level0 = _infer_patch_size_from_coords(effective_coords, default_patch_size=224)
+
         metadata = []
         for i in range(num_patches):
-            meta = {"index": i}
+            meta = {
+                "index": i,
+                "patch_size": int(patch_size_level0),
+            }
             if effective_coords is not None and i < len(effective_coords):
                 meta["coordinates"] = [int(effective_coords[i][0]), int(effective_coords[i][1])]
             if attention_weights is not None and i < len(attention_weights):
@@ -4631,6 +4764,7 @@ DISCLAIMER: This is a research tool. All findings must be validated by qualified
                     patch_index=r["patch_index"],
                     similarity_score=r["similarity_score"],
                     coordinates=r.get("metadata", {}).get("coordinates"),
+                    patch_size=r.get("metadata", {}).get("patch_size"),
                     attention_weight=r.get("metadata", {}).get("attention_weight"),
                 )
             )
@@ -5151,15 +5285,30 @@ DISCLAIMER: This is a research tool. All findings must be validated by qualified
             raise HTTPException(status_code=500, detail=f"Failed to generate thumbnail: {e}")
 
     @app.get("/api/slides/{slide_id}/patches/{patch_id}")
-    async def get_patch_image(slide_id: str, patch_id: str, size: int = 224):
+    async def get_patch_image(
+        slide_id: str,
+        patch_id: str,
+        size: int = 224,
+        project_id: Optional[str] = Query(None, description="Optional project id to resolve project-specific embeddings/WSI paths"),
+        x: Optional[int] = Query(None, description="Optional explicit level-0 x coordinate for direct patch extraction"),
+        y: Optional[int] = Query(None, description="Optional explicit level-0 y coordinate for direct patch extraction"),
+        patch_size: Optional[int] = Query(None, description="Optional level-0 patch span in pixels (for low-mag semantic patches)"),
+    ):
+        """Get a patch image thumbnail for semantic search and evidence panels.
+
+        Patch ID format: ``patch_{index}`` (or plain integer).
+
+        Coordinate resolution priority:
+        1) Explicit ``x,y`` query params (semantic-search aligned previews)
+        2) MedSigLIP coordinate cache (if present)
+        3) Path Foundation ``*_coords.npy`` fallback
+
+        ``patch_size`` controls extraction span at level-0 and allows previews for
+        lower-magnification semantic patches (e.g., level-1 caches).
         """
-        Get a patch image thumbnail for semantic search results.
-        
-        Patch ID format: patch_{index} (e.g., patch_0, patch_42)
-        
-        If WSI is available, extracts the region at the patch coordinates.
-        If only embeddings are available, returns a placeholder colored by patch index.
-        """
+        _require_project(project_id)
+        size = max(64, min(int(size), 1024))
+
         # Parse patch index from patch_id
         try:
             if patch_id.startswith("patch_"):
@@ -5168,124 +5317,179 @@ DISCLAIMER: This is a research tool. All findings must be validated by qualified
                 patch_index = int(patch_id)
         except ValueError:
             raise HTTPException(status_code=400, detail=f"Invalid patch ID format: {patch_id}")
-        
-        # Load coordinates for this slide
-        coord_path = embeddings_dir / f"{slide_id}_coords.npy"
-        emb_path = embeddings_dir / f"{slide_id}.npy"
-        
-        if not emb_path.exists():
-            raise HTTPException(status_code=404, detail=f"Slide {slide_id} not found")
-        
-        # Get number of patches
-        embeddings = np.load(emb_path)
-        if patch_index < 0 or patch_index >= len(embeddings):
-            raise HTTPException(
-                status_code=404, 
-                detail=f"Patch index {patch_index} out of range (0-{len(embeddings)-1})"
-            )
-        
-        # Get coordinates if available
+
+        project_requested = project_id is not None
+        _patch_embeddings_dir = _resolve_project_embeddings_dir(
+            project_id,
+            require_exists=project_requested,
+        )
+
+        emb_path = _patch_embeddings_dir / f"{slide_id}.npy"
+        coord_path = _patch_embeddings_dir / f"{slide_id}_coords.npy"
+        siglip_coords_path = _patch_embeddings_dir / "medsiglip_cache" / f"{slide_id}_siglip_coords.npy"
+
         coords = None
         if coord_path.exists():
             coords = np.load(coord_path)
-            if patch_index < len(coords):
-                x, y = int(coords[patch_index][0]), int(coords[patch_index][1])
-            else:
-                coords = None
-        
-        # Try to extract from WSI if available
-        result = get_slide_and_dz(slide_id)
-        if result is not None and coords is not None:
-            slide, dz = result
+
+        siglip_coords = None
+        if siglip_coords_path.exists():
             try:
-                # Read region at level 0 (highest resolution)
-                # Default patch size is 224x224
-                region = slide.read_region((x, y), 0, (size, size))
-                
+                siglip_coords = np.load(siglip_coords_path)
+                slide_dims = None
+                slide_path = resolve_slide_path(slide_id, project_id=project_id)
+                if slide_path is not None and slide_path.exists():
+                    try:
+                        import openslide
+                        with openslide.OpenSlide(str(slide_path)) as slide_obj:
+                            slide_dims = (int(slide_obj.dimensions[0]), int(slide_obj.dimensions[1]))
+                    except Exception as e:
+                        logger.debug(f"Could not read slide dimensions for patch extraction normalization: {e}")
+                siglip_coords, _ = _normalize_coords_to_level0(
+                    siglip_coords,
+                    slide_dims=slide_dims,
+                    patch_size=224,
+                )
+            except Exception as e:
+                logger.warning(f"Failed to load MedSigLIP coordinates for {slide_id}: {e}")
+                siglip_coords = None
+
+        # Validate index against any available patch source when explicit coords are absent
+        explicit_coords = x is not None and y is not None
+        if not explicit_coords:
+            max_count = 0
+            if emb_path.exists():
+                try:
+                    max_count = max(max_count, len(np.load(emb_path)))
+                except Exception as e:
+                    logger.warning(f"Could not load embedding count for {slide_id}: {e}")
+            if coords is not None:
+                max_count = max(max_count, len(coords))
+            if siglip_coords is not None:
+                max_count = max(max_count, len(siglip_coords))
+
+            if max_count == 0:
+                raise HTTPException(status_code=404, detail=f"Slide {slide_id} not found")
+
+            if patch_index < 0 or patch_index >= max_count:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Patch index {patch_index} out of range (0-{max_count - 1})",
+                )
+
+        pf_patch_size = _infer_patch_size_from_coords(coords, default_patch_size=224)
+        siglip_patch_size = _infer_patch_size_from_coords(siglip_coords, default_patch_size=224)
+        requested_patch_size = int(patch_size) if patch_size is not None else None
+
+        x0: Optional[int] = None
+        y0: Optional[int] = None
+        effective_patch_size = requested_patch_size or 224
+
+        if explicit_coords:
+            x0 = int(x)
+            y0 = int(y)
+            effective_patch_size = requested_patch_size or effective_patch_size
+        else:
+            # Prefer SigLIP coords for semantic-search previews; fallback to PF coords.
+            if siglip_coords is not None and patch_index < len(siglip_coords):
+                x0 = int(siglip_coords[patch_index][0])
+                y0 = int(siglip_coords[patch_index][1])
+                effective_patch_size = requested_patch_size or siglip_patch_size
+            elif coords is not None and patch_index < len(coords):
+                x0 = int(coords[patch_index][0])
+                y0 = int(coords[patch_index][1])
+                effective_patch_size = requested_patch_size or pf_patch_size
+
+        effective_patch_size = max(64, min(int(effective_patch_size), 4096))
+
+        # Try to extract from WSI if available
+        result = get_slide_and_dz(slide_id, project_id=project_id)
+        if result is not None and x0 is not None and y0 is not None:
+            slide, _dz = result
+            try:
+                region = slide.read_region((x0, y0), 0, (effective_patch_size, effective_patch_size))
+
                 # Convert RGBA to RGB
                 if region.mode == 'RGBA':
-                    # Create white background
                     background = Image.new('RGB', region.size, (255, 255, 255))
                     background.paste(region, mask=region.split()[3])
                     region = background
                 elif region.mode != 'RGB':
                     region = region.convert('RGB')
-                
+
+                if region.size != (size, size):
+                    try:
+                        resample = Image.Resampling.BILINEAR
+                    except AttributeError:
+                        resample = Image.BILINEAR
+                    region = region.resize((size, size), resample=resample)
+
                 buf = io.BytesIO()
                 region.save(buf, format="JPEG", quality=85)
                 buf.seek(0)
-                
+
                 return StreamingResponse(
                     buf,
                     media_type="image/jpeg",
                     headers={
                         "Cache-Control": "public, max-age=86400",
-                        "Content-Disposition": f"inline; filename={slide_id}_{patch_id}.jpeg"
-                    }
+                        "Content-Disposition": f"inline; filename={slide_id}_{patch_id}.jpeg",
+                    },
                 )
             except Exception as e:
                 logger.warning(f"Failed to extract patch from WSI: {e}")
                 # Fall through to placeholder generation
-        
-        # Generate a colored placeholder if no WSI available
-        # Use a color based on the patch index for visual distinction
+
+        # Generate a colored placeholder if WSI or coordinates are unavailable
         import colorsys
-        hue = (patch_index * 0.618033988749895) % 1.0  # Golden ratio for color distribution
-        r, g, b = colorsys.hsv_to_rgb(hue, 0.3, 0.9)  # Pastel colors
+        hue = (patch_index * 0.618033988749895) % 1.0
+        r, g, b = colorsys.hsv_to_rgb(hue, 0.3, 0.9)
         color = (int(r * 255), int(g * 255), int(b * 255))
-        
-        # Create placeholder image with patch info
+
         img = Image.new('RGB', (size, size), color)
-        
-        # Try to add text label
+
         try:
             from PIL import ImageDraw, ImageFont
             draw = ImageDraw.Draw(img)
-            
-            # Draw patch index
+
             text = f"Patch {patch_index}"
             try:
                 font = ImageFont.truetype("/System/Library/Fonts/Helvetica.ttc", 16)
             except Exception:
                 font = ImageFont.load_default()
-            
-            # Get text bounding box
+
             bbox = draw.textbbox((0, 0), text, font=font)
             text_width = bbox[2] - bbox[0]
             text_height = bbox[3] - bbox[1]
-            
-            # Center the text
             x_pos = (size - text_width) // 2
             y_pos = (size - text_height) // 2
-            
-            # Draw with contrasting color
+
             draw.text((x_pos, y_pos), text, fill=(60, 60, 60), font=font)
-            
-            # Add coordinates if available
-            if coords is not None:
-                coord_text = f"({x}, {y})"
+
+            if x0 is not None and y0 is not None:
+                coord_text = f"({x0}, {y0})"
                 coord_bbox = draw.textbbox((0, 0), coord_text, font=font)
                 coord_width = coord_bbox[2] - coord_bbox[0]
                 draw.text(
                     ((size - coord_width) // 2, y_pos + text_height + 5),
                     coord_text,
                     fill=(80, 80, 80),
-                    font=font
+                    font=font,
                 )
         except Exception as e:
             logger.debug(f"Could not add text to placeholder: {e}")
-        
+
         buf = io.BytesIO()
         img.save(buf, format="JPEG", quality=85)
         buf.seek(0)
-        
+
         return StreamingResponse(
             buf,
             media_type="image/jpeg",
             headers={
                 "Cache-Control": "public, max-age=3600",
-                "Content-Disposition": f"inline; filename={slide_id}_{patch_id}.jpeg"
-            }
+                "Content-Disposition": f"inline; filename={slide_id}_{patch_id}.jpeg",
+            },
         )
 
     @app.get("/api/slides/{slide_id}/info")

@@ -18,6 +18,7 @@ import { getPatchUrl } from "@/lib/api";
 
 interface SemanticSearchPanelProps {
   slideId: string | null;
+  projectId?: string;
   isAnalyzed: boolean;
   onSearch: (query: string, topK: number) => Promise<void>;
   results: SemanticSearchResult[];
@@ -37,6 +38,7 @@ const EXAMPLE_QUERIES = [
 
 export function SemanticSearchPanel({
   slideId,
+  projectId,
   isAnalyzed,
   onSearch,
   results,
@@ -222,16 +224,19 @@ export function SemanticSearchPanel({
                     result={result}
                     rank={index + 1}
                     slideId={slideId}
+                    projectId={projectId}
                     isSelected={coordsMatch !== null && selectedPatchId === coordsMatch}
-                    onClick={() =>
+                    onClick={() => {
+                      if (!result.coordinates) return;
+                      const patchSize = result.patch_size ?? 224;
                       onPatchClick?.({
-                        x: result.coordinates?.[0] ?? 0,
-                        y: result.coordinates?.[1] ?? 0,
-                        width: 224,
-                        height: 224,
+                        x: result.coordinates[0],
+                        y: result.coordinates[1],
+                        width: patchSize,
+                        height: patchSize,
                         level: 0,
-                      })
-                    }
+                      });
+                    }}
                   />
                 );
               })}
@@ -256,6 +261,7 @@ interface SearchResultItemProps {
   result: SemanticSearchResult;
   rank: number;
   slideId: string;
+  projectId?: string;
   isSelected: boolean;
   onClick: () => void;
 }
@@ -264,6 +270,7 @@ function SearchResultItem({
   result,
   rank,
   slideId,
+  projectId,
   isSelected,
   onClick,
 }: SearchResultItemProps) {
@@ -275,15 +282,23 @@ function SearchResultItem({
       ? "bg-amber-500"
       : "bg-blue-500";
 
-  const patchUrl = getPatchUrl(slideId, `patch_${result.patch_index}`);
+  const hasCoordinates = Boolean(result.coordinates);
+  const patchUrl = getPatchUrl(slideId, `patch_${result.patch_index}`, {
+    projectId,
+    coordinates: result.coordinates,
+    patchSize: result.patch_size,
+    size: 224,
+  });
 
   return (
     <button
       onClick={onClick}
+      disabled={!hasCoordinates}
       className={cn(
         "w-full flex items-center gap-3 p-2.5 rounded-lg border transition-all text-left group",
-        "hover:border-clinical-500 hover:bg-clinical-50/50 hover:shadow-clinical",
+        hasCoordinates && "hover:border-clinical-500 hover:bg-clinical-50/50 hover:shadow-clinical",
         "focus:outline-none focus:ring-2 focus:ring-clinical-500",
+        !hasCoordinates && "opacity-70 cursor-not-allowed",
         isSelected
           ? "border-clinical-600 bg-clinical-50 ring-1 ring-clinical-200"
           : "border-gray-200 bg-white"
