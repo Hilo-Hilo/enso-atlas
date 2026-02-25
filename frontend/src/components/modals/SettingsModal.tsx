@@ -19,15 +19,49 @@ interface SettingsModalProps {
 
 type ThemeMode = "light" | "dark" | "system";
 
+/**
+ * Applies the theme class to the document and persists to localStorage
+ */
+function applyTheme(theme: ThemeMode, save = true) {
+  if (typeof window === "undefined") return;
+  
+  const root = document.documentElement;
+  const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+  
+  if (theme === "dark" || (theme === "system" && prefersDark)) {
+    root.classList.add("dark");
+  } else {
+    root.classList.remove("dark");
+  }
+  
+  if (save) {
+    localStorage.setItem("atlas-theme", theme);
+  }
+}
+
 export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const [theme, setTheme] = useState<ThemeMode>("system");
 
-  // Load settings from localStorage on mount
+  // Load settings from localStorage on mount and apply theme
   useEffect(() => {
     if (typeof window === "undefined") return;
 
     const savedTheme = localStorage.getItem("atlas-theme") as ThemeMode | null;
-    if (savedTheme) setTheme(savedTheme);
+    const initialTheme = savedTheme || "system";
+    setTheme(initialTheme);
+    applyTheme(initialTheme, false); // Apply but don't re-save
+    
+    // Listen for system preference changes when in system mode
+    const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
+    const handleChange = () => {
+      const currentTheme = localStorage.getItem("atlas-theme") as ThemeMode | null;
+      if (currentTheme === "system" || !currentTheme) {
+        applyTheme("system", false);
+      }
+    };
+    
+    mediaQuery.addEventListener("change", handleChange);
+    return () => mediaQuery.removeEventListener("change", handleChange);
   }, []);
 
   // Handle escape key
@@ -61,32 +95,12 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 
   const handleThemeChange = (newTheme: ThemeMode) => {
     setTheme(newTheme);
-    if (typeof window !== "undefined") {
-      localStorage.setItem("atlas-theme", newTheme);
-      // Apply theme to document
-      const root = document.documentElement;
-      if (newTheme === "dark") {
-        root.classList.add("dark");
-      } else if (newTheme === "light") {
-        root.classList.remove("dark");
-      } else {
-        // System preference
-        const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-        if (prefersDark) {
-          root.classList.add("dark");
-        } else {
-          root.classList.remove("dark");
-        }
-      }
-    }
+    applyTheme(newTheme);
   };
 
   const handleReset = () => {
     setTheme("system");
-    if (typeof window !== "undefined") {
-      localStorage.removeItem("atlas-theme");
-      document.documentElement.classList.remove("dark");
-    }
+    applyTheme("system");
   };
 
   if (!isOpen) return null;
@@ -100,19 +114,19 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       />
 
       {/* Modal */}
-      <div className="relative z-10 w-full max-w-lg mx-4 bg-white rounded-xl shadow-2xl overflow-hidden animate-scale-in">
+      <div className="relative z-10 w-full max-w-lg mx-4 bg-white dark:bg-navy-800 rounded-xl shadow-2xl overflow-hidden animate-scale-in">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 bg-gray-50">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-navy-600 bg-gray-50 dark:bg-navy-900">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-clinical-600 flex items-center justify-center">
               <Settings className="h-5 w-5 text-white" />
             </div>
             <div>
-              <h2 className="text-lg font-semibold text-gray-900">Settings</h2>
-              <p className="text-sm text-gray-500">Configure your preferences</p>
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Settings</h2>
+              <p className="text-sm text-gray-500 dark:text-gray-400">Configure your preferences</p>
             </div>
           </div>
-          <Button variant="ghost" size="sm" onClick={onClose} className="p-2">
+          <Button variant="ghost" size="sm" onClick={onClose} className="p-2 dark:text-gray-300 dark:hover:bg-navy-700">
             <X className="h-5 w-5" />
           </Button>
         </div>
@@ -121,7 +135,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
         <div className="p-6 max-h-[60vh] overflow-y-auto">
           <div className="space-y-6">
             <div>
-              <h3 className="text-sm font-semibold text-gray-900 mb-3">Theme</h3>
+              <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">Theme</h3>
               <div className="grid grid-cols-3 gap-3">
                 {[
                   { id: "light" as const, label: "Light", icon: Sun },
@@ -134,8 +148,8 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                     className={cn(
                       "flex flex-col items-center gap-2 p-4 rounded-lg border-2 transition-all",
                       theme === option.id
-                        ? "border-clinical-500 bg-clinical-50 text-clinical-700"
-                        : "border-gray-200 hover:border-gray-300 text-gray-600"
+                        ? "border-clinical-500 bg-clinical-50 dark:bg-clinical-900/30 text-clinical-700 dark:text-clinical-300"
+                        : "border-gray-200 dark:border-navy-600 hover:border-gray-300 dark:hover:border-navy-500 text-gray-600 dark:text-gray-300"
                     )}
                   >
                     <option.icon className="h-6 w-6" />
@@ -148,12 +162,12 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between px-6 py-4 border-t border-gray-200 bg-gray-50">
+        <div className="flex items-center justify-between px-6 py-4 border-t border-gray-200 dark:border-navy-600 bg-gray-50 dark:bg-navy-900">
           <Button
             variant="ghost"
             size="sm"
             onClick={handleReset}
-            className="text-gray-500 hover:text-gray-700"
+            className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
           >
             <RefreshCw className="h-4 w-4 mr-2" />
             Reset to Defaults

@@ -353,13 +353,13 @@ export function Header({
         />
       )}
 
-      <header className="relative z-[120] h-[4.7rem] sm:h-[5.3rem] bg-sky-100/90 backdrop-blur-sm border-b border-sky-200 px-3 sm:px-4 lg:px-6 flex items-center justify-between shrink-0 shadow-md">
+      <header className="relative z-[120] h-[4.7rem] sm:h-[5.3rem] bg-sky-100/90 dark:bg-navy-900/95 backdrop-blur-sm border-b border-sky-200 dark:border-navy-700 px-3 sm:px-4 lg:px-6 flex items-center justify-between shrink-0 shadow-md">
         {/* Left: Logo and Navigation */}
         <div className="flex items-center gap-2 sm:gap-4">
           {/* Mobile Menu Button */}
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="lg:hidden p-2 -ml-2 text-sky-700 hover:text-sky-900 hover:bg-sky-200/70 rounded-lg transition-colors"
+            className="lg:hidden p-2 -ml-2 text-sky-700 dark:text-gray-300 hover:text-sky-900 dark:hover:text-white hover:bg-sky-200/70 dark:hover:bg-navy-700 rounded-lg transition-colors"
           >
             <Menu className="h-5 w-5" />
           </button>
@@ -371,7 +371,7 @@ export function Header({
           </div>
 
           {/* Divider */}
-          <div className="h-8 w-px bg-gradient-to-b from-transparent via-sky-300 to-transparent mx-1 sm:mx-2 hidden md:block" />
+          <div className="h-8 w-px bg-gradient-to-b from-transparent via-sky-300 dark:via-navy-600 to-transparent mx-1 sm:mx-2 hidden md:block" />
 
           {/* Project Switcher */}
           <ProjectSwitcher />
@@ -397,7 +397,7 @@ export function Header({
           </Link>
 
           {/* Divider */}
-          <div className="h-8 w-px bg-gradient-to-b from-transparent via-sky-300 to-transparent mx-2 hidden xl:block" />
+          <div className="h-8 w-px bg-gradient-to-b from-transparent via-sky-300 dark:via-navy-600 to-transparent mx-2 hidden xl:block" />
 
           {/* View Mode Toggle - Desktop only */}
           {onViewModeChange && (
@@ -451,7 +451,7 @@ export function Header({
           {/* Connection status dot - always visible, just a dot with tooltip */}
           <button
             onClick={() => setStatusOpen(true)}
-            className="flex items-center justify-center w-8 h-8 rounded-lg hover:bg-sky-200/70 transition-all"
+            className="flex items-center justify-center w-8 h-8 rounded-lg hover:bg-sky-200/70 dark:hover:bg-navy-700 transition-all"
             title={connectionStatusText}
           >
             <div className="relative flex h-2.5 w-2.5">
