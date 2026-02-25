@@ -1,6 +1,5 @@
 "use client";
 
-import { ModelPicker } from "./ModelPicker";
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";

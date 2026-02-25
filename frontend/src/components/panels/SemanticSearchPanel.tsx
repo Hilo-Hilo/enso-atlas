@@ -18,6 +18,7 @@ import { getPatchUrl } from "@/lib/api";
 
 interface SemanticSearchPanelProps {
   slideId: string | null;
+  projectId?: string;
   isAnalyzed: boolean;
   onSearch: (query: string, topK: number) => Promise<void>;
   results: SemanticSearchResult[];
@@ -37,6 +38,7 @@ const EXAMPLE_QUERIES = [
 
 export function SemanticSearchPanel({
   slideId,
+  projectId,
   isAnalyzed,
   onSearch,
   results,
@@ -222,16 +224,18 @@ export function SemanticSearchPanel({
                     result={result}
                     rank={index + 1}
                     slideId={slideId}
+                    projectId={projectId}
                     isSelected={coordsMatch !== null && selectedPatchId === coordsMatch}
-                    onClick={() =>
+                    onClick={() => {
+                      if (!result.coordinates) return;
                       onPatchClick?.({
-                        x: result.coordinates?.[0] ?? 0,
-                        y: result.coordinates?.[1] ?? 0,
-                        width: 224,
-                        height: 224,
+                        x: result.coordinates[0],
+                        y: result.coordinates[1],
+                        width: result.patch_size ?? 224,
+                        height: result.patch_size ?? 224,
                         level: 0,
-                      })
-                    }
+                      });
+                    }}
                   />
                 );
               })}
@@ -256,6 +260,7 @@ interface SearchResultItemProps {
   result: SemanticSearchResult;
   rank: number;
   slideId: string;
+  projectId?: string;
   isSelected: boolean;
   onClick: () => void;
 }
@@ -264,6 +269,7 @@ function SearchResultItem({
   result,
   rank,
   slideId,
+  projectId,
   isSelected,
   onClick,
 }: SearchResultItemProps) {
@@ -275,15 +281,21 @@ function SearchResultItem({
       ? "bg-amber-500"
       : "bg-blue-500";
 
-  const patchUrl = getPatchUrl(slideId, `patch_${result.patch_index}`);
+  const patchUrl = getPatchUrl(slideId, `patch_${result.patch_index}`, {
+    projectId,
+    coordinates: result.coordinates,
+    patchSize: result.patch_size,
+  });
 
   return (
     <button
       onClick={onClick}
+      disabled={!result.coordinates}
       className={cn(
         "w-full flex items-center gap-3 p-2.5 rounded-lg border transition-all text-left group",
         "hover:border-clinical-500 hover:bg-clinical-50/50 hover:shadow-clinical",
         "focus:outline-none focus:ring-2 focus:ring-clinical-500",
+        !result.coordinates && "opacity-60 cursor-not-allowed hover:border-gray-200 hover:bg-white hover:shadow-none",
         isSelected
           ? "border-clinical-600 bg-clinical-50 ring-1 ring-clinical-200"
           : "border-gray-200 bg-white"

@@ -521,7 +521,7 @@ export async function analyzeSlide(
           },
           attentionWeight: e.attention_weight / maxAttn,
           thumbnailUrl: getPatchUrl(backend.slide_id, patchId, {
-            projectId,
+            projectId: projectId ?? undefined,
             size: 224,
             x,
             y,
@@ -856,29 +856,41 @@ export function getThumbnailUrl(slideId: string, projectId?: string | null, size
 export function getPatchUrl(
   slideId: string,
   patchId: string,
-  opts?: {
-    projectId?: string | null;
+  options?: {
+    projectId?: string;
     size?: number;
+    coordinates?: [number, number];
     x?: number;
     y?: number;
     patchSize?: number;
   }
 ): string {
   const params = new URLSearchParams();
-  const scopedProjectId = normalizeProjectId(opts?.projectId);
-  if (scopedProjectId) params.set("project_id", scopedProjectId);
-  if (typeof opts?.size === "number" && Number.isFinite(opts.size) && opts.size > 0) {
-    params.set("size", String(Math.round(opts.size)));
+
+  if (options?.projectId) {
+    params.set("project_id", options.projectId);
   }
-  if (typeof opts?.x === "number" && Number.isFinite(opts.x)) {
-    params.set("x", String(Math.round(opts.x)));
+
+  if (typeof options?.size === "number" && Number.isFinite(options.size) && options.size > 0) {
+    params.set("size", String(Math.round(options.size)));
   }
-  if (typeof opts?.y === "number" && Number.isFinite(opts.y)) {
-    params.set("y", String(Math.round(opts.y)));
+
+  if (options?.coordinates) {
+    params.set("x", String(options.coordinates[0]));
+    params.set("y", String(options.coordinates[1]));
+  } else {
+    if (typeof options?.x === "number" && Number.isFinite(options.x)) {
+      params.set("x", String(Math.round(options.x)));
+    }
+    if (typeof options?.y === "number" && Number.isFinite(options.y)) {
+      params.set("y", String(Math.round(options.y)));
+    }
   }
-  if (typeof opts?.patchSize === "number" && Number.isFinite(opts.patchSize) && opts.patchSize > 0) {
-    params.set("patch_size", String(Math.round(opts.patchSize)));
+
+  if (typeof options?.patchSize === "number" && Number.isFinite(options.patchSize) && options.patchSize > 0) {
+    params.set("patch_size", String(options.patchSize));
   }
+
   const qs = params.toString() ? `?${params.toString()}` : "";
   return `/api/slides/${encodeURIComponent(slideId)}/patches/${encodeURIComponent(patchId)}${qs}`;
 }
@@ -988,6 +1000,7 @@ interface BackendSemanticSearchResult {
   patch_index: number;
   similarity_score: number;
   coordinates?: [number, number];
+  patch_size?: number;
   attention_weight?: number;
 }
 
@@ -1026,10 +1039,12 @@ export async function semanticSearch(
   return {
     slide_id: backend.slide_id,
     query: backend.query,
-    results: backend.results.map(r => ({
+    results: backend.results.map((r) => ({
       patch_index: r.patch_index,
-      similarity: r.similarity_score,  // Map similarity_score -> similarity
+      similarity: r.similarity_score, // Map similarity_score -> similarity
       coordinates: r.coordinates,
+      patch_size: r.patch_size,
+      attention_weight: r.attention_weight,
     })),
   };
 }

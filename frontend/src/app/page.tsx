@@ -1368,6 +1368,11 @@ function HomePage() {
   const handleAnalyze = useCallback(async () => {
     if (!selectedSlide) return;
 
+    if (selectedModels.length === 0) {
+      toast.warning("Model Selection Required", "Select at least one model before analysis.");
+      return;
+    }
+
     // On mobile, switch to results tab when analysis starts
     setMobilePanelTab("results");
     
@@ -1404,7 +1409,7 @@ function HomePage() {
       setMultiModelResult(null);
       setMultiModelError(null);
     }
-  }, [selectedSlide, analyze, toast, handleMultiModelAnalyze, currentProject.id, scopedProjectModels.length]);
+  }, [selectedSlide, selectedModels.length, analyze, toast, handleMultiModelAnalyze, currentProject.id, scopedProjectModels.length]);
 
   // Retry multi-model analysis (always force)
   const handleRetryMultiModel = useCallback(() => {
@@ -2136,6 +2141,7 @@ function HomePage() {
       return (
         <SemanticSearchPanel
           slideId={selectedSlide?.id ?? null}
+          projectId={currentProject.id}
           isAnalyzed={!!analysisResult}
           onSearch={handleSemanticSearch}
           results={semanticResults}

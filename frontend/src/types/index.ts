@@ -202,6 +202,8 @@ export interface SemanticSearchResult {
   patch_index: number;
   similarity: number;
   coordinates?: [number, number];
+  patch_size?: number;
+  attention_weight?: number;
 }
 
 // Semantic search response
