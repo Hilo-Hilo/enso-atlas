@@ -24,7 +24,7 @@ This repository is developed for the **Kaggle-Google Med Gemma Impact Challenge*
 - **Multi-project platform**: Project definitions are driven by `config/projects.yaml`; current reference projects are:
   - `ovarian-platinum` — **Ovarian Cancer - Platinum Sensitivity**
   - `lung-stage` — **Lung Adenocarcinoma - Stage Classification**
-- **Strict project isolation**: Slide listing, model selection, heatmaps, similar-case retrieval, report generation, batch analysis, and async tasks are scoped by `project_id` with no cross-project fallback.
+- **Strict project isolation**: Slide listing, model selection, heatmaps, similar-case retrieval, report generation, batch analysis, and async tasks are scoped by `project_id`. Core routing stays project-bound, while level-0 compatibility checks may still reference legacy embedding layout within the selected project.
 - **Project-scoped model visibility**: 6 total classification models (5 ovarian + 1 lung), and each project only exposes assigned models.
 - **Level-0 dense embeddings by default**: Analysis and multi-model workflows default to full-resolution level-0 embeddings.
 - **Explicit backend error behavior**: Heatmap and multi-model endpoints return explicit errors for missing prerequisites:
@@ -86,7 +86,7 @@ All screenshots below were refreshed from the live deployment at `https://atlas.
 ```bash
 # Clone the repository
 git clone https://github.com/Hilo-Hilo/enso-atlas.git
-cd med-gemma-hackathon
+cd enso-atlas
 
 # Build and start backend + database
 docker compose -f docker/docker-compose.yaml build
@@ -102,6 +102,10 @@ npx next start -p 3002
 
 # Frontend available at http://localhost:3002
 ```
+
+> **Portability note:** `docker/docker-compose.yaml` currently includes developer-specific absolute bind mounts. Treat it as a template and use portable local defaults (relative paths or named volumes) and/or a local override file for your machine.
+>
+> **CPU/GPU note:** Docker Compose can run on CPU-only hosts for basic development checks, but GPU acceleration is strongly recommended for practical embedding/inference/report latency.
 
 ### Local Development
 
@@ -171,7 +175,9 @@ npm run dev
 | **MedGemma 1.5 4B** | Structured clinical report generation with project-aware context |
 | **PostgreSQL** | Slide metadata, result caching, and project-model / project-slide assignments |
 
-### Classification Results
+### Classification Metrics (Model Registry Metadata)
+
+The AUC values below are demo metadata attached to configured model entries. Treat them as reference values unless you also have matching evaluation artifacts and rerun the corresponding evaluation pipeline in your environment.
 
 | Model | Project Scope | Task | AUC |
 |-------|---------------|------|-----|
@@ -237,7 +243,7 @@ curl -X POST http://localhost:8003/api/report \
 curl "http://localhost:8003/api/similar?slide_id=TCGA-XX-XXXX&project_id=lung-stage"
 ```
 
-### Full Endpoint List
+### Key Endpoint List (representative; see Swagger/ReDoc for full schema)
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
@@ -256,7 +262,8 @@ curl "http://localhost:8003/api/similar?slide_id=TCGA-XX-XXXX&project_id=lung-st
 | POST | /api/semantic-search | MedSigLIP semantic search (`project_id` in request body) |
 | GET | /api/heatmap/{slide_id}?project_id={project_id}&smooth={bool} | Slide heatmap with optional interpolation |
 | GET | /api/heatmap/{slide_id}/{model_id}?project_id={project_id}&smooth={bool} | Model-specific attention heatmap |
-| GET/POST/PUT/DELETE | /api/projects | Project CRUD |
+| GET/POST | /api/projects | List/create projects |
+| GET/PUT/DELETE | /api/projects/{project_id} | Read/update/delete one project |
 | GET/POST/DELETE | /api/projects/{project_id}/slides | Assign/unassign slides per project |
 | GET/POST/DELETE | /api/projects/{project_id}/models | Assign/unassign models per project |
 
@@ -274,7 +281,9 @@ Heatmap and multi-model analysis paths return explicit errors instead of silent 
 
 ---
 
-## Project Structure
+## Expected Project Structure
+
+The tree below shows the expected layout for a configured deployment. In a clean clone, large datasets/models are often mounted or generated externally.
 
 ```
 med-gemma-hackathon/
@@ -290,11 +299,11 @@ med-gemma-hackathon/
 |-- config/            # projects.yaml and configuration
 |-- data/
 |   |-- projects/
-|   |   |-- ovarian-platinum/
+|   |   |-- ovarian-platinum/   # example project directory
 |   |   |   |-- slides/
 |   |   |   |-- embeddings/
 |   |   |   \-- labels.csv
-|   |   \-- lung-stage/
+|   |   \-- lung-stage/         # example project directory
 |   |       |-- slides/
 |   |       |-- embeddings/
 |   |       \-- labels.json
@@ -305,7 +314,7 @@ med-gemma-hackathon/
 
 ### Data Layout
 
-Per-project datasets follow a modular structure:
+Per-project datasets are expected to follow a modular structure (either in-repo or external paths configured in `config/projects.yaml`):
 
 - `data/projects/{project-id}/slides/`
 - `data/projects/{project-id}/embeddings/`
@@ -351,12 +360,12 @@ Model-level decision thresholds can also be set in `config/projects.yaml` (for e
 
 ## Dataset
 
-This repository currently includes two reference project datasets:
+`config/projects.yaml` includes two reference project configurations:
 
-- **Ovarian cancer cohort** for platinum sensitivity, tumor grade, and survival classification
-- **Lung adenocarcinoma cohort** for stage classification
+- **Ovarian cancer cohort configuration** for platinum sensitivity, tumor grade, and survival classification
+- **Lung adenocarcinoma cohort configuration** for stage classification
 
-Both use Path Foundation embeddings, with level-0 dense embeddings as the default analysis path.
+In many deployments, raw WSIs/embeddings are stored outside this repository and mounted into the configured dataset paths. When available, Path Foundation level-0 dense embeddings are the default analysis path.
 
 ---
 
@@ -371,7 +380,9 @@ Services are defined in `docker/docker-compose.yaml`:
 
 The backend takes approximately 3.5 minutes to fully start due to MedGemma model loading. The frontend runs separately outside Docker.
 
-See [docs/reproduce.md](docs/reproduce.md) for detailed deployment instructions.
+Before launching in a new environment, update host bind mounts in Compose (or layer an override file) so paths are valid on your machine.
+
+See [docs.md](docs.md) (Hospital Deployment Guide section) for detailed deployment instructions.
 
 ---
 
