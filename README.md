@@ -1,19 +1,23 @@
 # Enso Atlas
 
-[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+<div align="center">
 
-**On-Premise Multi-Cancer Pathology Evidence Platform for Project-Scoped Clinical AI**
+### Enso Atlas: Fully Local, FM-based Clinical Decision Support System for Pathology  
+**Universal on-premise pathology AI platform: plug in any foundation model, dataset, or cancer task hassle free.**  
+Built on Google Health AI Developer Foundations (HAI-DEF)
 
-Enso Atlas is an on-premise pathology evidence platform that analyzes whole-slide images (WSIs) using CLAM/TransMIL attention-based classification, Path Foundation embeddings, MedSigLIP retrieval, and MedGemma reporting across multiple cancer projects with strict project isolation. The platform is disease-agnostic; the ovarian and lung setups in this repository are reference demos.
+Test it out here: https://atlas.ensohealth.ai/
 
-## Competition Context
+[![Kaggle Writeup](https://img.shields.io/badge/Kaggle-Writeup-20BEFF?style=for-the-badge&logo=kaggle&logoColor=white)](https://www.kaggle.com/competitions/med-gemma-impact-challenge/writeups/Enso-Atlas)
+[![MedGemma Impact Challenge](https://img.shields.io/badge/MedGemma-Impact%20Challenge-0EA5E9?style=for-the-badge)](https://www.kaggle.com/competitions/med-gemma-impact-challenge)
+[![Deployment](https://img.shields.io/badge/Deployment-On--Premise%20Only-166534?style=for-the-badge)](#)
+[![PHI Boundary](https://img.shields.io/badge/PHI-Data%20Stays%20On%20Site-1D4ED8?style=for-the-badge)](#)
+[![Python](https://img.shields.io/badge/Python-3.10%2B-2563EB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/downloads/)
+[![License](https://img.shields.io/badge/License-MIT-EAB308?style=for-the-badge)](https://opensource.org/licenses/MIT)
 
-This repository is developed for the **Kaggle-Google Med Gemma Impact Challenge**:
+[Competition Write-up](https://www.kaggle.com/competitions/med-gemma-impact-challenge/writeups/Enso-Atlas) • [Documentation](docs.md) • [Quick Start](#quick-start) • [Pipeline Scripts](#pipeline-scripts)
 
-- Writeups page: https://www.kaggle.com/competitions/med-gemma-impact-challenge
-- Challenge prompt: **The MedGemma Impact Challenge — Build human-centered AI applications with MedGemma and other open models from Google’s Health AI Developer Foundations (HAI-DEF).**
+</div>
 
 **Last Updated:** February 24, 2026
 
