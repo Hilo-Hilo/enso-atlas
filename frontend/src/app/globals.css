@@ -62,6 +62,11 @@
                 color var(--transition-slow) var(--ease-in-out-smooth);
   }
 
+  /* Dark mode body styles */
+  .dark body {
+    @apply bg-navy-900 text-gray-100;
+  }
+
   /* High-contrast accessible focus states */
   *:focus-visible {
     @apply outline-none ring-2 ring-clinical-500 ring-offset-2;
@@ -86,9 +91,21 @@
     @apply bg-gray-400;
   }
 
+  .dark ::-webkit-scrollbar-thumb {
+    @apply bg-navy-600;
+  }
+
+  .dark ::-webkit-scrollbar-thumb:hover {
+    @apply bg-navy-500;
+  }
+
   /* Custom selection colors */
   ::selection {
     @apply bg-clinical-200 text-clinical-900;
+  }
+
+  .dark ::selection {
+    @apply bg-clinical-800 text-clinical-100;
   }
 }
 
@@ -98,13 +115,25 @@
     @apply bg-white rounded-lg border border-surface-border shadow-clinical;
   }
 
+  :is(.dark .clinical-card) {
+    @apply bg-navy-800 border-navy-600;
+  }
+
   .clinical-card-elevated {
     @apply bg-white rounded-lg border border-surface-border shadow-clinical-md;
+  }
+
+  :is(.dark .clinical-card-elevated) {
+    @apply bg-navy-800 border-navy-600;
   }
 
   /* Panel header styling */
   .panel-header {
     @apply px-4 py-3 border-b border-surface-border bg-surface-secondary;
+  }
+
+  :is(.dark .panel-header) {
+    @apply border-navy-600 bg-navy-900;
   }
 
   .panel-header-dark {
@@ -166,17 +195,33 @@
     @apply flex items-center gap-1 bg-white/95 backdrop-blur-sm rounded-lg shadow-clinical-md border border-surface-border p-1;
   }
 
+  :is(.dark .viewer-toolbar) {
+    @apply bg-navy-800/95 border-navy-600;
+  }
+
   .toolbar-button {
     @apply p-2 rounded-md text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors;
     @apply focus:outline-none focus:ring-2 focus:ring-clinical-500 focus:ring-offset-1;
+  }
+
+  :is(.dark .toolbar-button) {
+    @apply text-gray-300 hover:bg-navy-700 hover:text-gray-100;
   }
 
   .toolbar-button-active {
     @apply bg-clinical-50 text-clinical-700;
   }
 
+  :is(.dark .toolbar-button-active) {
+    @apply bg-clinical-900/40 text-clinical-300;
+  }
+
   .toolbar-divider {
     @apply w-px h-6 bg-gray-200 mx-1;
+  }
+
+  :is(.dark .toolbar-divider) {
+    @apply bg-navy-600;
   }
 
   /* OpenSeadragon viewer container */
@@ -279,8 +324,16 @@
     @apply text-left py-2 px-3 bg-surface-secondary font-medium text-gray-600 border-b border-surface-border;
   }
 
+  :is(.dark .clinical-table th) {
+    @apply bg-navy-900 text-gray-300 border-navy-600;
+  }
+
   .clinical-table td {
     @apply py-2 px-3 border-b border-surface-border;
+  }
+
+  :is(.dark .clinical-table td) {
+    @apply border-navy-600 text-gray-200;
   }
 
   .clinical-table tr:last-child td {
@@ -307,11 +360,19 @@
     @apply bg-gray-100 border border-gray-300 rounded shadow-sm;
   }
 
+  :is(.dark .kbd) {
+    @apply text-gray-200 bg-navy-700 border-navy-500;
+  }
+
   /* Search input styling */
   .search-input {
     @apply w-full pl-9 pr-4 py-2 bg-white border border-gray-200 rounded-lg text-sm;
     @apply placeholder:text-gray-400;
     @apply focus:outline-none focus:ring-2 focus:ring-clinical-500 focus:border-transparent;
+  }
+
+  :is(.dark .search-input) {
+    @apply bg-navy-800 border-navy-600 text-gray-100 placeholder:text-gray-500;
   }
 
   /* Filter dropdown */
@@ -769,6 +830,10 @@
     @apply bg-white/80 backdrop-blur-md;
   }
 
+  :is(.dark .glass) {
+    @apply bg-navy-800/80;
+  }
+
   .glass-dark {
     @apply bg-navy-900/90 backdrop-blur-md;
   }
@@ -805,8 +870,16 @@
     @apply bg-gray-200 animate-pulse rounded;
   }
 
+  :is(.dark .skeleton) {
+    @apply bg-navy-700;
+  }
+
   .skeleton-text {
     @apply h-4 bg-gray-200 animate-pulse rounded w-3/4;
+  }
+
+  :is(.dark .skeleton-text) {
+    @apply bg-navy-700;
   }
 
   /* Number transition for counters */

@@ -5,6 +5,7 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { ToastProvider } from "@/components/ui";
 import { ProjectProvider } from "@/contexts/ProjectContext";
 import { DisclaimerBanner } from "@/components/layout/DisclaimerBanner";
+import { ThemeScript } from "@/components/ThemeScript";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -36,6 +37,8 @@ export default function RootLayout({
   return (
     <html lang="en" className={inter.variable}>
       <head>
+        {/* Prevent flash of wrong theme by applying theme class before hydration */}
+        <ThemeScript />
         {/* OpenSeadragon images will be loaded from CDN */}
         <link
           rel="preconnect"
