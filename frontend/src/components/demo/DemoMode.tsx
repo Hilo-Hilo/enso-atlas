@@ -399,14 +399,11 @@ export function DemoMode({ isActive, onClose, onStepChange }: DemoModeProps) {
     };
   }, []);
 
-  const setTourStep = useCallback(
-    (nextStep: number) => {
-      const bounded = clampStep(nextStep);
-      setStepIndex(bounded);
-      onStepChange?.(bounded);
-    },
-    [onStepChange]
-  );
+  const setTourStep = useCallback((nextStep: number) => {
+    const bounded = clampStep(nextStep);
+    stepIndexRef.current = bounded;
+    setStepIndex(bounded);
+  }, []);
 
   const retriggerCurrentStep = useCallback(
     (expectedStep: number) => {
@@ -536,10 +533,12 @@ export function DemoMode({ isActive, onClose, onStepChange }: DemoModeProps) {
       if (type === EVENTS.STEP_AFTER) {
         resetTargetRetry();
 
+        // Defer step transitions until after Joyride settles the previous tooltip/spotlight
+        // to avoid transient null-target errors during fast panel remounts.
         if (action === ACTIONS.NEXT) {
-          setTourStep(currentIndex + 1);
+          requestAnimationFrame(() => setTourStep(currentIndex + 1));
         } else if (action === ACTIONS.PREV) {
-          setTourStep(currentIndex - 1);
+          requestAnimationFrame(() => setTourStep(currentIndex - 1));
         }
       }
 
@@ -579,7 +578,7 @@ export function DemoMode({ isActive, onClose, onStepChange }: DemoModeProps) {
       continuous
       showSkipButton
       showProgress
-      scrollToFirstStep
+      disableScrolling
       spotlightClicks
       disableOverlay
       disableOverlayClose
