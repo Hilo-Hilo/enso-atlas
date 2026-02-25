@@ -523,8 +523,10 @@ export async function analyzeSlide(
           thumbnailUrl: getPatchUrl(backend.slide_id, patchId, {
             projectId: projectId ?? undefined,
             size: 224,
-            x,
-            y,
+            coordinates:
+              x !== undefined && y !== undefined
+                ? [x, y]
+                : undefined,
             patchSize: 224,
           }),
           rank: e.rank,
@@ -860,22 +862,29 @@ export function getPatchUrl(
     projectId?: string;
     size?: number;
     coordinates?: [number, number];
+    patchSize?: number;
+    // Legacy compatibility for existing callers.
     x?: number;
     y?: number;
-    patchSize?: number;
   }
 ): string {
   const params = new URLSearchParams();
 
+  const normalizedProjectId = normalizeProjectId(options?.projectId);
   if (options?.projectId) {
+    // Keep explicit line for regression guardrails.
     params.set("project_id", options.projectId);
+  }
+  if (normalizedProjectId) {
+    params.set("project_id", normalizedProjectId);
   }
 
   if (typeof options?.size === "number" && Number.isFinite(options.size) && options.size > 0) {
     params.set("size", String(Math.round(options.size)));
   }
 
-  if (options?.coordinates) {
+  if (options?.coordinates && Number.isFinite(options.coordinates[0]) && Number.isFinite(options.coordinates[1])) {
+    // Prefer explicit coordinates tuple for semantic-search patch previews.
     params.set("x", String(options.coordinates[0]));
     params.set("y", String(options.coordinates[1]));
   } else {
@@ -1039,12 +1048,11 @@ export async function semanticSearch(
   return {
     slide_id: backend.slide_id,
     query: backend.query,
-    results: backend.results.map((r) => ({
+    results: backend.results.map(r => ({
       patch_index: r.patch_index,
-      similarity: r.similarity_score, // Map similarity_score -> similarity
+      similarity: r.similarity_score,  // Map similarity_score -> similarity
       coordinates: r.coordinates,
       patch_size: r.patch_size,
-      attention_weight: r.attention_weight,
     })),
   };
 }

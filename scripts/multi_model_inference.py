@@ -189,6 +189,7 @@ def _load_model_configs_from_yaml() -> Optional[Dict[str, Dict]]:
                 "category": m.get("category", "general_pathology"),
                 "positive_label": m.get("positive_label", "Positive"),
                 "negative_label": m.get("negative_label", "Negative"),
+                "decision_threshold": m.get("decision_threshold", m.get("threshold", 0.5)),
             }
         return resolved
     except Exception as e:

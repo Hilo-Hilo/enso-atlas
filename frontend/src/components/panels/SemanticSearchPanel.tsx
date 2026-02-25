@@ -285,17 +285,16 @@ function SearchResultItem({
     projectId,
     coordinates: result.coordinates,
     patchSize: result.patch_size,
+    size: 224,
   });
 
   return (
     <button
       onClick={onClick}
-      disabled={!result.coordinates}
       className={cn(
         "w-full flex items-center gap-3 p-2.5 rounded-lg border transition-all text-left group",
         "hover:border-clinical-500 hover:bg-clinical-50/50 hover:shadow-clinical",
         "focus:outline-none focus:ring-2 focus:ring-clinical-500",
-        !result.coordinates && "opacity-60 cursor-not-allowed hover:border-gray-200 hover:bg-white hover:shadow-none",
         isSelected
           ? "border-clinical-600 bg-clinical-50 ring-1 ring-clinical-200"
           : "border-gray-200 bg-white"
