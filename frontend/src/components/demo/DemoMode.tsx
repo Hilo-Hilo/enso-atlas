@@ -48,10 +48,10 @@ function CustomTooltip({
   return (
     <div
       {...tooltipProps}
-      className="bg-white rounded-2xl shadow-2xl border border-gray-100 max-w-md overflow-hidden animate-scale-in"
+      className="bg-white dark:bg-navy-800 rounded-2xl shadow-2xl border border-gray-100 dark:border-navy-600 max-w-md overflow-hidden animate-scale-in"
     >
       {/* Progress bar */}
-      <div className="h-1 bg-gray-100">
+      <div className="h-1 bg-gray-100 dark:bg-navy-700">
         <div
           className="h-full bg-gradient-to-r from-clinical-500 to-clinical-600 transition-all duration-500"
           style={{ width: `${progress}%` }}
@@ -75,12 +75,12 @@ function CustomTooltip({
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1">
-              <span className="text-xs font-semibold text-clinical-600 bg-clinical-50 px-2 py-0.5 rounded-full">
+              <span className="text-xs font-semibold text-clinical-600 dark:text-clinical-300 bg-clinical-50 dark:bg-clinical-900/40 px-2 py-0.5 rounded-full">
                 Step {index + 1} of {size}
               </span>
             </div>
             {step.title && (
-              <h3 className="text-lg font-bold text-gray-900 leading-tight">
+              <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100 leading-tight">
                 {step.title}
               </h3>
             )}
@@ -90,7 +90,7 @@ function CustomTooltip({
 
       {/* Content */}
       <div className="px-6 pb-4">
-        <div className="text-gray-600 text-sm leading-relaxed">
+        <div className="text-gray-600 dark:text-gray-300 text-sm leading-relaxed">
           {step.content}
         </div>
       </div>
@@ -98,11 +98,11 @@ function CustomTooltip({
       {/* Feature highlights if present */}
       {(step.data as { features?: string[] })?.features && (
         <div className="px-6 pb-4">
-          <div className="bg-gray-50 rounded-lg p-3 space-y-2">
+          <div className="bg-gray-50 dark:bg-navy-700/60 rounded-lg p-3 space-y-2">
             {(step.data as { features: string[] }).features.map((feature, i) => (
-              <div key={i} className="flex items-center gap-2 text-sm text-gray-700">
-                <div className="w-5 h-5 rounded-full bg-clinical-100 flex items-center justify-center shrink-0">
-                  <Zap className="w-3 h-3 text-clinical-600" />
+              <div key={i} className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200">
+                <div className="w-5 h-5 rounded-full bg-clinical-100 dark:bg-clinical-900/40 flex items-center justify-center shrink-0">
+                  <Zap className="w-3 h-3 text-clinical-600 dark:text-clinical-300" />
                 </div>
                 {feature}
               </div>
@@ -115,7 +115,7 @@ function CustomTooltip({
       <div className="px-6 pb-5 flex items-center justify-between gap-3">
         <button
           {...closeProps}
-          className="text-sm text-gray-500 hover:text-gray-700 transition-colors"
+          className="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
         >
           Skip tour
         </button>
@@ -123,7 +123,7 @@ function CustomTooltip({
           {index > 0 && (
             <button
               {...backProps}
-              className="flex items-center gap-1 px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+              className="flex items-center gap-1 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 bg-gray-100 dark:bg-navy-700 border border-transparent dark:border-navy-500 hover:bg-gray-200 dark:hover:bg-navy-600 rounded-lg transition-colors"
             >
               <ChevronLeft className="w-4 h-4" />
               Back
@@ -166,7 +166,7 @@ const tourSteps: Step[] = [
           Start by selecting a whole-slide image (WSI) from our curated dataset. 
           Each slide contains a biopsy sample from a cancer patient.
         </p>
-        <p className="text-clinical-600 font-medium">
+        <p className="text-clinical-600 dark:text-clinical-300 font-medium">
           The system supports gigapixel-scale images at multiple magnification levels.
         </p>
       </div>
@@ -191,7 +191,7 @@ const tourSteps: Step[] = [
           Click <strong>Analyze Slide</strong> to run our MedGemma-powered pathology AI. 
           The system will process thousands of tissue patches to predict treatment response.
         </p>
-        <p className="text-amber-600 text-sm">
+        <p className="text-amber-600 dark:text-amber-300 text-sm">
           ⚡ Analysis typically completes in 10–30 seconds.
         </p>
       </div>
@@ -216,7 +216,7 @@ const tourSteps: Step[] = [
           Explore the whole-slide image with smooth pan and zoom controls. 
           The AI-generated heatmap overlay shows regions of high diagnostic significance.
         </p>
-        <p className="text-sm text-gray-500">
+        <p className="text-sm text-gray-500 dark:text-gray-400">
           Toggle heatmap visibility, zoom to evidence patches, or enter fullscreen mode.
         </p>
       </div>
@@ -241,7 +241,7 @@ const tourSteps: Step[] = [
           View the AI&apos;s prediction with confidence scores. The model classifies patients
           into treatment response categories with associated confidence levels.
         </p>
-        <p className="text-sm text-gray-500">
+        <p className="text-sm text-gray-500 dark:text-gray-400">
           Includes quality metrics and uncertainty quantification.
         </p>
       </div>
@@ -266,7 +266,7 @@ const tourSteps: Step[] = [
           Use MedSigLIP-powered semantic search to locate morphologically related tissue patterns.
           This helps you quickly discover regions and slides that match a pathology concept.
         </p>
-        <p className="text-clinical-600 font-medium">
+        <p className="text-clinical-600 dark:text-clinical-300 font-medium">
           Search results can be inspected and compared directly in the workflow.
         </p>
       </div>
@@ -291,7 +291,7 @@ const tourSteps: Step[] = [
           The AI retrieves morphologically similar cases from the database, 
           showing their outcomes to provide clinical context and validation.
         </p>
-        <p className="text-sm text-gray-500">
+        <p className="text-sm text-gray-500 dark:text-gray-400">
           Click any case to view that patient&apos;s slide and analysis.
         </p>
       </div>
@@ -316,7 +316,7 @@ const tourSteps: Step[] = [
           Generate a comprehensive clinical report summarizing the AI analysis, 
           evidence patches, and recommendations. Export to PDF for clinical workflows.
         </p>
-        <p className="text-green-600 font-medium">
+        <p className="text-green-600 dark:text-green-300 font-medium">
           Reports are structured for easy integration with EMR systems.
         </p>
       </div>
@@ -645,6 +645,10 @@ export function DemoMode({ isActive, onClose, onStepChange }: DemoModeProps) {
 
   if (!isActive) return null;
 
+  const isDarkTheme =
+    typeof document !== "undefined" &&
+    document.documentElement.classList.contains("dark");
+
   return (
     <Joyride
       steps={stepsRef.current}
@@ -667,8 +671,8 @@ export function DemoMode({ isActive, onClose, onStepChange }: DemoModeProps) {
       styles={{
         options: {
           zIndex: 10000,
-          arrowColor: "#fff",
-          backgroundColor: "#fff",
+          arrowColor: isDarkTheme ? "#1e293b" : "#fff",
+          backgroundColor: isDarkTheme ? "#1e293b" : "#fff",
           overlayColor: "rgba(15, 23, 42, 0.4)",
           primaryColor: "#0ea5e9",
           spotlightShadow: "0 0 0 3px rgba(14, 165, 233, 0.5), 0 0 20px rgba(14, 165, 233, 0.2)",
@@ -756,7 +760,7 @@ export function WelcomeModal({ isOpen, onClose, onStartDemo }: WelcomeModalProps
       />
 
       {/* Modal */}
-      <div className="relative bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden animate-scale-in">
+      <div className="relative bg-white dark:bg-navy-800 border border-gray-100 dark:border-navy-600 rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden animate-scale-in">
         {/* Gradient header */}
         <div className="bg-gradient-to-r from-clinical-500 via-clinical-600 to-violet-600 p-8 text-white">
           <div className="flex items-center gap-3 mb-4">
@@ -787,16 +791,16 @@ export function WelcomeModal({ isOpen, onClose, onStartDemo }: WelcomeModalProps
             ].map((feature, i) => (
               <div
                 key={i}
-                className="flex items-start gap-3 p-3 rounded-lg bg-gray-50"
+                className="flex items-start gap-3 p-3 rounded-lg bg-gray-50 dark:bg-navy-700/60"
               >
-                <div className="w-10 h-10 rounded-lg bg-clinical-100 flex items-center justify-center shrink-0">
-                  <feature.icon className="w-5 h-5 text-clinical-600" />
+                <div className="w-10 h-10 rounded-lg bg-clinical-100 dark:bg-clinical-900/40 flex items-center justify-center shrink-0">
+                  <feature.icon className="w-5 h-5 text-clinical-600 dark:text-clinical-300" />
                 </div>
                 <div>
-                  <div className="font-semibold text-gray-900 text-sm">
+                  <div className="font-semibold text-gray-900 dark:text-gray-100 text-sm">
                     {feature.label}
                   </div>
-                  <div className="text-xs text-gray-500">{feature.desc}</div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400">{feature.desc}</div>
                 </div>
               </div>
             ))}
@@ -807,7 +811,7 @@ export function WelcomeModal({ isOpen, onClose, onStartDemo }: WelcomeModalProps
         <div className="px-6 pb-6 flex items-center justify-between">
           <button
             onClick={onClose}
-            className="text-gray-500 hover:text-gray-700 text-sm transition-colors"
+            className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 text-sm transition-colors"
           >
             Skip intro
           </button>
