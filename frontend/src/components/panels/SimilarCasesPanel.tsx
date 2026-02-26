@@ -115,13 +115,13 @@ export function SimilarCasesPanel({
         </CardHeader>
         <CardContent>
           <div className="text-center py-6">
-            <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-red-100 flex items-center justify-center">
+            <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
               <AlertCircle className="h-6 w-6 text-red-500" />
             </div>
-            <p className="text-sm font-medium text-red-700 mb-1">
+            <p className="text-sm font-medium text-red-700 dark:text-red-300 mb-1">
               Search failed
             </p>
-            <p className="text-xs text-red-600 mb-3">{error}</p>
+            <p className="text-xs text-red-600 dark:text-red-400 mb-3">{error}</p>
             {onRetry && (
               <Button
                 variant="ghost"
@@ -143,13 +143,13 @@ export function SimilarCasesPanel({
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <GitCompare className="h-4 w-4 text-clinical-600 animate-pulse" />
+            <GitCompare className="h-4 w-4 text-clinical-600 dark:text-clinical-400 animate-pulse" />
             Similar Cases
           </CardTitle>
         </CardHeader>
         <CardContent>
           <SkeletonSimilarCases />
-          <p className="text-xs text-gray-500 text-center mt-3 animate-pulse">
+          <p className="text-xs text-gray-500 dark:text-gray-400 text-center mt-3 animate-pulse">
             Searching reference cohort with FAISS...
           </p>
         </CardContent>
@@ -162,19 +162,19 @@ export function SimilarCasesPanel({
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <GitCompare className="h-4 w-4 text-gray-400" />
+            <GitCompare className="h-4 w-4 text-gray-400 dark:text-gray-500" />
             Similar Cases
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="text-center py-8 text-gray-500">
-            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gray-100 flex items-center justify-center">
-              <Database className="h-8 w-8 text-gray-400" />
+          <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gray-100 dark:bg-navy-700 flex items-center justify-center">
+              <Database className="h-8 w-8 text-gray-400 dark:text-gray-500" />
             </div>
-            <p className="text-sm font-medium text-gray-600">
+            <p className="text-sm font-medium text-gray-600 dark:text-gray-300">
               No similar cases found
             </p>
-            <p className="text-xs mt-1.5 text-gray-500 max-w-[200px] mx-auto">
+            <p className="text-xs mt-1.5 text-gray-500 dark:text-gray-400 max-w-[200px] mx-auto">
               The reference cohort may be empty or unavailable for comparison.
             </p>
           </div>
@@ -188,7 +188,7 @@ export function SimilarCasesPanel({
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <CardTitle className="flex items-center gap-2">
-            <GitCompare className="h-4 w-4 text-clinical-600" />
+            <GitCompare className="h-4 w-4 text-clinical-600 dark:text-clinical-400" />
             Similar Cases
             <Badge variant="default" size="sm" className="font-mono">
               {cases.length}
@@ -199,16 +199,16 @@ export function SimilarCasesPanel({
       <CardContent className="space-y-4 pt-0">
         {/* Outcome Summary */}
         {(outcomeSummary.responders > 0 || outcomeSummary.nonResponders > 0) && (
-          <div className="p-3 bg-surface-secondary rounded-lg border border-surface-border">
+          <div className="p-3 bg-surface-secondary dark:bg-navy-900 rounded-lg border border-surface-border dark:border-navy-600">
             <div className="flex items-center gap-2 mb-2">
-              <BarChart3 className="h-4 w-4 text-gray-500" />
-              <span className="text-xs font-medium text-gray-600 uppercase tracking-wide">
+              <BarChart3 className="h-4 w-4 text-gray-500 dark:text-gray-400" />
+              <span className="text-xs font-medium text-gray-600 dark:text-gray-300 uppercase tracking-wide">
                 Outcome Distribution
               </span>
             </div>
             <div className="flex items-center gap-2">
               {/* Visual bar */}
-              <div className="flex-1 h-3 bg-gray-200 rounded-full overflow-hidden flex">
+              <div className="flex-1 h-3 bg-gray-200 dark:bg-navy-700 rounded-full overflow-hidden flex">
                 {outcomeSummary.responders > 0 && (
                   <div
                     className="h-full bg-status-positive"
@@ -239,7 +239,7 @@ export function SimilarCasesPanel({
               {outcomeSummary.responders > 0 && (
                 <div className="flex items-center gap-1">
                   <div className="w-2 h-2 rounded-full bg-status-positive" />
-                  <span className="text-gray-600">
+                  <span className="text-gray-600 dark:text-gray-300">
                     {outcomeSummary.responders} {positiveLabel}
                   </span>
                 </div>
@@ -247,7 +247,7 @@ export function SimilarCasesPanel({
               {outcomeSummary.nonResponders > 0 && (
                 <div className="flex items-center gap-1">
                   <div className="w-2 h-2 rounded-full bg-status-negative" />
-                  <span className="text-gray-600">
+                  <span className="text-gray-600 dark:text-gray-300">
                     {outcomeSummary.nonResponders} {negativeLabel}
                   </span>
                 </div>
@@ -258,15 +258,15 @@ export function SimilarCasesPanel({
 
         {/* View Mode Toggle */}
         <div className="flex items-center justify-end gap-2">
-          <span className="text-xs text-gray-500">View:</span>
-          <div className="flex items-center gap-1 bg-surface-secondary rounded-lg p-0.5">
+          <span className="text-xs text-gray-500 dark:text-gray-400">View:</span>
+          <div className="flex items-center gap-1 bg-surface-secondary dark:bg-navy-900 rounded-lg p-0.5">
             <button
               onClick={() => setViewMode("grouped")}
               className={cn(
                 "px-2 py-1 rounded text-xs font-medium transition-all",
                 viewMode === "grouped"
-                  ? "bg-white shadow-clinical text-clinical-700"
-                  : "text-gray-500 hover:text-gray-700"
+                  ? "bg-white dark:bg-navy-700 shadow-clinical text-clinical-700 dark:text-clinical-300"
+                  : "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
               )}
             >
               By Outcome
@@ -276,8 +276,8 @@ export function SimilarCasesPanel({
               className={cn(
                 "px-2 py-1 rounded text-xs font-medium transition-all",
                 viewMode === "list"
-                  ? "bg-white shadow-clinical text-clinical-700"
-                  : "text-gray-500 hover:text-gray-700"
+                  ? "bg-white dark:bg-navy-700 shadow-clinical text-clinical-700 dark:text-clinical-300"
+                  : "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
               )}
             >
               All
@@ -291,9 +291,9 @@ export function SimilarCasesPanel({
             {/* Similar Positive Class */}
             {groupedCases.responders.length > 0 && (
               <div className="space-y-2">
-                <div className="flex items-center gap-2 pb-1 border-b border-green-200">
-                  <CheckCircle className="h-4 w-4 text-green-600" />
-                  <span className="text-sm font-semibold text-green-800">
+                <div className="flex items-center gap-2 pb-1 border-b border-green-200 dark:border-green-800">
+                  <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-400" />
+                  <span className="text-sm font-semibold text-green-800 dark:text-green-300">
                     Similar {positiveLabel}s (N={groupedCases.responders.length})
                   </span>
                 </div>
@@ -320,9 +320,9 @@ export function SimilarCasesPanel({
             {/* Similar Negative Class */}
             {groupedCases.nonResponders.length > 0 && (
               <div className="space-y-2">
-                <div className="flex items-center gap-2 pb-1 border-b border-red-200">
-                  <XCircle className="h-4 w-4 text-red-600" />
-                  <span className="text-sm font-semibold text-red-800">
+                <div className="flex items-center gap-2 pb-1 border-b border-red-200 dark:border-red-800">
+                  <XCircle className="h-4 w-4 text-red-600 dark:text-red-400" />
+                  <span className="text-sm font-semibold text-red-800 dark:text-red-300">
                     Similar {negativeLabel}s (N={groupedCases.nonResponders.length})
                   </span>
                 </div>
@@ -349,9 +349,9 @@ export function SimilarCasesPanel({
             {/* Unknown Outcome */}
             {groupedCases.unknown.length > 0 && (
               <div className="space-y-2">
-                <div className="flex items-center gap-2 pb-1 border-b border-gray-200">
-                  <HelpCircle className="h-4 w-4 text-gray-500" />
-                  <span className="text-sm font-semibold text-gray-600">
+                <div className="flex items-center gap-2 pb-1 border-b border-gray-200 dark:border-navy-600">
+                  <HelpCircle className="h-4 w-4 text-gray-500 dark:text-gray-400" />
+                  <span className="text-sm font-semibold text-gray-600 dark:text-gray-300">
                     Unknown Outcome (N={groupedCases.unknown.length})
                   </span>
                 </div>
@@ -377,8 +377,8 @@ export function SimilarCasesPanel({
 
             {/* Outcome Comparison Note */}
             {groupedCases.responders.length > 0 && groupedCases.nonResponders.length > 0 && (
-              <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                <p className="text-xs text-blue-800 leading-relaxed">
+              <div className="p-3 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-lg">
+                <p className="text-xs text-blue-800 dark:text-blue-300 leading-relaxed">
                   <strong>Comparison note:</strong> This case shares morphological features with both 
                   {positiveLabel.toLowerCase()} and {negativeLabel.toLowerCase()} cases. Key differentiating features may include tumor 
                   cellularity, stromal patterns, and inflammatory infiltrate distribution.
@@ -413,7 +413,7 @@ export function SimilarCasesPanel({
                 variant="ghost"
                 size="sm"
                 onClick={() => setShowAll(!showAll)}
-                className="w-full text-gray-600 hover:text-gray-900"
+                className="w-full text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100"
               >
                 {showAll ? (
                   <>
@@ -432,8 +432,8 @@ export function SimilarCasesPanel({
         )}
 
         {/* Info */}
-        <div className="pt-3 border-t border-gray-100">
-          <p className="text-xs text-gray-500 leading-relaxed">
+        <div className="pt-3 border-t border-gray-100 dark:border-navy-700">
+          <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
             Similar cases retrieved using FAISS vector similarity on patch
             embeddings. Lower distance indicates higher morphological similarity.
           </p>
@@ -483,21 +483,23 @@ function SimilarCaseItem({
     <div
       className={cn(
         "border rounded-lg transition-all overflow-hidden",
-        isExpanded ? "border-clinical-300 bg-clinical-50/50" : "border-gray-200 bg-white"
+        isExpanded
+          ? "border-clinical-300 bg-clinical-50/50 dark:border-clinical-600 dark:bg-clinical-900/30"
+          : "border-gray-200 bg-white dark:border-navy-600 dark:bg-navy-800"
       )}
     >
       {/* Main Row */}
       <button
         onClick={onToggleExpand}
-        className="w-full flex items-center gap-3 p-3 text-left hover:bg-gray-50/50 transition-colors"
+        className="w-full flex items-center gap-3 p-3 text-left hover:bg-gray-50/50 dark:hover:bg-navy-700/50 transition-colors"
       >
         {/* Thumbnail */}
-        <div className="relative w-12 h-12 rounded-lg overflow-hidden shrink-0 border border-gray-200">
+        <div className="relative w-12 h-12 rounded-lg overflow-hidden shrink-0 border border-gray-200 dark:border-navy-600">
           {case_.thumbnailUrl && !thumbnailError ? (
             <>
               {thumbnailLoading && (
-                <div className="absolute inset-0 bg-gray-100 flex items-center justify-center animate-pulse">
-                  <Database className="h-5 w-5 text-gray-300" />
+                <div className="absolute inset-0 bg-gray-100 dark:bg-navy-700 flex items-center justify-center animate-pulse">
+                  <Database className="h-5 w-5 text-gray-300 dark:text-gray-500" />
                 </div>
               )}
               <img
@@ -517,11 +519,11 @@ function SimilarCaseItem({
           ) : (
             <div className={cn(
               "w-full h-full flex items-center justify-center",
-              isResponder ? "bg-green-50" : isNonResponder ? "bg-red-50" : "bg-gray-100"
+              isResponder ? "bg-green-50 dark:bg-green-900/30" : isNonResponder ? "bg-red-50 dark:bg-red-900/30" : "bg-gray-100 dark:bg-navy-700"
             )}>
               <Database className={cn(
                 "h-5 w-5",
-                isResponder ? "text-green-400" : isNonResponder ? "text-red-400" : "text-gray-400"
+                isResponder ? "text-green-400" : isNonResponder ? "text-red-400" : "text-gray-400 dark:text-gray-500"
               )} />
             </div>
           )}
@@ -533,7 +535,7 @@ function SimilarCaseItem({
         {/* Info */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between mb-1">
-            <span className="text-sm font-medium text-gray-900 truncate">
+            <span className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
               Case {(case_.caseId || case_.slideId || "unknown").slice(0, 12)}
             </span>
             {case_.label && (
@@ -550,15 +552,15 @@ function SimilarCaseItem({
           <div className="flex items-center gap-3">
             {/* Distance score */}
             <div className="flex items-center gap-1.5">
-              <span className="text-xs text-gray-500">Similarity:</span>
+              <span className="text-xs text-gray-500 dark:text-gray-400">Similarity:</span>
               <div className="flex items-center gap-1">
-                <div className="w-16 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                <div className="w-16 h-1.5 bg-gray-200 dark:bg-navy-700 rounded-full overflow-hidden">
                   <div
-                    className="h-full bg-clinical-500 rounded-full transition-all"
+                    className="h-full bg-clinical-500 dark:bg-clinical-400 rounded-full transition-all"
                     style={{ width: `${similarityScore}%` }}
                   />
                 </div>
-                <span className="text-xs font-mono text-gray-600">
+                <span className="text-xs font-mono text-gray-600 dark:text-gray-300">
                   {similarityScore}%
                 </span>
               </div>
@@ -569,41 +571,41 @@ function SimilarCaseItem({
         {/* Expand Icon */}
         <div className="shrink-0">
           {isExpanded ? (
-            <ChevronUp className="h-4 w-4 text-gray-400" />
+            <ChevronUp className="h-4 w-4 text-gray-400 dark:text-gray-500" />
           ) : (
-            <ChevronDown className="h-4 w-4 text-gray-400" />
+            <ChevronDown className="h-4 w-4 text-gray-400 dark:text-gray-500" />
           )}
         </div>
       </button>
 
       {/* Expanded Details */}
       {isExpanded && (
-        <div className="px-3 pb-3 pt-0 border-t border-gray-100 animate-fade-in">
+        <div className="px-3 pb-3 pt-0 border-t border-gray-100 dark:border-navy-700 animate-fade-in">
           <div className="grid grid-cols-2 gap-3 text-xs mt-3">
             <div className="space-y-1">
-              <span className="text-gray-500 font-medium">Slide ID</span>
-              <p className="font-mono text-gray-700 truncate">
+              <span className="text-gray-500 dark:text-gray-400 font-medium">Slide ID</span>
+              <p className="font-mono text-gray-700 dark:text-gray-300 truncate">
                 {(case_.slideId || "unknown").slice(0, 20)}
               </p>
             </div>
             <div className="space-y-1">
-              <span className="text-gray-500 font-medium">Distance</span>
-              <p className="font-mono text-gray-700">
+              <span className="text-gray-500 dark:text-gray-400 font-medium">Distance</span>
+              <p className="font-mono text-gray-700 dark:text-gray-300">
                 {formatDistance(case_.distance)}
               </p>
             </div>
             {case_.patchId && (
               <div className="space-y-1">
-                <span className="text-gray-500 font-medium">Patch ID</span>
-                <p className="font-mono text-gray-700">
+                <span className="text-gray-500 dark:text-gray-400 font-medium">Patch ID</span>
+                <p className="font-mono text-gray-700 dark:text-gray-300">
                   {case_.patchId.slice(0, 12)}
                 </p>
               </div>
             )}
             {case_.coordinates && (
               <div className="space-y-1">
-                <span className="text-gray-500 font-medium">Coordinates</span>
-                <p className="font-mono text-gray-700 flex items-center gap-1">
+                <span className="text-gray-500 dark:text-gray-400 font-medium">Coordinates</span>
+                <p className="font-mono text-gray-700 dark:text-gray-300 flex items-center gap-1">
                   <MapPin className="h-3 w-3" />
                   ({case_.coordinates.x}, {case_.coordinates.y})
                 </p>
