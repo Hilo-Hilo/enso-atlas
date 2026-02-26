@@ -10,9 +10,9 @@ interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
 export const Card = React.forwardRef<HTMLDivElement, CardProps>(
   ({ className, variant = "default", children, ...props }, ref) => {
     const variants = {
-      default: "bg-white border border-surface-border shadow-clinical transition-shadow duration-200 hover:shadow-clinical-md",
-      elevated: "bg-white shadow-clinical-lg transition-all duration-200 hover:shadow-clinical-xl",
-      outlined: "bg-white border-2 border-surface-border transition-colors duration-200 hover:border-clinical-200",
+      default: "bg-white dark:bg-navy-800 border border-surface-border dark:border-navy-600 shadow-clinical transition-shadow duration-200 hover:shadow-clinical-md",
+      elevated: "bg-white dark:bg-navy-800 shadow-clinical-lg transition-all duration-200 hover:shadow-clinical-xl",
+      outlined: "bg-white dark:bg-navy-800 border-2 border-surface-border dark:border-navy-600 transition-colors duration-200 hover:border-clinical-200 dark:hover:border-clinical-700",
     };
 
     return (
@@ -37,7 +37,7 @@ export const CardHeader = React.forwardRef<HTMLDivElement, CardHeaderProps>(
       <div
         ref={ref}
         className={cn(
-          "px-4 py-3.5 border-b border-surface-border bg-gradient-to-r from-surface-secondary to-white",
+          "px-4 py-3.5 border-b border-surface-border dark:border-navy-600 bg-gradient-to-r from-surface-secondary to-white dark:from-navy-900 dark:to-navy-800",
           className
         )}
         {...props}
@@ -57,7 +57,7 @@ export const CardTitle = React.forwardRef<HTMLHeadingElement, CardTitleProps>(
     return (
       <h3
         ref={ref}
-        className={cn("text-sm font-semibold text-gray-900", className)}
+        className={cn("text-sm font-semibold text-gray-900 dark:text-gray-100", className)}
         {...props}
       >
         {children}
@@ -90,7 +90,7 @@ export const CardFooter = React.forwardRef<HTMLDivElement, CardFooterProps>(
       <div
         ref={ref}
         className={cn(
-          "px-4 py-3 border-t border-surface-border bg-surface-secondary",
+          "px-4 py-3 border-t border-surface-border dark:border-navy-600 bg-surface-secondary dark:bg-navy-900",
           className
         )}
         {...props}

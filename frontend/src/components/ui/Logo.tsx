@@ -128,12 +128,12 @@ export function Logo({
       {/* Wordmark */}
       {showWordmark && (
         <div className="flex flex-col min-w-0">
-          <span className={cn("font-semibold tracking-tight leading-none", text, isLightBg ? "text-slate-800" : "text-white")}>
-            Enso<span className={isLightBg ? "text-sky-700" : "text-clinical-400"}>Atlas</span>
+          <span className={cn("font-semibold tracking-tight leading-none", text, isLightBg ? "text-slate-800 dark:text-white" : "text-white")}>
+            Enso<span className={isLightBg ? "text-sky-700 dark:text-clinical-400" : "text-clinical-400"}>Atlas</span>
           </span>
           <span className={cn(
             "text-[10px] font-semibold tracking-wider uppercase mt-0.5 hidden sm:block",
-            isLightBg ? "text-sky-700" : "text-gray-400"
+            isLightBg ? "text-sky-700 dark:text-gray-400" : "text-gray-400"
           )}>
             Pathology Evidence Engine
           </span>
