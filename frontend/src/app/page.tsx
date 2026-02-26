@@ -136,7 +136,7 @@ function RightSidebarTabs({
   onPanelChange: (panel: RightSidebarPanelKey) => void;
 }) {
   return (
-    <div className="sticky top-0 z-10 bg-white dark:bg-navy-800 border-b border-gray-200 dark:border-navy-700 transition-colors duration-300">
+    <div className="sticky top-0 z-10 bg-white dark:bg-navy-800 border-b border-gray-200 dark:border-navy-700 transition-colors duration-300" data-demo="right-tablist">
       <nav className="flex" role="tablist" aria-label="Analysis tools">
         {options.map((opt) => {
           const Icon = RIGHT_PANEL_ICONS[opt.value];

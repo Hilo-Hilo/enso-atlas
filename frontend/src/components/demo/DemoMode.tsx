@@ -338,13 +338,27 @@ const STARTUP_READY_CHECK_INTERVAL_MS = 120;
 const STARTUP_MAX_READY_CHECKS = 18;
 const TARGET_RETRY_INTERVAL_MS = 250;
 const MAX_TARGET_RETRY_ATTEMPTS = 8;
+/** After exhausting primary retries, slow down before trying fallback cycle again. */
+const FALLBACK_RETRY_INTERVAL_MS = 500;
 
-function getStepSelector(stepIndex: number): string {
-  const step = tourSteps[stepIndex];
+/**
+ * Fallback selectors by step index. When the primary target for a step is not
+ * found, we try these in order before giving up. This prevents skipping steps
+ * due to transient DOM flicker during tab remount/scroll.
+ */
+export const STEP_FALLBACK_TARGETS: Partial<Record<number, string[]>> = {
+  3: ['[data-demo="right-tablist"]'],
+  4: ['[data-demo="right-tablist"]'],
+  5: ['[data-demo="right-tablist"]'],
+  6: ['[data-demo="right-tablist"]'],
+};
+
+export function getStepSelector(stepIndex: number, steps: Step[] = tourSteps): string {
+  const step = steps[stepIndex];
   return typeof step?.target === "string" ? step.target : "";
 }
 
-function isTargetVisible(selector: string): boolean {
+export function isTargetVisible(selector: string): boolean {
   if (!selector) return false;
 
   const element = document.querySelector(selector);
@@ -357,13 +371,39 @@ function isTargetVisible(selector: string): boolean {
   return style.display !== "none" && style.visibility !== "hidden";
 }
 
+/**
+ * Resolve a visible selector for the given step — tries the primary target
+ * first, then any configured fallbacks.
+ */
+export function resolveStepTarget(
+  stepIndex: number,
+  steps: Step[] = tourSteps
+): string | null {
+  const primary = getStepSelector(stepIndex, steps);
+  if (primary && isTargetVisible(primary)) return primary;
+
+  const fallbacks = STEP_FALLBACK_TARGETS[stepIndex];
+  if (fallbacks) {
+    for (const fb of fallbacks) {
+      if (isTargetVisible(fb)) return fb;
+    }
+  }
+
+  return null;
+}
+
 function clampStep(step: number): number {
   return Math.max(0, Math.min(step, tourSteps.length - 1));
 }
 
+export { tourSteps };
+
 export function DemoMode({ isActive, onClose, onStepChange }: DemoModeProps) {
   const [stepIndex, setStepIndex] = useState(0);
   const [run, setRun] = useState(false);
+
+  // Mutable copy of steps so fallback targets can be patched at runtime
+  const stepsRef = React.useRef<Step[]>(tourSteps.map((s) => ({ ...s })));
 
   const startupTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const stepIndexRef = React.useRef(0);
@@ -439,26 +479,41 @@ export function DemoMode({ isActive, onClose, onStepChange }: DemoModeProps) {
           return;
         }
 
+        // Re-signal the host so it can ensure the right panel/tab is visible
         onStepChange?.(missingStep);
 
+        // Check primary target first
         const selector = getStepSelector(missingStep);
-        const hasVisibleTarget = selector ? isTargetVisible(selector) : false;
-
-        if (hasVisibleTarget) {
+        if (selector && isTargetVisible(selector)) {
           resetTargetRetry();
           retriggerCurrentStep(missingStep);
           return;
         }
 
-        if (retryState.attempts >= MAX_TARGET_RETRY_ATTEMPTS) {
-          resetTargetRetry();
-          const nextStep = missingStep + 1;
-          if (nextStep >= tourSteps.length) {
-            setRun(false);
-            onClose();
-            return;
+        // Check fallback targets
+        const fallbacks = STEP_FALLBACK_TARGETS[missingStep];
+        if (fallbacks) {
+          for (const fb of fallbacks) {
+            if (isTargetVisible(fb)) {
+              // Re-point the live step target to the fallback so Joyride anchors there
+              stepsRef.current[missingStep] = {
+                ...stepsRef.current[missingStep],
+                target: fb,
+              };
+              resetTargetRetry();
+              retriggerCurrentStep(missingStep);
+              return;
+            }
           }
-          setTourStep(nextStep);
+        }
+
+        if (retryState.attempts >= MAX_TARGET_RETRY_ATTEMPTS) {
+          // ── NEVER auto-advance to the next step ──
+          // Reset the attempt counter and keep retrying at a slower cadence.
+          // This prevents the tour from skipping steps due to transient
+          // target misses (tab remount, scroll, React re-render batching).
+          retryState.attempts = 0;
+          retryState.timer = setTimeout(tryResolveTarget, FALLBACK_RETRY_INTERVAL_MS);
           return;
         }
 
@@ -471,7 +526,7 @@ export function DemoMode({ isActive, onClose, onStepChange }: DemoModeProps) {
         TARGET_RETRY_INTERVAL_MS
       );
     },
-    [isActive, onClose, onStepChange, resetTargetRetry, retriggerCurrentStep, setTourStep]
+    [isActive, onStepChange, resetTargetRetry, retriggerCurrentStep]
   );
 
   useEffect(() => {
@@ -488,6 +543,10 @@ export function DemoMode({ isActive, onClose, onStepChange }: DemoModeProps) {
 
     clearStartupTimer();
     resetTargetRetry();
+
+    // Reset the mutable steps to pristine copies so previous fallback patches
+    // don't persist across demo restarts.
+    stepsRef.current = tourSteps.map((s) => ({ ...s }));
 
     setRun(false);
     setStepIndex(0);
@@ -588,7 +647,7 @@ export function DemoMode({ isActive, onClose, onStepChange }: DemoModeProps) {
 
   return (
     <Joyride
-      steps={tourSteps}
+      steps={stepsRef.current}
       run={run}
       stepIndex={stepIndex}
       continuous
