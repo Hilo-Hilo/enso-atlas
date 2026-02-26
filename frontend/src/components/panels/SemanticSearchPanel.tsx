@@ -94,19 +94,19 @@ export function SemanticSearchPanel({
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Search className="h-4 w-4 text-gray-400" />
+            <Search className="h-4 w-4 text-gray-400 dark:text-gray-500" />
             MedSigLIP Semantic Search
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="text-center py-6 text-gray-500">
-            <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-gray-100 flex items-center justify-center">
-              <Search className="h-6 w-6 text-gray-400" />
+          <div className="text-center py-6 text-gray-500 dark:text-gray-400">
+            <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-gray-100 dark:bg-navy-700 flex items-center justify-center">
+              <Search className="h-6 w-6 text-gray-400 dark:text-gray-500" />
             </div>
-            <p className="text-sm font-medium text-gray-600">
+            <p className="text-sm font-medium text-gray-600 dark:text-gray-300">
               Search unavailable
             </p>
-            <p className="text-xs mt-1.5 text-gray-500 max-w-[200px] mx-auto">
+            <p className="text-xs mt-1.5 text-gray-500 dark:text-gray-400 max-w-[200px] mx-auto">
               Run analysis on a slide to enable MedSigLIP semantic search by description.
             </p>
           </div>
@@ -119,7 +119,7 @@ export function SemanticSearchPanel({
     <Card>
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2">
-          <Search className="h-4 w-4 text-clinical-600" />
+          <Search className="h-4 w-4 text-clinical-600 dark:text-clinical-400" />
           MedSigLIP Semantic Search
           {results.length > 0 && (
             <Badge variant="info" size="sm" className="font-mono">
@@ -141,7 +141,9 @@ export function SemanticSearchPanel({
               className={cn(
                 "w-full pl-3 pr-10 py-2 text-sm rounded-lg border transition-colors",
                 "border-gray-300 focus:border-clinical-500 focus:ring-2 focus:ring-clinical-200",
-                "placeholder:text-gray-400"
+                "placeholder:text-gray-400",
+                "dark:bg-navy-700 dark:border-navy-600 dark:text-gray-100",
+                "dark:placeholder:text-gray-400 dark:focus:border-clinical-400 dark:focus:ring-clinical-800"
               )}
               disabled={isSearching}
             />
@@ -149,7 +151,7 @@ export function SemanticSearchPanel({
               <button
                 type="button"
                 onClick={clearQuery}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
                 aria-label="Clear search query"
               >
                 <X className="h-4 w-4" />
@@ -158,11 +160,11 @@ export function SemanticSearchPanel({
           </div>
 
           <div className="flex items-center gap-2">
-            <label className="text-xs text-gray-600">Results:</label>
+            <label className="text-xs text-gray-600 dark:text-gray-400">Results:</label>
             <select
               value={topK}
               onChange={(e) => setTopK(Number(e.target.value))}
-              className="text-xs border border-gray-300 rounded px-2 py-1 focus:border-clinical-500 focus:ring-1 focus:ring-clinical-200"
+              className="text-xs border border-gray-300 rounded px-2 py-1 focus:border-clinical-500 focus:ring-1 focus:ring-clinical-200 dark:bg-navy-700 dark:border-navy-600 dark:text-gray-100 dark:focus:border-clinical-400 dark:focus:ring-clinical-800"
               disabled={isSearching}
             >
               <option value={3}>3</option>
@@ -194,7 +196,7 @@ export function SemanticSearchPanel({
 
         {/* Example Queries */}
         <div className="space-y-2">
-          <div className="flex items-center gap-1.5 text-xs text-gray-500">
+          <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
             <Lightbulb className="h-3 w-3" />
             <span>Try:</span>
           </div>
@@ -209,7 +211,9 @@ export function SemanticSearchPanel({
                   "text-xs px-2 py-1 rounded-full border transition-colors",
                   "border-gray-200 bg-gray-50 text-gray-600",
                   "hover:border-clinical-400 hover:bg-clinical-50 hover:text-clinical-700",
-                  "disabled:opacity-50 disabled:cursor-not-allowed"
+                  "disabled:opacity-50 disabled:cursor-not-allowed",
+                  "dark:border-navy-600 dark:bg-navy-700 dark:text-gray-300",
+                  "dark:hover:border-clinical-500 dark:hover:bg-navy-600 dark:hover:text-clinical-300"
                 )}
               >
                 {example}
@@ -220,20 +224,20 @@ export function SemanticSearchPanel({
 
         {/* Error Display */}
         {error && (
-          <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
-            <p className="text-xs text-red-700">{error}</p>
+          <div className="p-3 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg">
+            <p className="text-xs text-red-700 dark:text-red-300">{error}</p>
           </div>
         )}
 
         {/* Results */}
         {results.length > 0 && (
-          <div className="space-y-2 pt-2 border-t border-gray-100">
-            <div className="flex items-center justify-between text-xs text-gray-500">
+          <div className="space-y-2 pt-2 border-t border-gray-100 dark:border-navy-700">
+            <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
               <span className="font-medium">Matching Patches</span>
               <span>Similarity Score</span>
             </div>
             {selectedPatchId && (
-              <p className="text-2xs text-clinical-700">
+              <p className="text-2xs text-clinical-700 dark:text-clinical-300">
                 Tip: click the selected patch again to deselect.
               </p>
             )}
@@ -282,7 +286,7 @@ export function SemanticSearchPanel({
           query.trim().length > 0 &&
           results.length === 0 &&
           !error && (
-            <div className="text-center py-4 text-gray-500">
+            <div className="text-center py-4 text-gray-500 dark:text-gray-400">
               <p className="text-sm">No matching patches found.</p>
               <p className="text-xs mt-1">Try a different description.</p>
             </div>
@@ -333,10 +337,12 @@ function SearchResultItem({
         "w-full flex items-center gap-3 p-2.5 rounded-lg border transition-all text-left group",
         "hover:border-clinical-500 hover:bg-clinical-50/50 hover:shadow-clinical",
         "focus:outline-none focus:ring-2 focus:ring-clinical-500",
+        "dark:hover:border-clinical-400 dark:hover:bg-clinical-900/30",
+        "dark:focus:ring-clinical-400",
         isSelected
-          ? "border-clinical-600 bg-clinical-50 ring-1 ring-clinical-200"
-          : "border-gray-200 bg-white",
-        !canNavigate && "opacity-70 cursor-not-allowed hover:border-gray-200 hover:bg-white hover:shadow-none"
+          ? "border-clinical-600 bg-clinical-50 ring-1 ring-clinical-200 dark:border-clinical-500 dark:bg-clinical-900/40 dark:ring-clinical-700"
+          : "border-gray-200 bg-white dark:border-navy-600 dark:bg-navy-800",
+        !canNavigate && "opacity-70 cursor-not-allowed hover:border-gray-200 hover:bg-white hover:shadow-none dark:hover:border-navy-600 dark:hover:bg-navy-800"
       )}
       title={
         canNavigate
@@ -347,7 +353,7 @@ function SearchResultItem({
       }
     >
       {/* Thumbnail */}
-      <div className="relative w-12 h-12 rounded-lg overflow-hidden shrink-0 border border-gray-200 group-hover:border-clinical-300">
+      <div className="relative w-12 h-12 rounded-lg overflow-hidden shrink-0 border border-gray-200 group-hover:border-clinical-300 dark:border-navy-600 dark:group-hover:border-clinical-500">
         <img
           src={patchUrl}
           alt={`Patch ${result.patch_index}`}
@@ -365,7 +371,7 @@ function SearchResultItem({
       {/* Info */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between mb-1">
-          <span className="text-xs font-medium text-gray-900">
+          <span className="text-xs font-medium text-gray-900 dark:text-gray-100">
             Patch {result.patch_index}
           </span>
           <div
@@ -379,14 +385,14 @@ function SearchResultItem({
         </div>
 
         {result.coordinates ? (
-          <div className="flex items-center gap-1.5 text-2xs text-gray-500">
+          <div className="flex items-center gap-1.5 text-2xs text-gray-500 dark:text-gray-400">
             <Crosshair className="h-3 w-3" />
             <span className="font-mono">
               ({result.coordinates[0].toLocaleString()}, {result.coordinates[1].toLocaleString()})
             </span>
           </div>
         ) : (
-          <div className="flex items-center gap-1.5 text-2xs text-amber-700">
+          <div className="flex items-center gap-1.5 text-2xs text-amber-700 dark:text-amber-400">
             <AlertCircle className="h-3 w-3" />
             <span>Coordinates unavailable</span>
           </div>
@@ -395,7 +401,7 @@ function SearchResultItem({
 
       {/* Navigate indicator */}
       <div className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-        <ZoomIn className="h-4 w-4 text-clinical-600" />
+        <ZoomIn className="h-4 w-4 text-clinical-600 dark:text-clinical-400" />
       </div>
     </button>
   );
