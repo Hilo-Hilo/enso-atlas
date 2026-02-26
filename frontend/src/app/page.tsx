@@ -2230,10 +2230,10 @@ function HomePage() {
 
       {/* Error Display */}
       {error && (
-        <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+        <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
           <div className="flex items-start gap-2">
             <svg
-              className="h-4 w-4 text-red-500 mt-0.5 shrink-0"
+              className="h-4 w-4 text-red-500 dark:text-red-400 mt-0.5 shrink-0"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -2246,20 +2246,20 @@ function HomePage() {
               />
             </svg>
             <div className="flex-1">
-              <p className="text-sm font-medium text-red-800">
+              <p className="text-sm font-medium text-red-800 dark:text-red-200">
                 Operation Failed
               </p>
-              <p className="text-xs text-red-700 mt-0.5">{error}</p>
+              <p className="text-xs text-red-700 dark:text-red-300 mt-0.5">{error}</p>
               <div className="flex gap-2 mt-2">
                 <button
                   onClick={retryAnalysis}
-                  className="text-xs text-red-700 font-medium hover:text-red-900 underline"
+                  className="text-xs text-red-700 dark:text-red-300 font-medium hover:text-red-900 dark:hover:text-red-100 underline"
                 >
                   Retry
                 </button>
                 <button
                   onClick={clearError}
-                  className="text-xs text-red-600 hover:text-red-800"
+                  className="text-xs text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-200"
                 >
                   Dismiss
                 </button>

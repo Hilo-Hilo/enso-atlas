@@ -116,7 +116,7 @@ function SlideThumbnail({
     <div 
       ref={imageRef}
       className={cn(
-        "w-16 h-16 rounded-lg bg-gray-100 shrink-0 overflow-hidden border border-gray-200 transition-colors relative",
+        "w-16 h-16 rounded-lg bg-gray-100 dark:bg-navy-700 shrink-0 overflow-hidden border border-gray-200 dark:border-navy-600 transition-colors relative",
         className
       )}
     >
@@ -124,8 +124,8 @@ function SlideThumbnail({
         <>
           {/* Loading skeleton while image loads */}
           {!imageLoaded && (
-            <div className="absolute inset-0 bg-gray-200 animate-pulse flex items-center justify-center">
-              <Microscope className="h-5 w-5 text-gray-400" />
+            <div className="absolute inset-0 bg-gray-200 dark:bg-navy-600 animate-pulse flex items-center justify-center">
+              <Microscope className="h-5 w-5 text-gray-400 dark:text-gray-500" />
             </div>
           )}
           <img
@@ -141,13 +141,13 @@ function SlideThumbnail({
           />
         </>
       ) : imageError ? (
-        <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200">
-          <Layers className="h-5 w-5 text-slate-400" />
-          <span className="text-[7px] font-medium text-slate-400 mt-0.5 leading-none">Embeddings</span>
+        <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200 dark:from-navy-700 dark:to-navy-600">
+          <Layers className="h-5 w-5 text-slate-400 dark:text-slate-500" />
+          <span className="text-[7px] font-medium text-slate-400 dark:text-slate-500 mt-0.5 leading-none">Embeddings</span>
         </div>
       ) : (
         <div className="w-full h-full flex items-center justify-center pattern-dots">
-          <Microscope className="h-6 w-6 text-gray-400" />
+          <Microscope className="h-6 w-6 text-gray-400 dark:text-gray-500" />
         </div>
       )}
 
@@ -285,7 +285,7 @@ export function SlideSelector({
               variant="ghost"
               size="sm"
               onClick={() => setShowFilters(!showFilters)}
-              className={cn("p-1.5", showFilters && "bg-clinical-50")}
+              className={cn("p-1.5", showFilters && "bg-clinical-50 dark:bg-clinical-900/30")}
               title="Sort options"
             >
               <SortAsc className="h-4 w-4" />
@@ -319,8 +319,8 @@ export function SlideSelector({
 
         {/* Sort Options */}
         {showFilters && (
-          <div className="mt-3 p-3 bg-surface-secondary rounded-lg border border-surface-border animate-fade-in">
-            <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">
+          <div className="mt-3 p-3 bg-surface-secondary dark:bg-navy-900 rounded-lg border border-surface-border dark:border-navy-600 animate-fade-in">
+            <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">
               Sort By
             </p>
             <div className="flex flex-wrap gap-2">
@@ -350,14 +350,14 @@ export function SlideSelector({
       <CardContent className="flex flex-col space-y-3 pt-0 overflow-x-hidden">
         {/* Error State */}
         {error && (
-          <div className="p-3 bg-red-50 border border-red-200 rounded-lg animate-fade-in">
+          <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg animate-fade-in">
             <div className="flex items-start gap-2">
-              <AlertCircle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
+              <AlertCircle className="h-4 w-4 text-red-500 dark:text-red-400 shrink-0 mt-0.5" />
               <div className="flex-1">
-                <span className="text-sm text-red-700 block">{error}</span>
+                <span className="text-sm text-red-700 dark:text-red-300 block">{error}</span>
                 <button
                   onClick={loadSlides}
-                  className="mt-2 text-xs font-medium text-red-700 hover:text-red-900 underline"
+                  className="mt-2 text-xs font-medium text-red-700 dark:text-red-300 hover:text-red-900 dark:hover:text-red-100 underline"
                 >
                   Retry
                 </button>
@@ -371,7 +371,7 @@ export function SlideSelector({
           <div className="flex-1 flex items-center justify-center py-8">
             <div className="text-center">
               <Spinner size="md" />
-              <p className="text-sm text-gray-500 mt-2">Loading cases...</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">Loading cases...</p>
             </div>
           </div>
         )}
@@ -390,20 +390,20 @@ export function SlideSelector({
             }
           >
             {filteredSlides.length === 0 ? (
-              <div className="text-center py-8 text-gray-500">
+              <div className="text-center py-8 text-gray-500 dark:text-gray-400">
                 {slides.length === 0 ? (
                   <>
-                    <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gray-100 flex items-center justify-center">
-                      <ImageIcon className="h-8 w-8 text-gray-400" />
+                    <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gray-100 dark:bg-navy-700 flex items-center justify-center">
+                      <ImageIcon className="h-8 w-8 text-gray-400 dark:text-gray-500" />
                     </div>
-                    <p className="text-sm font-medium text-gray-600">
+                    <p className="text-sm font-medium text-gray-600 dark:text-gray-300">
                       No slides available
                     </p>
                     <p className="text-xs mt-1">Upload a WSI to get started</p>
                   </>
                 ) : (
                   <>
-                    <Search className="h-8 w-8 mx-auto mb-2 text-gray-400" />
+                    <Search className="h-8 w-8 mx-auto mb-2 text-gray-400 dark:text-gray-500" />
                     <p className="text-sm">No matching slides</p>
                     <p className="text-xs mt-1">Try a different search term</p>
                   </>
@@ -412,20 +412,20 @@ export function SlideSelector({
             ) : (
               <>
                 <div className="flex items-center justify-between px-1 pb-2">
-                  <p className="text-xs text-gray-500">
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
                     {filteredSlides.length} case{filteredSlides.length !== 1 ? "s" : ""} found
                   </p>
                   {filteredSlides.length > 5 && (
                     <button
                       type="button"
                       onClick={() => setShowAllCases((prev) => !prev)}
-                      className="text-xs text-clinical-600 hover:text-clinical-700 font-medium"
+                      className="text-xs text-clinical-600 hover:text-clinical-700 dark:text-clinical-400 dark:hover:text-clinical-300 font-medium"
                     >
                       {showAllCases ? "Show less" : `Show all (${filteredSlides.length})`}
                     </button>
                   )}
                 </div>
-                <div className="bg-white">
+                <div className="bg-white dark:bg-navy-800 rounded-lg overflow-hidden">
                   {visibleSlides.map((slide) => (
                     <SlideItem
                       key={slide.id}
@@ -444,14 +444,14 @@ export function SlideSelector({
 
         {/* Selected Slide Summary */}
         {selectedSlide && (
-          <div className="px-3 py-2 bg-clinical-50 border border-clinical-200 rounded-md animate-slide-up">
-            <p className="text-2xs uppercase tracking-wide text-clinical-700 font-semibold mb-1">
+          <div className="px-3 py-2 bg-clinical-50 dark:bg-clinical-900/20 border border-clinical-200 dark:border-clinical-800 rounded-md animate-slide-up">
+            <p className="text-2xs uppercase tracking-wide text-clinical-700 dark:text-clinical-300 font-semibold mb-1">
               Selected case
             </p>
-            <p className="text-sm font-medium text-clinical-900 truncate" title={selectedSlide.filename}>
+            <p className="text-sm font-medium text-clinical-900 dark:text-clinical-100 truncate" title={selectedSlide.filename}>
               {selectedSlide.displayName || cleanSlideName(selectedSlide.filename)}
             </p>
-            <p className="text-2xs text-clinical-600 font-mono truncate" title={selectedSlide.id}>
+            <p className="text-2xs text-clinical-600 dark:text-clinical-400 font-mono truncate" title={selectedSlide.id}>
               {cleanSlideName(selectedSlide.id)}
             </p>
           </div>
@@ -482,7 +482,7 @@ function SortButton({
         "flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors",
         isActive
           ? "bg-clinical-600 text-white"
-          : "bg-white text-gray-600 border border-gray-200 hover:bg-gray-50"
+          : "bg-white dark:bg-navy-700 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-navy-600 hover:bg-gray-50 dark:hover:bg-navy-600"
       )}
     >
       {label}
@@ -504,25 +504,25 @@ function QCBadge({ qc }: { qc: SlideQCMetrics }) {
       case "good":
         return {
           icon: ShieldCheck,
-          color: "text-green-600",
-          bg: "bg-green-50",
-          border: "border-green-200",
+          color: "text-green-600 dark:text-green-400",
+          bg: "bg-green-50 dark:bg-green-900/30",
+          border: "border-green-200 dark:border-green-800",
           label: "Good Quality",
         };
       case "acceptable":
         return {
           icon: ShieldAlert,
-          color: "text-yellow-600",
-          bg: "bg-yellow-50",
-          border: "border-yellow-200",
+          color: "text-yellow-600 dark:text-yellow-400",
+          bg: "bg-yellow-50 dark:bg-yellow-900/30",
+          border: "border-yellow-200 dark:border-yellow-800",
           label: "Acceptable",
         };
       case "poor":
         return {
           icon: ShieldX,
-          color: "text-red-600",
-          bg: "bg-red-50",
-          border: "border-red-200",
+          color: "text-red-600 dark:text-red-400",
+          bg: "bg-red-50 dark:bg-red-900/30",
+          border: "border-red-200 dark:border-red-800",
           label: "Poor Quality",
         };
     }
@@ -605,7 +605,7 @@ function SlideRenameInline({
     return (
       <button
         onClick={() => setIsEditing(true)}
-        className="mt-2 flex items-center gap-1.5 text-xs text-clinical-600 hover:text-clinical-800 transition-colors"
+        className="mt-2 flex items-center gap-1.5 text-xs text-clinical-600 dark:text-clinical-400 hover:text-clinical-800 dark:hover:text-clinical-300 transition-colors"
       >
         <Pencil className="h-3 w-3" />
         <span>{currentName ? "Edit alias" : "Add alias"}</span>
@@ -625,7 +625,7 @@ function SlideRenameInline({
         }}
         placeholder="Display name..."
         autoFocus
-        className="flex-1 text-xs px-2 py-1 border border-clinical-300 rounded focus:outline-none focus:ring-1 focus:ring-clinical-500"
+        className="flex-1 text-xs px-2 py-1 border border-clinical-300 dark:border-clinical-700 rounded bg-white dark:bg-navy-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-clinical-500"
       />
       <button
         onClick={handleSave}
@@ -635,7 +635,7 @@ function SlideRenameInline({
       </button>
       <button
         onClick={() => setIsEditing(false)}
-        className="text-xs px-2 py-1 text-gray-500 hover:text-gray-700"
+        className="text-xs px-2 py-1 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
       >
         Cancel
       </button>
@@ -648,12 +648,12 @@ function SlideItem({ slide, isSelected, onClick }: SlideItemProps) {
     <button
       onClick={onClick}
       className={cn(
-        "w-full flex items-center justify-between gap-2 px-3 py-2 text-left transition-colors border-b border-gray-200 last:border-b-0",
-        isSelected ? "bg-clinical-50" : "bg-white hover:bg-gray-50"
+        "w-full flex items-center justify-between gap-2 px-3 py-2 text-left transition-colors border-b border-gray-200 dark:border-navy-600 last:border-b-0",
+        isSelected ? "bg-clinical-50 dark:bg-clinical-900/20" : "bg-white dark:bg-navy-800 hover:bg-gray-50 dark:hover:bg-navy-700"
       )}
     >
       <div className="flex-1 min-w-0 pr-2">
-        <p className="text-sm text-gray-900 truncate" title={slide.filename}>
+        <p className="text-sm text-gray-900 dark:text-gray-100 truncate" title={slide.filename}>
           {slide.displayName || cleanSlideName(slide.filename)}
         </p>
       </div>
