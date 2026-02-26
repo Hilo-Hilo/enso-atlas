@@ -265,7 +265,7 @@ function ProjectFormModal({
     setForm((f) => ({ ...f, [field]: value }));
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/50 backdrop-blur-sm">
       <div className="bg-white dark:bg-navy-800 rounded-2xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-navy-700 bg-gray-50/50 dark:bg-navy-900/50">
@@ -569,7 +569,7 @@ function UploadModal({
       : gdcCount >= 1 && gdcCount <= 20;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/50 backdrop-blur-sm">
       <div className="bg-white dark:bg-navy-800 rounded-2xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden">
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-navy-700 bg-gray-50/50 dark:bg-navy-900/50">
           <div>
@@ -844,7 +844,7 @@ function DeleteConfirmModal({
   onCancel: () => void;
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/50 backdrop-blur-sm">
       <div className="bg-white dark:bg-navy-800 rounded-2xl shadow-2xl w-full max-w-sm mx-4 p-6 space-y-4">
         <div className="flex items-start gap-3">
           <div className="p-2 bg-red-50 dark:bg-red-900/20 rounded-lg">
