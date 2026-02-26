@@ -536,8 +536,24 @@ export function DemoMode({ isActive, onClose, onStepChange }: DemoModeProps) {
         // Defer step transitions until after Joyride settles the previous tooltip/spotlight
         // to avoid transient null-target errors during fast panel remounts.
         if (action === ACTIONS.NEXT) {
+          const nextStep = currentIndex + 1;
+
+          // In controlled mode, avoid clamping the last "Next" back onto the final step.
+          // Close immediately so "Get Started" completes reliably.
+          if (nextStep >= tourSteps.length) {
+            clearStartupTimer();
+            resetTargetRetry();
+            setRun(false);
+            onClose();
+            return;
+          }
+
+          // Prime host UI state for the next step before Joyride evaluates the new target.
+          onStepChange?.(nextStep);
           requestAnimationFrame(() => setTourStep(currentIndex + 1));
         } else if (action === ACTIONS.PREV) {
+          const prevStep = currentIndex - 1;
+          onStepChange?.(prevStep);
           requestAnimationFrame(() => setTourStep(currentIndex - 1));
         }
       }
