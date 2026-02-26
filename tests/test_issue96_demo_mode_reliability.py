@@ -29,7 +29,7 @@ def test_issue96_page_wires_demo_step_preconditions_and_panel_mapping():
 
     assert "const DEMO_RIGHT_PANEL_BY_STEP" in src
     assert '3: "prediction"' in src
-    assert '4: "evidence"' in src
+    assert '4: "semantic-search"' in src
     assert '5: "similar-cases"' in src
     assert '6: "medgemma"' in src
     assert "leftPanelRef.current?.expand?.();" in src

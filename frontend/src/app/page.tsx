@@ -121,7 +121,7 @@ const RIGHT_PANEL_ICONS: Record<RightSidebarPanelKey, React.ElementType> = {
 
 const DEMO_RIGHT_PANEL_BY_STEP: Partial<Record<number, RightSidebarPanelKey>> = {
   3: "prediction",
-  4: "evidence",
+  4: "semantic-search",
   5: "similar-cases",
   6: "medgemma",
 };

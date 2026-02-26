@@ -12,7 +12,7 @@ def test_issue99_demo_steps_target_stable_right_sidebar_tabs():
     src = _read("frontend/src/components/demo/DemoMode.tsx")
 
     assert '[data-demo="right-tab-prediction"]' in src
-    assert '[data-demo="right-tab-evidence"]' in src
+    assert '[data-demo="right-tab-semantic-search"]' in src
     assert '[data-demo="right-tab-similar-cases"]' in src
     assert '[data-demo="right-tab-medgemma"]' in src
 

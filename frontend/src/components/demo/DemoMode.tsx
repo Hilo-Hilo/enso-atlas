@@ -258,16 +258,16 @@ const tourSteps: Step[] = [
     },
   },
   {
-    target: '[data-demo="right-tab-evidence"]',
-    title: "Evidence Patches",
+    target: '[data-demo="right-tab-semantic-search"]',
+    title: "Semantic Search",
     content: (
       <div className="space-y-2">
         <p>
-          Examine the most influential tissue regions that drove the AI&apos;s decision. 
-          Each patch shows its contribution score and can be zoomed for detailed inspection.
+          Use MedSigLIP-powered semantic search to locate morphologically related tissue patterns.
+          This helps you quickly discover regions and slides that match a pathology concept.
         </p>
         <p className="text-clinical-600 font-medium">
-          Click any patch to navigate the viewer directly to that region.
+          Search results can be inspected and compared directly in the workflow.
         </p>
       </div>
     ),
@@ -276,9 +276,9 @@ const tourSteps: Step[] = [
     data: {
       icon: <Layers className="w-6 h-6 text-white" />,
       features: [
-        "Top contributing regions",
-        "Attention scores",
-        "Click-to-navigate",
+        "MedSigLIP semantic retrieval",
+        "Patch-level similarity",
+        "Fast concept-driven exploration",
       ],
     },
   },
