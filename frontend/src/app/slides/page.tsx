@@ -59,8 +59,8 @@ function Pagination({
   const endItem = Math.min(currentPage * perPage, totalItems);
 
   return (
-    <div className="flex items-center justify-between px-4 py-3 border-t border-gray-200 bg-white">
-      <div className="text-sm text-gray-500">
+    <div className="flex items-center justify-between px-4 py-3 border-t border-gray-200 dark:border-navy-700 bg-white dark:bg-navy-800">
+      <div className="text-sm text-gray-500 dark:text-gray-400">
         Showing <span className="font-medium">{startItem}</span> to{" "}
         <span className="font-medium">{endItem}</span> of{" "}
         <span className="font-medium">{totalItems}</span> slides
@@ -95,7 +95,7 @@ function Pagination({
                   "w-8 h-8 text-sm font-medium rounded-lg transition-colors",
                   currentPage === page
                     ? "bg-clinical-500 text-white"
-                    : "text-gray-600 hover:bg-gray-100"
+                    : "text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-navy-700"
                 )}
               >
                 {page}
@@ -479,7 +479,7 @@ export default function SlidesPage() {
   const totalPages = Math.ceil(totalSlides / (filters.perPage || 20));
 
   return (
-    <div className="h-screen flex flex-col bg-gray-50">
+    <div className="h-screen flex flex-col bg-gray-50 dark:bg-navy-950">
       {/* Header */}
       <Header
         isConnected={isConnected}
@@ -488,7 +488,7 @@ export default function SlidesPage() {
       />
 
       {/* Page Header */}
-      <div className="bg-white border-b border-gray-200 px-6 py-4">
+      <div className="bg-white dark:bg-navy-900 border-b border-gray-200 dark:border-navy-700 px-6 py-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
             <Button
@@ -500,14 +500,14 @@ export default function SlidesPage() {
               <ArrowLeft className="h-4 w-4" />
               Back
             </Button>
-            <div className="h-6 w-px bg-gray-200" />
+            <div className="h-6 w-px bg-gray-200 dark:bg-navy-600" />
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-clinical-50 rounded-lg">
-                <Layers className="h-5 w-5 text-clinical-600" />
+              <div className="p-2 bg-clinical-50 dark:bg-clinical-900/30 rounded-lg">
+                <Layers className="h-5 w-5 text-clinical-600 dark:text-clinical-400" />
               </div>
               <div>
-                <h1 className="text-xl font-semibold text-gray-900">Slide Manager</h1>
-                <p className="text-sm text-gray-500">
+                <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Slide Manager</h1>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
                   {totalSlides} slide{totalSlides !== 1 ? "s" : ""} total
                 </p>
               </div>
@@ -537,14 +537,14 @@ export default function SlidesPage() {
             </Button>
 
             {/* View mode toggle */}
-            <div className="flex items-center bg-gray-100 rounded-lg p-1">
+            <div className="flex items-center bg-gray-100 dark:bg-navy-800 rounded-lg p-1">
               <button
                 onClick={() => setViewMode("grid")}
                 className={cn(
                   "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors",
                   viewMode === "grid"
-                    ? "bg-white text-gray-900 shadow-sm"
-                    : "text-gray-500 hover:text-gray-700"
+                    ? "bg-white dark:bg-navy-700 text-gray-900 dark:text-gray-100 shadow-sm"
+                    : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
                 )}
               >
                 <LayoutGrid className="h-4 w-4" />
@@ -555,8 +555,8 @@ export default function SlidesPage() {
                 className={cn(
                   "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors",
                   viewMode === "table"
-                    ? "bg-white text-gray-900 shadow-sm"
-                    : "text-gray-500 hover:text-gray-700"
+                    ? "bg-white dark:bg-navy-700 text-gray-900 dark:text-gray-100 shadow-sm"
+                    : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
                 )}
               >
                 <Table2 className="h-4 w-4" />
@@ -571,7 +571,7 @@ export default function SlidesPage() {
       <div className="flex-1 flex overflow-hidden">
         {/* Filter panel */}
         {showFilterPanel && (
-          <div className="w-72 shrink-0 border-r border-gray-200 overflow-y-auto">
+          <div className="w-72 shrink-0 border-r border-gray-200 dark:border-navy-700 overflow-y-auto">
             <FilterPanel
               filters={filters}
               onFiltersChange={handleFiltersChange}
@@ -602,7 +602,7 @@ export default function SlidesPage() {
                 isLoading={isLoading && slides.length === 0}
               />
             ) : (
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+              <div className="bg-white dark:bg-navy-800 rounded-xl shadow-sm border border-gray-200 dark:border-navy-700 overflow-hidden">
                 <SlideTable
                   slides={slides}
                   selectedIds={selectedIds}

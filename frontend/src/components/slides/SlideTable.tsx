@@ -70,8 +70,8 @@ function SortableHeader({
     <button
       onClick={() => onSort?.(field)}
       className={cn(
-        "flex items-center gap-1 text-left font-medium hover:text-gray-900 transition-colors",
-        isActive ? "text-clinical-600" : "text-gray-500"
+        "flex items-center gap-1 text-left font-medium hover:text-gray-900 dark:hover:text-gray-100 transition-colors",
+        isActive ? "text-clinical-600 dark:text-clinical-400" : "text-gray-500 dark:text-gray-400"
       )}
     >
       {label}
@@ -167,8 +167,8 @@ function SlideRow({
   return (
     <tr
       className={cn(
-        "border-b border-gray-100 hover:bg-gray-50 transition-colors",
-        isSelected && "bg-clinical-50"
+        "border-b border-gray-100 dark:border-navy-700 hover:bg-gray-50 dark:hover:bg-navy-800/50 transition-colors",
+        isSelected && "bg-clinical-50 dark:bg-clinical-900/20"
       )}
     >
       {/* Selection checkbox */}
@@ -191,7 +191,7 @@ function SlideRow({
           onClick={onView}
           className="flex items-center gap-2 hover:text-clinical-600 transition-colors"
         >
-          <span className="font-medium text-gray-900">{truncateText(slide.id, 40)}</span>
+          <span className="font-medium text-gray-900 dark:text-gray-100">{truncateText(slide.id, 40)}</span>
           {slide.hasEmbeddings && (
             <span className="p-0.5 bg-clinical-100 rounded" title="Has embeddings">
               <Layers className="h-3 w-3 text-clinical-600" />
@@ -242,14 +242,14 @@ function SlideRow({
 
       {/* Patches */}
       <td className="py-3 px-4">
-        <span className="text-sm text-gray-600">
+        <span className="text-sm text-gray-600 dark:text-gray-300">
           {slide.numPatches !== undefined ? slide.numPatches.toLocaleString() : "—"}
         </span>
       </td>
 
       {/* Date */}
       <td className="py-3 px-4">
-        <span className="text-sm text-gray-500">
+        <span className="text-sm text-gray-500 dark:text-gray-400">
           {formatDate(slide.createdAt)}
         </span>
       </td>
@@ -274,19 +274,19 @@ function SlideRow({
         <div className="relative" ref={menuRef}>
           <button
             onClick={() => setShowMenu(!showMenu)}
-            className="p-1 hover:bg-gray-100 rounded transition-colors"
+            className="p-1 hover:bg-gray-100 dark:hover:bg-navy-700 rounded transition-colors"
           >
             <MoreVertical className="h-4 w-4 text-gray-400" />
           </button>
 
           {showMenu && (
-            <div className="absolute right-0 top-full mt-1 w-40 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-10">
+            <div className="absolute right-0 top-full mt-1 w-40 bg-white dark:bg-navy-800 rounded-lg shadow-lg border border-gray-200 dark:border-navy-600 py-1 z-10">
               <button
                 onClick={() => {
                   onView();
                   setShowMenu(false);
                 }}
-                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-navy-700"
               >
                 <Eye className="h-4 w-4" />
                 View Slide
@@ -296,7 +296,7 @@ function SlideRow({
                   onAnalyze();
                   setShowMenu(false);
                 }}
-                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-navy-700"
               >
                 <Microscope className="h-4 w-4" />
                 Analyze
@@ -306,18 +306,18 @@ function SlideRow({
                   onAddToGroup();
                   setShowMenu(false);
                 }}
-                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-navy-700"
               >
                 <FolderPlus className="h-4 w-4" />
                 Add to Group
               </button>
-              <hr className="my-1 border-gray-100" />
+              <hr className="my-1 border-gray-100 dark:border-navy-600" />
               <button
                 onClick={() => {
                   onDelete();
                   setShowMenu(false);
                 }}
-                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50"
+                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
               >
                 <Trash2 className="h-4 w-4" />
                 Delete
@@ -391,9 +391,9 @@ export function SlideTable({
   if (slides.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-16 text-center">
-        <Microscope className="h-16 w-16 text-gray-300 mb-4" />
-        <h3 className="text-lg font-medium text-gray-900 mb-2">No slides found</h3>
-        <p className="text-sm text-gray-500 max-w-sm">
+        <Microscope className="h-16 w-16 text-gray-300 dark:text-gray-600 mb-4" />
+        <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">No slides found</h3>
+        <p className="text-sm text-gray-500 dark:text-gray-400 max-w-sm">
           Try adjusting your filters or search criteria to find slides.
         </p>
       </div>
@@ -404,7 +404,7 @@ export function SlideTable({
     <div className="overflow-x-auto">
       <table className="w-full">
         <thead>
-          <tr className="border-b border-gray-200 bg-gray-50">
+          <tr className="border-b border-gray-200 dark:border-navy-700 bg-gray-50 dark:bg-navy-900">
             {/* Select all */}
             <th className="py-3 px-4 text-left w-12">
               <button

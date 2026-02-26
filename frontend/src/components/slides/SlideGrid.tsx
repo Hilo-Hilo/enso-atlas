@@ -227,7 +227,7 @@ function SlideCard({
       {/* Content */}
       <CardContent className="p-3" onClick={onView}>
         {/* Slide name */}
-        <h3 className="font-medium text-sm text-gray-900 truncate mb-1.5" title={slide.filename}>
+        <h3 className="font-medium text-sm text-gray-900 dark:text-gray-100 truncate mb-1.5" title={slide.filename}>
           {truncateText(slide.id, 30)}
         </h3>
 
@@ -271,20 +271,20 @@ function SlideCard({
                 e.stopPropagation();
                 setShowMenu(!showMenu);
               }}
-              className="p-1 hover:bg-gray-100 rounded transition-colors"
+              className="p-1 hover:bg-gray-100 dark:hover:bg-navy-700 rounded transition-colors"
             >
               <MoreVertical className="h-4 w-4 text-gray-400" />
             </button>
 
             {showMenu && (
-              <div className="absolute right-0 bottom-full mb-1 w-40 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-10">
+              <div className="absolute right-0 bottom-full mb-1 w-40 bg-white dark:bg-navy-800 rounded-lg shadow-lg border border-gray-200 dark:border-navy-600 py-1 z-10">
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
                     onView();
                     setShowMenu(false);
                   }}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                  className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-navy-700"
                 >
                   <Eye className="h-4 w-4" />
                   View Slide
@@ -295,7 +295,7 @@ function SlideCard({
                     onAnalyze();
                     setShowMenu(false);
                   }}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                  className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-navy-700"
                 >
                   <Microscope className="h-4 w-4" />
                   Analyze
@@ -306,19 +306,19 @@ function SlideCard({
                     onAddToGroup();
                     setShowMenu(false);
                   }}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                  className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-navy-700"
                 >
                   <FolderPlus className="h-4 w-4" />
                   Add to Group
                 </button>
-                <hr className="my-1 border-gray-100" />
+                <hr className="my-1 border-gray-100 dark:border-navy-600" />
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
                     onDelete();
                     setShowMenu(false);
                   }}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50"
+                  className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
                 >
                   <Trash2 className="h-4 w-4" />
                   Delete
@@ -357,9 +357,9 @@ export function SlideGrid({
   if (slides.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-16 text-center">
-        <Microscope className="h-16 w-16 text-gray-300 mb-4" />
-        <h3 className="text-lg font-medium text-gray-900 mb-2">No slides found</h3>
-        <p className="text-sm text-gray-500 max-w-sm">
+        <Microscope className="h-16 w-16 text-gray-300 dark:text-gray-600 mb-4" />
+        <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">No slides found</h3>
+        <p className="text-sm text-gray-500 dark:text-gray-400 max-w-sm">
           Try adjusting your filters or search criteria to find slides.
         </p>
       </div>

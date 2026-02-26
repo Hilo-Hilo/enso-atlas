@@ -68,14 +68,14 @@ function FilterSection({
   const [isOpen, setIsOpen] = useState(defaultOpen);
 
   return (
-    <div className="border-b border-gray-100 last:border-b-0">
+    <div className="border-b border-gray-100 dark:border-navy-700 last:border-b-0">
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-50 transition-colors"
+        className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-50 dark:hover:bg-navy-700/50 transition-colors"
       >
         <div className="flex items-center gap-2">
-          <Icon className="h-4 w-4 text-gray-500" />
-          <span className="text-sm font-medium text-gray-700">{title}</span>
+          <Icon className="h-4 w-4 text-gray-500 dark:text-gray-400" />
+          <span className="text-sm font-medium text-gray-700 dark:text-gray-200">{title}</span>
           {badge !== undefined && badge > 0 && (
             <span className="px-1.5 py-0.5 text-xs font-medium bg-clinical-100 text-clinical-700 rounded-full">
               {badge}
@@ -132,13 +132,13 @@ export function FilterPanel({
   };
 
   return (
-    <div className="h-full flex flex-col bg-white border-r border-gray-200">
+    <div className="h-full flex flex-col bg-white dark:bg-navy-900 border-r border-gray-200 dark:border-navy-700">
       {/* Header */}
-      <div className="px-4 py-3 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-white">
+      <div className="px-4 py-3 border-b border-gray-200 dark:border-navy-700 bg-gradient-to-r from-gray-50 to-white dark:from-navy-800 dark:to-navy-900">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Filter className="h-5 w-5 text-clinical-600" />
-            <h2 className="text-sm font-semibold text-gray-900">Filters</h2>
+            <Filter className="h-5 w-5 text-clinical-600 dark:text-clinical-400" />
+            <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Filters</h2>
             {activeFilterCount > 0 && (
               <Badge variant="clinical" size="sm">
                 {activeFilterCount} active
@@ -171,7 +171,7 @@ export function FilterPanel({
               onChange={(e) =>
                 onFiltersChange({ ...filters, search: e.target.value || undefined, page: 1 })
               }
-              className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-clinical-500/20 focus:border-clinical-500 transition-all"
+              className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 dark:border-navy-600 rounded-lg bg-white dark:bg-navy-800 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-clinical-500/20 focus:border-clinical-500 transition-all"
             />
             {filters.search && (
               <button
@@ -241,8 +241,8 @@ export function FilterPanel({
               className={cn(
                 "w-full flex items-center justify-between px-2 py-1.5 text-sm rounded-lg transition-colors",
                 !filters.groupId
-                  ? "bg-clinical-50 text-clinical-700"
-                  : "text-gray-600 hover:bg-gray-50"
+                  ? "bg-clinical-50 dark:bg-clinical-900/30 text-clinical-700 dark:text-clinical-300"
+                  : "text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-navy-700/50"
               )}
             >
               <span>All Slides</span>
@@ -260,8 +260,8 @@ export function FilterPanel({
                 className={cn(
                   "w-full flex items-center justify-between px-2 py-1.5 text-sm rounded-lg transition-colors",
                   filters.groupId === group.id
-                    ? "bg-clinical-50 text-clinical-700"
-                    : "text-gray-600 hover:bg-gray-50"
+                    ? "bg-clinical-50 dark:bg-clinical-900/30 text-clinical-700 dark:text-clinical-300"
+                    : "text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-navy-700/50"
                 )}
               >
                 <span className="truncate">{group.name}</span>
@@ -301,7 +301,7 @@ export function FilterPanel({
                     ? label === "1"
                       ? "bg-green-50 text-green-700 border-green-200 ring-2 ring-green-500/30"
                       : "bg-red-50 text-red-700 border-red-200 ring-2 ring-red-500/30"
-                    : "bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100"
+                    : "bg-gray-50 dark:bg-navy-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-navy-600 hover:bg-gray-100 dark:hover:bg-navy-700"
                 )}
               >
                 {label === "1" ? "Positive" : "Negative"}
@@ -325,7 +325,7 @@ export function FilterPanel({
                 "px-3 py-1.5 text-xs font-medium rounded-lg border transition-all",
                 filters.hasEmbeddings === true
                   ? "bg-clinical-50 text-clinical-700 border-clinical-200 ring-2 ring-clinical-500/30"
-                  : "bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100"
+                  : "bg-gray-50 dark:bg-navy-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-navy-600 hover:bg-gray-100 dark:hover:bg-navy-700"
               )}
             >
               Has Embeddings
@@ -342,7 +342,7 @@ export function FilterPanel({
                 "px-3 py-1.5 text-xs font-medium rounded-lg border transition-all",
                 filters.hasEmbeddings === false
                   ? "bg-amber-50 text-amber-700 border-amber-200 ring-2 ring-amber-500/30"
-                  : "bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100"
+                  : "bg-gray-50 dark:bg-navy-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-navy-600 hover:bg-gray-100 dark:hover:bg-navy-700"
               )}
             >
               No Embeddings
@@ -364,7 +364,7 @@ export function FilterPanel({
                   page: 1,
                 })
               }
-              className="w-full px-2 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-clinical-500/20"
+              className="w-full px-2 py-1.5 text-sm border border-gray-200 dark:border-navy-600 rounded-lg bg-white dark:bg-navy-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-clinical-500/20"
             />
             <span className="text-gray-400">-</span>
             <input
@@ -378,7 +378,7 @@ export function FilterPanel({
                   page: 1,
                 })
               }
-              className="w-full px-2 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-clinical-500/20"
+              className="w-full px-2 py-1.5 text-sm border border-gray-200 dark:border-navy-600 rounded-lg bg-white dark:bg-navy-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-clinical-500/20"
             />
           </div>
         </FilterSection>
@@ -387,7 +387,7 @@ export function FilterPanel({
         <FilterSection title="Date Added" icon={Calendar} defaultOpen={false}>
           <div className="space-y-2">
             <div>
-              <label className="text-xs text-gray-500 mb-1 block">From</label>
+              <label className="text-xs text-gray-500 dark:text-gray-400 mb-1 block">From</label>
               <input
                 type="date"
                 value={filters.dateFrom || ""}
@@ -398,11 +398,11 @@ export function FilterPanel({
                     page: 1,
                   })
                 }
-                className="w-full px-2 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-clinical-500/20"
+                className="w-full px-2 py-1.5 text-sm border border-gray-200 dark:border-navy-600 rounded-lg bg-white dark:bg-navy-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-clinical-500/20"
               />
             </div>
             <div>
-              <label className="text-xs text-gray-500 mb-1 block">To</label>
+              <label className="text-xs text-gray-500 dark:text-gray-400 mb-1 block">To</label>
               <input
                 type="date"
                 value={filters.dateTo || ""}
@@ -413,7 +413,7 @@ export function FilterPanel({
                     page: 1,
                   })
                 }
-                className="w-full px-2 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-clinical-500/20"
+                className="w-full px-2 py-1.5 text-sm border border-gray-200 dark:border-navy-600 rounded-lg bg-white dark:bg-navy-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-clinical-500/20"
               />
             </div>
           </div>
@@ -433,7 +433,7 @@ export function FilterPanel({
               "w-full flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium rounded-lg border transition-all",
               filters.starred
                 ? "bg-amber-50 text-amber-700 border-amber-200 ring-2 ring-amber-500/30"
-                : "bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100"
+                : "bg-gray-50 dark:bg-navy-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-navy-600 hover:bg-gray-100 dark:hover:bg-navy-700"
             )}
           >
             <Star className={cn("h-4 w-4", filters.starred && "fill-amber-500")} />

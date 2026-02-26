@@ -222,9 +222,9 @@ function StatusBadge({ ok, label }: { ok: boolean; label: string }) {
       {ok ? (
         <CheckCircle className="h-3.5 w-3.5 text-emerald-500" />
       ) : (
-        <XCircle className="h-3.5 w-3.5 text-gray-300" />
+        <XCircle className="h-3.5 w-3.5 text-gray-300 dark:text-gray-600" />
       )}
-      <span className={ok ? "text-gray-700" : "text-gray-400"}>{label}</span>
+      <span className={ok ? "text-gray-700 dark:text-gray-200" : "text-gray-400 dark:text-gray-500"}>{label}</span>
     </div>
   );
 }
@@ -266,13 +266,13 @@ function ProjectFormModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden">
+      <div className="bg-white dark:bg-navy-800 rounded-2xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-gray-50/50">
-          <h2 className="text-lg font-semibold text-gray-900">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-navy-700 bg-gray-50/50 dark:bg-navy-900/50">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
             {mode === "create" ? "New Project" : "Edit Project"}
           </h2>
-          <button onClick={onClose} className="p-1 hover:bg-gray-200 rounded-lg transition-colors">
+          <button onClick={onClose} className="p-1 hover:bg-gray-200 dark:hover:bg-navy-700 rounded-lg transition-colors">
             <X className="h-5 w-5 text-gray-500" />
           </button>
         </div>
@@ -288,7 +288,7 @@ function ProjectFormModal({
           {/* Project ID - only on create */}
           {mode === "create" && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
                 Project ID
               </label>
               <input
@@ -296,7 +296,7 @@ function ProjectFormModal({
                 value={form.id}
                 onChange={(e) => set("id", e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "-"))}
                 placeholder="e.g. lung-immunotherapy"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-clinical-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-navy-600 rounded-lg text-sm bg-white dark:bg-navy-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-clinical-500 focus:border-transparent"
                 required
               />
               <p className="text-xs text-gray-400 mt-1">
@@ -307,7 +307,7 @@ function ProjectFormModal({
 
           {/* Name */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
               Project Name
             </label>
             <input
@@ -315,7 +315,7 @@ function ProjectFormModal({
               value={form.name}
               onChange={(e) => set("name", e.target.value)}
               placeholder="e.g. Lung Cancer - Immunotherapy Response"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-clinical-500 focus:border-transparent"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-navy-600 rounded-lg text-sm bg-white dark:bg-navy-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-clinical-500 focus:border-transparent"
               required
             />
           </div>
@@ -323,7 +323,7 @@ function ProjectFormModal({
           {/* Cancer Type + Prediction Target */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
                 Cancer Type
               </label>
               <input
@@ -331,12 +331,12 @@ function ProjectFormModal({
                 value={form.cancer_type}
                 onChange={(e) => set("cancer_type", e.target.value)}
                 placeholder="e.g. lung, breast, ovarian"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-clinical-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-navy-600 rounded-lg text-sm bg-white dark:bg-navy-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-clinical-500 focus:border-transparent"
                 required
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
                 Prediction Target
               </label>
               <input
@@ -344,7 +344,7 @@ function ProjectFormModal({
                 value={form.prediction_target}
                 onChange={(e) => set("prediction_target", e.target.value)}
                 placeholder="e.g. immunotherapy_response"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-clinical-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-navy-600 rounded-lg text-sm bg-white dark:bg-navy-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-clinical-500 focus:border-transparent"
                 required
               />
             </div>
@@ -352,7 +352,7 @@ function ProjectFormModal({
 
           {/* Classes */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
               Prediction Classes
             </label>
             <input
@@ -360,7 +360,7 @@ function ProjectFormModal({
               value={form.classes}
               onChange={(e) => set("classes", e.target.value)}
               placeholder="e.g. responder, non-responder"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-clinical-500 focus:border-transparent"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-navy-600 rounded-lg text-sm bg-white dark:bg-navy-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-clinical-500 focus:border-transparent"
               required
             />
             <p className="text-xs text-gray-400 mt-1">Comma-separated class labels</p>
@@ -368,7 +368,7 @@ function ProjectFormModal({
 
           {/* Positive Class */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
               Positive Class
             </label>
             <input
@@ -376,14 +376,14 @@ function ProjectFormModal({
               value={form.positive_class}
               onChange={(e) => set("positive_class", e.target.value)}
               placeholder="e.g. responder"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-clinical-500 focus:border-transparent"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-navy-600 rounded-lg text-sm bg-white dark:bg-navy-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-clinical-500 focus:border-transparent"
               required
             />
           </div>
 
           {/* Description */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
               Description
             </label>
             <textarea
@@ -391,7 +391,7 @@ function ProjectFormModal({
               onChange={(e) => set("description", e.target.value)}
               placeholder="Brief description of the prediction task and clinical context..."
               rows={3}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-clinical-500 focus:border-transparent resize-none"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-navy-600 rounded-lg text-sm bg-white dark:bg-navy-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-clinical-500 focus:border-transparent resize-none"
             />
           </div>
 
@@ -570,11 +570,11 @@ function UploadModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-gray-50/50">
+      <div className="bg-white dark:bg-navy-800 rounded-2xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-navy-700 bg-gray-50/50 dark:bg-navy-900/50">
           <div>
-            <h2 className="text-lg font-semibold text-gray-900">Upload Slides</h2>
-            <p className="text-xs text-gray-500 mt-0.5">{projectName}</p>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Upload Slides</h2>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{projectName}</p>
           </div>
           <button
             onClick={onClose}
@@ -586,14 +586,14 @@ function UploadModal({
         </div>
 
         <div className="p-6 space-y-4">
-          <div className="inline-flex w-full p-1 rounded-lg bg-gray-100">
+          <div className="inline-flex w-full p-1 rounded-lg bg-gray-100 dark:bg-navy-700">
             <button
               type="button"
               onClick={() => setSource("local")}
               disabled={isBusy}
               className={cn(
                 "flex-1 px-3 py-2 text-xs font-medium rounded-md transition-colors",
-                source === "local" ? "bg-white text-gray-900 shadow-sm" : "text-gray-600 hover:text-gray-900"
+                source === "local" ? "bg-white dark:bg-navy-600 text-gray-900 dark:text-gray-100 shadow-sm" : "text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100"
               )}
             >
               Upload Local Files
@@ -604,7 +604,7 @@ function UploadModal({
               disabled={isBusy}
               className={cn(
                 "flex-1 px-3 py-2 text-xs font-medium rounded-md transition-colors",
-                source === "gdc" ? "bg-white text-gray-900 shadow-sm" : "text-gray-600 hover:text-gray-900"
+                source === "gdc" ? "bg-white dark:bg-navy-600 text-gray-900 dark:text-gray-100 shadow-sm" : "text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100"
               )}
             >
               Download From GDC
@@ -617,7 +617,7 @@ function UploadModal({
               <div
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={handleDrop}
-                className="border-2 border-dashed border-gray-200 rounded-xl p-8 text-center hover:border-clinical-400 hover:bg-clinical-50/30 transition-colors cursor-pointer"
+                className="border-2 border-dashed border-gray-200 dark:border-navy-600 rounded-xl p-8 text-center hover:border-clinical-400 hover:bg-clinical-50/30 dark:hover:bg-clinical-900/10 transition-colors cursor-pointer"
                 onClick={() => document.getElementById("file-input-local")?.click()}
               >
                 <Upload className="h-8 w-8 text-gray-400 mx-auto mb-3" />
@@ -681,8 +681,8 @@ function UploadModal({
             </>
           ) : (
             <>
-              <div className="space-y-3 rounded-xl border border-gray-200 p-4 bg-gray-50/50">
-                <div className="inline-flex w-full p-1 rounded-lg bg-white border border-gray-200">
+              <div className="space-y-3 rounded-xl border border-gray-200 dark:border-navy-600 p-4 bg-gray-50/50 dark:bg-navy-900/50">
+                <div className="inline-flex w-full p-1 rounded-lg bg-white dark:bg-navy-700 border border-gray-200 dark:border-navy-600">
                   <button
                     type="button"
                     onClick={() => setGdcMode("specific")}
@@ -710,7 +710,7 @@ function UploadModal({
                 {gdcMode === "specific" ? (
                   <div className="space-y-2">
                     <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                      <label className="block text-xs font-medium text-gray-700 dark:text-gray-200 mb-1">
                         GDC File ID (UUID)
                       </label>
                       <input
@@ -718,11 +718,11 @@ function UploadModal({
                         value={gdcFileId}
                         onChange={(e) => setGdcFileId(e.target.value.trim())}
                         placeholder="e.g. 53d9aebf-..."
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-clinical-500 focus:border-transparent"
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-navy-600 rounded-lg text-sm bg-white dark:bg-navy-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-clinical-500 focus:border-transparent"
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                      <label className="block text-xs font-medium text-gray-700 dark:text-gray-200 mb-1">
                         Optional TCGA Barcode
                       </label>
                       <input
@@ -730,14 +730,14 @@ function UploadModal({
                         value={gdcBarcode}
                         onChange={(e) => setGdcBarcode(e.target.value.trim())}
                         placeholder="e.g. TCGA-2G-AAGX-01Z-00-DX1"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-clinical-500 focus:border-transparent"
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-navy-600 rounded-lg text-sm bg-white dark:bg-navy-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-clinical-500 focus:border-transparent"
                       />
                     </div>
                   </div>
                 ) : (
                   <div className="space-y-2">
                     <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                      <label className="block text-xs font-medium text-gray-700 dark:text-gray-200 mb-1">
                         Number of random slides (1-20)
                       </label>
                       <input
@@ -746,11 +746,11 @@ function UploadModal({
                         max={20}
                         value={gdcCount}
                         onChange={(e) => setGdcCount(Number(e.target.value))}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-clinical-500 focus:border-transparent"
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-navy-600 rounded-lg text-sm bg-white dark:bg-navy-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-clinical-500 focus:border-transparent"
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                      <label className="block text-xs font-medium text-gray-700 dark:text-gray-200 mb-1">
                         Optional TCGA project filters (comma-separated)
                       </label>
                       <input
@@ -758,7 +758,7 @@ function UploadModal({
                         value={gdcProjectFilter}
                         onChange={(e) => setGdcProjectFilter(e.target.value)}
                         placeholder="e.g. TCGA-BRCA,TCGA-LUAD"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-clinical-500 focus:border-transparent"
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-navy-600 rounded-lg text-sm bg-white dark:bg-navy-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-clinical-500 focus:border-transparent"
                       />
                     </div>
                   </div>
@@ -845,14 +845,14 @@ function DeleteConfirmModal({
 }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 p-6 space-y-4">
+      <div className="bg-white dark:bg-navy-800 rounded-2xl shadow-2xl w-full max-w-sm mx-4 p-6 space-y-4">
         <div className="flex items-start gap-3">
-          <div className="p-2 bg-red-50 rounded-lg">
+          <div className="p-2 bg-red-50 dark:bg-red-900/20 rounded-lg">
             <AlertTriangle className="h-5 w-5 text-red-500" />
           </div>
           <div>
-            <h3 className="font-semibold text-gray-900">Delete Project</h3>
-            <p className="text-sm text-gray-500 mt-1">
+            <h3 className="font-semibold text-gray-900 dark:text-gray-100">Delete Project</h3>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
               Remove <strong>{projectName}</strong> from the system? Slide data files will not be deleted.
             </p>
           </div>
@@ -891,32 +891,32 @@ function ProjectCard({
   const router = useRouter();
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow overflow-hidden">
+    <div className="bg-white dark:bg-navy-800 rounded-xl border border-gray-200 dark:border-navy-700 shadow-sm hover:shadow-md transition-shadow overflow-hidden">
       {/* Card header */}
-      <div className="px-5 py-4 border-b border-gray-100">
+      <div className="px-5 py-4 border-b border-gray-100 dark:border-navy-700">
         <div className="flex items-start justify-between">
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <h3 className="text-base font-semibold text-gray-900 truncate">
+              <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100 truncate">
                 {project.name}
               </h3>
               {project.is_default && (
                 <Badge variant="info" className="text-2xs">Default</Badge>
               )}
             </div>
-            <p className="text-xs text-gray-500 mt-0.5 font-mono">{project.id}</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 font-mono">{project.id}</p>
           </div>
           <div className="flex items-center gap-1 flex-shrink-0">
             <button
               onClick={onEdit}
-              className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
+              className="p-1.5 hover:bg-gray-100 dark:hover:bg-navy-700 rounded-lg transition-colors"
               title="Edit project"
             >
               <Pencil className="h-4 w-4 text-gray-400" />
             </button>
             <button
               onClick={onDelete}
-              className="p-1.5 hover:bg-red-50 rounded-lg transition-colors"
+              className="p-1.5 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
               title="Delete project"
             >
               <Trash2 className="h-4 w-4 text-gray-400 hover:text-red-500" />
@@ -928,7 +928,7 @@ function ProjectCard({
       {/* Card body */}
       <div className="px-5 py-4 space-y-3">
         {project.description && (
-          <p className="text-sm text-gray-600 line-clamp-2">{project.description}</p>
+          <p className="text-sm text-gray-600 dark:text-gray-300 line-clamp-2">{project.description}</p>
         )}
 
         {/* Tags */}
@@ -952,14 +952,14 @@ function ProjectCard({
 
         {/* Status */}
         {status && (
-          <div className="pt-2 border-t border-gray-50 space-y-2">
+          <div className="pt-2 border-t border-gray-50 dark:border-navy-700 space-y-2">
             <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
               <StatusBadge ok={status.ready.slides_dir} label="Slides directory" />
               <StatusBadge ok={status.ready.embeddings_dir} label="Embeddings" />
               <StatusBadge ok={status.ready.mil_checkpoint} label="MIL model" />
               <StatusBadge ok={status.ready.labels_file} label="Labels" />
             </div>
-            <div className="flex items-center gap-4 text-xs text-gray-500 pt-1">
+            <div className="flex items-center gap-4 text-xs text-gray-500 dark:text-gray-400 pt-1">
               <span className="flex items-center gap-1">
                 <Microscope className="h-3 w-3" />
                 {status.counts.slides} slides
@@ -978,7 +978,7 @@ function ProjectCard({
       </div>
 
       {/* Card footer */}
-      <div className="px-5 py-3 bg-gray-50/50 border-t border-gray-100 flex items-center gap-2">
+      <div className="px-5 py-3 bg-gray-50/50 dark:bg-navy-900/50 border-t border-gray-100 dark:border-navy-700 flex items-center gap-2">
         <Button
           variant="ghost"
           size="sm"
@@ -1140,7 +1140,7 @@ export default function ProjectsPage() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-gradient-to-b from-gray-50 to-gray-100">
+    <div className="min-h-screen flex flex-col bg-gradient-to-b from-gray-50 to-gray-100 dark:from-navy-950 dark:to-navy-900">
       <Header isConnected={isConnected} />
 
       <main className="flex-1 max-w-6xl mx-auto w-full px-4 sm:px-6 py-6">
@@ -1156,14 +1156,14 @@ export default function ProjectsPage() {
               <ArrowLeft className="h-4 w-4" />
               Back
             </Button>
-            <div className="h-6 w-px bg-gray-200" />
+            <div className="h-6 w-px bg-gray-200 dark:bg-navy-600" />
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-clinical-50 rounded-lg">
-                <FolderOpen className="h-5 w-5 text-clinical-600" />
+              <div className="p-2 bg-clinical-50 dark:bg-clinical-900/30 rounded-lg">
+                <FolderOpen className="h-5 w-5 text-clinical-600 dark:text-clinical-400" />
               </div>
               <div>
-                <h1 className="text-xl font-semibold text-gray-900">Project Management</h1>
-                <p className="text-sm text-gray-500">
+                <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Project Management</h1>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
                   Configure cancer types, prediction targets, and manage slides per project.
                 </p>
               </div>
@@ -1180,7 +1180,7 @@ export default function ProjectsPage() {
 
         {/* Error state */}
         {error && (
-          <div className="flex items-center gap-3 p-4 bg-red-50 text-red-700 rounded-xl border border-red-100 mb-6">
+          <div className="flex items-center gap-3 p-4 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 rounded-xl border border-red-100 dark:border-red-800 mb-6">
             <AlertTriangle className="h-5 w-5 flex-shrink-0" />
             <div>
               <p className="font-medium">Failed to load projects</p>
@@ -1196,13 +1196,13 @@ export default function ProjectsPage() {
         {loading && projects.length === 0 && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {[1, 2].map((i) => (
-              <div key={i} className="bg-white rounded-xl border border-gray-200 p-6 animate-pulse">
-                <div className="h-5 bg-gray-200 rounded w-2/3 mb-3" />
-                <div className="h-3 bg-gray-100 rounded w-1/3 mb-4" />
-                <div className="h-12 bg-gray-50 rounded mb-3" />
+              <div key={i} className="bg-white dark:bg-navy-800 rounded-xl border border-gray-200 dark:border-navy-700 p-6 animate-pulse">
+                <div className="h-5 bg-gray-200 dark:bg-navy-700 rounded w-2/3 mb-3" />
+                <div className="h-3 bg-gray-100 dark:bg-navy-600 rounded w-1/3 mb-4" />
+                <div className="h-12 bg-gray-50 dark:bg-navy-700 rounded mb-3" />
                 <div className="flex gap-2">
-                  <div className="h-6 bg-gray-100 rounded w-20" />
-                  <div className="h-6 bg-gray-100 rounded w-24" />
+                  <div className="h-6 bg-gray-100 dark:bg-navy-600 rounded w-20" />
+                  <div className="h-6 bg-gray-100 dark:bg-navy-600 rounded w-24" />
                 </div>
               </div>
             ))}
@@ -1211,11 +1211,11 @@ export default function ProjectsPage() {
 
         {/* Empty state */}
         {!loading && projects.length === 0 && !error && (
-          <div className="text-center py-16 bg-white rounded-2xl border border-gray-200">
-            <FolderOpen className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900">No projects configured</h3>
-            <p className="text-sm text-gray-500 mt-1 max-w-sm mx-auto">
-              Projects must be configured in <code className="px-1 py-0.5 bg-gray-100 rounded font-mono text-xs">config/projects.yaml</code> on the backend.
+          <div className="text-center py-16 bg-white dark:bg-navy-800 rounded-2xl border border-gray-200 dark:border-navy-700">
+            <FolderOpen className="h-12 w-12 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100">No projects configured</h3>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 max-w-sm mx-auto">
+              Projects must be configured in <code className="px-1 py-0.5 bg-gray-100 dark:bg-navy-700 rounded font-mono text-xs">config/projects.yaml</code> on the backend.
             </p>
           </div>
         )}
@@ -1239,7 +1239,7 @@ export default function ProjectsPage() {
         {/* Config hint */}
         {projects.length > 0 && (
           <p className="mt-6 text-xs text-gray-400 text-center">
-            Project configuration is managed via <code className="px-1 py-0.5 bg-gray-100 rounded font-mono">config/projects.yaml</code> on the backend.
+            Project configuration is managed via <code className="px-1 py-0.5 bg-gray-100 dark:bg-navy-700 rounded font-mono">config/projects.yaml</code> on the backend.
           </p>
         )}
       </main>
