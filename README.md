@@ -41,7 +41,9 @@ Test it out here: https://atlas.ensohealth.ai/
 - **Project-aware frontend UX**: ModelPicker prunes stale model IDs on project switch; prediction panels, AI assistant, and patch zoom use project-specific language.
 - **Local-first deployment**: Runs on-premise; no PHI leaves the hospital network.
 
-## Recent Model and Pipeline Updates
+## Pipeline Scripts
+
+_Recent model and pipeline updates._
 
 - `scripts/train_transmil_finetune.py` now supports patient-level stratified k-fold CV, class-balanced epoch sampling, minority-class feature augmentation (noise injection, feature dropout, mixup), configurable patch caps (`max_train_patches`, `max_eval_patches`), single-split mode, and per-fold PR-AUC plus calibration curves.
 - `scripts/multi_model_inference.py` now supports per-model decision thresholds (from `config/projects.yaml` or training outputs), wrapped checkpoint loading, CUDA OOM fallback with patch subsampling, and threshold-relative confidence calibration.
