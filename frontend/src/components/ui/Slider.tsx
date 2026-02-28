@@ -27,10 +27,10 @@ export const Slider = React.forwardRef<HTMLInputElement, SliderProps>(
         {(label || showValue) && (
           <div className="flex items-center justify-between mb-2">
             {label && (
-              <label className="text-sm font-medium text-gray-700">{label}</label>
+              <label className="text-sm font-medium text-gray-800 dark:text-gray-100">{label}</label>
             )}
             {showValue && (
-              <span className="text-sm text-gray-500 font-mono">
+              <span className="text-sm text-gray-600 dark:text-gray-200 font-mono">
                 {formatValue(value)}
               </span>
             )}

@@ -1473,7 +1473,7 @@ export function WSIViewer({
   // Model selector component
   const ModelSelector = () => (
     <div className="mb-3">
-      <label className="text-xs text-gray-500 mb-1.5 block">Model</label>
+      <label className="text-xs text-gray-600 dark:text-gray-200 mb-1.5 block">Model</label>
       <select
         value={modelSelectValue}
         onChange={(e) => {
@@ -1564,7 +1564,7 @@ export function WSIViewer({
             </div>
 
             {/* Info text */}
-            <p className="text-xs text-gray-500 mt-4 px-4">
+            <p className="text-xs text-gray-600 dark:text-gray-200 mt-4 px-4">
               The whole slide image is not available. This heatmap shows
               attention weights from pre-extracted patch embeddings.
             </p>
@@ -1576,8 +1576,8 @@ export function WSIViewer({
           <div className="viewer-toolbar flex-col items-stretch gap-2 p-3 min-w-[200px]">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <Layers className="h-4 w-4 text-gray-600" />
-                <span className="text-sm font-medium text-gray-700">
+                <Layers className="h-4 w-4 text-gray-700 dark:text-gray-200" />
+                <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">
                   Attention Heatmap
                 </span>
               </div>
@@ -1585,12 +1585,12 @@ export function WSIViewer({
                 onClick={() => setShowHeatmapPanel(!showHeatmapPanel)}
                 className="p-1 rounded hover:bg-gray-100"
               >
-                <Settings2 className="h-3.5 w-3.5 text-gray-400" />
+                <Settings2 className="h-3.5 w-3.5 text-gray-600 dark:text-gray-200" />
               </button>
             </div>
 
             <div className="flex items-center justify-between">
-              <span className="text-xs text-gray-500">Show overlay</span>
+              <span className="text-xs text-gray-600 dark:text-gray-200">Show overlay</span>
               <Toggle
                 checked={showHeatmap}
                 onChange={setShowHeatmap}
@@ -1602,8 +1602,8 @@ export function WSIViewer({
               <div className="pt-2 border-t border-gray-100 animate-fade-in space-y-2">
                 <div className="flex items-center justify-between">
                   <div className="flex flex-col">
-                    <span className="text-xs text-gray-500">Interpolated view</span>
-                    <span className="text-2xs text-gray-400">Visual smoothing only</span>
+                    <span className="text-xs text-gray-600 dark:text-gray-200">Interpolated view</span>
+                    <span className="text-2xs text-gray-500 dark:text-gray-200">Visual smoothing only</span>
                   </div>
                   <Toggle
                     checked={heatmapSmooth}
@@ -1621,7 +1621,7 @@ export function WSIViewer({
                   onChange={(e) => setHeatmapOpacity(Number(e.target.value))}
                   formatValue={(v) => `${Math.round(v * 100)}%`}
                 />
-                <p className="text-2xs text-gray-400 leading-snug">
+                <p className="text-2xs text-gray-500 dark:text-gray-200 leading-snug">
                   Heatmap density reflects extracted patch coverage.
                 </p>
               </div>
@@ -1702,7 +1702,7 @@ export function WSIViewer({
             <p className="text-sm text-gray-300 font-medium">
               Loading slide...
             </p>
-            <p className="text-xs text-gray-500 mt-1">
+            <p className="text-xs text-gray-600 dark:text-gray-200 mt-1">
               Preparing tile pyramid
             </p>
           </div>
@@ -1762,8 +1762,8 @@ export function WSIViewer({
           >
             <Minus className="h-4 w-4" />
           </button>
-          <div className="px-2 min-w-[52px] text-center">
-            <span className="text-xs font-mono text-gray-700">
+          <div className="px-2 min-w-[60px] text-center">
+            <span className="inline-flex rounded-md px-1.5 py-0.5 text-sm font-mono font-semibold tracking-tight text-gray-900 dark:text-gray-50 bg-white/80 dark:bg-navy-700/80">
               <span ref={zoomDisplayRef}>{zoom < 1 ? zoom.toFixed(2) : zoom.toFixed(1)}x</span>
             </span>
           </div>
@@ -1807,16 +1807,16 @@ export function WSIViewer({
               aria-controls="wsi-overlay-controls-menu"
               title={showOverlayMenu ? "Collapse overlay controls" : "Expand overlay controls"}
             >
-              <div className="flex items-center gap-2 text-gray-700">
-                <Settings2 className="h-4 w-4 text-gray-500" />
-                <span className="text-xs font-medium">
+              <div className="flex items-center gap-2 text-gray-900 dark:text-gray-100">
+                <Settings2 className="h-4 w-4 text-gray-700 dark:text-gray-200" />
+                <span className="text-xs font-semibold tracking-wide">
                   {showOverlayMenu ? "Hide controls" : "Show controls"}
                 </span>
               </div>
               {showOverlayMenu ? (
-                <ChevronUp className="h-4 w-4 text-gray-500" />
+                <ChevronUp className="h-4 w-4 text-gray-700 dark:text-gray-200" />
               ) : (
-                <ChevronDown className="h-4 w-4 text-gray-500" />
+                <ChevronDown className="h-4 w-4 text-gray-700 dark:text-gray-200" />
               )}
             </button>
 
@@ -1827,8 +1827,8 @@ export function WSIViewer({
                   <div className="viewer-toolbar flex-col items-stretch gap-2 p-3 w-full">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <Layers className="h-4 w-4 text-gray-600" />
-                        <span className="text-sm font-medium text-gray-700">
+                        <Layers className="h-4 w-4 text-gray-700 dark:text-gray-200" />
+                        <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">
                           Attention Heatmap
                         </span>
                         {heatmapLoaded && (
@@ -1848,7 +1848,7 @@ export function WSIViewer({
                     {showHeatmap && (
                       <div className="space-y-2 animate-fade-in">
                         <div className="flex items-center justify-between">
-                          <span className="text-xs text-gray-500">Heatmap only (J)</span>
+                          <span className="text-xs text-gray-600 dark:text-gray-200">Heatmap only (J)</span>
                           <Toggle
                             checked={heatmapOnly}
                             onChange={(checked) => {
@@ -1861,8 +1861,8 @@ export function WSIViewer({
 
                         <div className="flex items-center justify-between">
                           <div className="flex flex-col">
-                            <span className="text-xs text-gray-500">Interpolated view</span>
-                            <span className="text-2xs text-gray-400">Visual smoothing only</span>
+                            <span className="text-xs text-gray-600 dark:text-gray-200">Interpolated view</span>
+                            <span className="text-2xs text-gray-500 dark:text-gray-200">Visual smoothing only</span>
                           </div>
                           <Toggle
                             checked={heatmapSmooth}
@@ -1882,7 +1882,7 @@ export function WSIViewer({
                           formatValue={(v) => `${Math.round(v * 100)}%`}
                         />
                         <div className="flex items-center justify-between gap-2 mt-1">
-                          <span className="text-2xs text-gray-400 shrink-0">Sensitivity</span>
+                          <span className="text-2xs text-gray-500 dark:text-gray-200 shrink-0">Sensitivity</span>
                           <div className="flex items-center gap-1.5 flex-1">
                             <input
                               type="range"
@@ -1893,20 +1893,20 @@ export function WSIViewer({
                               onChange={(e) => onHeatmapAlphaPowerChange?.(Number(e.target.value))}
                               className="flex-1 h-1 accent-blue-400"
                             />
-                            <span className="text-2xs text-gray-400 w-6 text-right">{heatmapAlphaPower.toFixed(1)}</span>
+                            <span className="text-2xs text-gray-500 dark:text-gray-200 w-6 text-right">{heatmapAlphaPower.toFixed(1)}</span>
                           </div>
                         </div>
-                        <div className="flex justify-between text-2xs text-gray-400 mt-0.5 px-0.5">
+                        <div className="flex justify-between text-2xs text-gray-500 dark:text-gray-200 mt-0.5 px-0.5">
                           <span>More visible</span>
                           <span>More focused</span>
                         </div>
                         <div className="mt-1">
                           <div className="heatmap-legend h-2.5 rounded" />
-                          <div className="flex justify-between text-2xs text-gray-400 mt-1">
+                          <div className="flex justify-between text-2xs text-gray-500 dark:text-gray-200 mt-1">
                             <span>Low attention</span>
                             <span>High attention</span>
                           </div>
-                          <p className="text-2xs text-gray-400 mt-1.5 leading-snug">
+                          <p className="text-2xs text-gray-500 dark:text-gray-200 mt-1.5 leading-snug">
                             Heatmap density reflects extracted patch coverage.
                           </p>
                         </div>
@@ -1923,8 +1923,8 @@ export function WSIViewer({
                 <div className="viewer-toolbar flex-col items-stretch gap-2 p-3 w-full">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <Grid3X3 className="h-4 w-4 text-gray-600" />
-                      <span className="text-sm font-medium text-gray-700">
+                      <Grid3X3 className="h-4 w-4 text-gray-700 dark:text-gray-200" />
+                      <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">
                         Patch Grid
                       </span>
                     </div>
@@ -1938,7 +1938,7 @@ export function WSIViewer({
                   {showGrid && (
                     <div className="space-y-1.5 animate-fade-in">
                       <div className="flex items-center justify-between gap-2">
-                        <span className="text-2xs text-gray-400">Opacity</span>
+                        <span className="text-2xs text-gray-500 dark:text-gray-200">Opacity</span>
                         <div className="flex items-center gap-1.5 flex-1">
                           <input
                             type="range"
@@ -1949,11 +1949,11 @@ export function WSIViewer({
                             onChange={(e) => setGridOpacity(Number(e.target.value))}
                             className="flex-1 h-1 accent-cyan-400"
                           />
-                          <span className="text-2xs text-gray-400 w-7 text-right">{Math.round(gridOpacity * 100)}%</span>
+                          <span className="text-2xs text-gray-500 dark:text-gray-200 w-7 text-right">{Math.round(gridOpacity * 100)}%</span>
                         </div>
                       </div>
                       <div className="flex items-center justify-between gap-2">
-                        <span className="text-2xs text-gray-400">Color</span>
+                        <span className="text-2xs text-gray-500 dark:text-gray-200">Color</span>
                         <div className="flex items-center gap-1.5">
                           {["#00ffff", "#ffffff", "#ff0000", "#00ff00", "#ffff00"].map((c) => (
                             <button
