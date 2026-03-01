@@ -2189,7 +2189,9 @@ function HomePage() {
       heatmapLevel,
       debouncedAlphaPower,
       currentProject?.id,
-      heatmapSmooth,
+      // Interpolated view is client-side only (canvas/imageRendering),
+      // so toggling it should not trigger backend heatmap regeneration.
+      false,
     ),
     minValue: 0,
     maxValue: 1,
