@@ -258,6 +258,8 @@ export function WSIViewer({
   useEffect(() => { showHeatmapRef.current = showHeatmap; }, [showHeatmap]);
   const heatmapOpacityRef = useRef(heatmapOpacity);
   useEffect(() => { heatmapOpacityRef.current = heatmapOpacity; }, [heatmapOpacity]);
+  const heatmapSmoothRef = useRef(heatmapSmooth);
+  useEffect(() => { heatmapSmoothRef.current = heatmapSmooth; }, [heatmapSmooth]);
 
   // Store patchSelectionMode in ref so the primary click handler can check it
   const patchSelectionModeRef = useRef(patchSelectionMode);
@@ -676,17 +678,20 @@ export function WSIViewer({
 
           heatmapTiledImageRef.current = event.item;
 
-          // Apply pixelated rendering for discrete patch squares
+          // Apply initial interpolation mode immediately on load.
           try {
-            const canvas = event.item?._drawer?.canvas;
+            const smooth = !!heatmapSmoothRef.current;
+            const drawer = event.item?._drawer;
+            const canvas = drawer?.canvas;
             if (canvas) {
-              canvas.style.imageRendering = "pixelated";
-              canvas.style.imageRendering = "crisp-edges";
+              canvas.style.imageRendering = smooth ? "auto" : "pixelated";
+              // Small blur makes interpolated mode visually obvious, while staying lightweight.
+              canvas.style.filter = smooth ? "blur(0.35px)" : "none";
               const ctx = canvas.getContext("2d");
-              if (ctx) ctx.imageSmoothingEnabled = false;
+              if (ctx) ctx.imageSmoothingEnabled = smooth;
             }
-            if (event.item?._drawer) {
-              try { event.item._drawer.setImageSmoothingEnabled(false); } catch { /* ignore */ }
+            if (drawer?.setImageSmoothingEnabled) {
+              try { drawer.setImageSmoothingEnabled(smooth); } catch { /* ignore */ }
             }
           } catch {
             // best effort
@@ -722,27 +727,32 @@ export function WSIViewer({
     };
   }, [heatmapImageUrl, isReady, getSlideTiledImage, extractHeatmapErrorMessage]);
 
-  // Keep OpenSeadragon canvas rendering mode in sync with heatmap visualization mode.
-  // Truthful mode uses pixelated patches; interpolated mode restores browser smoothing.
+  // Keep heatmap layer rendering mode in sync with interpolation toggle.
+  // This is purely client-side and should respond instantly.
   useEffect(() => {
-    const container = containerRef.current;
-    if (!container || !isReady) return;
+    if (!isReady || !heatmapLoaded) return;
+    const item = heatmapTiledImageRef.current;
+    if (!item) return;
 
-    const imageRendering = heatmapSmooth ? "auto" : "pixelated";
-    const applyRenderingMode = () => {
-      const canvases = container.querySelectorAll("canvas");
-      canvases.forEach((c) => {
-        (c as HTMLCanvasElement).style.imageRendering = imageRendering;
-      });
-    };
+    try {
+      const drawer = item?._drawer;
+      const canvas = drawer?.canvas;
+      const smooth = !!heatmapSmooth;
 
-    // Apply immediately and also observe for new canvases added by OSD
-    applyRenderingMode();
-    const observer = new MutationObserver(applyRenderingMode);
-    observer.observe(container, { childList: true, subtree: true });
+      if (canvas) {
+        canvas.style.imageRendering = smooth ? "auto" : "pixelated";
+        canvas.style.filter = smooth ? "blur(0.35px)" : "none";
+        const ctx = canvas.getContext("2d");
+        if (ctx) ctx.imageSmoothingEnabled = smooth;
+      }
 
-    return () => observer.disconnect();
-  }, [isReady, heatmapSmooth]);
+      if (drawer?.setImageSmoothingEnabled) {
+        try { drawer.setImageSmoothingEnabled(smooth); } catch { /* ignore */ }
+      }
+    } catch {
+      // best effort
+    }
+  }, [isReady, heatmapLoaded, heatmapSmooth]);
 
   // Unified effect for heatmap opacity AND pathology tile visibility.
   // Merging these ensures any toggle change (showHeatmap, heatmapOnly)
