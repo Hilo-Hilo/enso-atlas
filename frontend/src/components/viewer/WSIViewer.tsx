@@ -154,7 +154,7 @@ export function WSIViewer({
   onHeatmapLevelChange,
   heatmapAlphaPower = 0.7,
   onHeatmapAlphaPowerChange,
-  heatmapSmooth = false,
+  heatmapSmooth = true,
   onHeatmapSmoothChange,
   onControlsReady,
   onZoomChange,
