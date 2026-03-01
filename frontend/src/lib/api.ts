@@ -810,6 +810,17 @@ export function getDziUrl(slideId: string, projectId?: string): string {
  * 
  * Uses local Next.js API proxy to avoid CORS issues.
  */
+function mapSensitivityToAlphaPower(sensitivity: number): number {
+  // UI slider is user-friendly sensitivity (0.1..1.5).
+  // Backend alpha_power is exponent-like: lower values reveal low-attention patches.
+  // We normalize so UI=0.7 maps near alpha_power~0.2 (visible by default),
+  // while keeping high-end values focused.
+  const clamped = Math.min(1.5, Math.max(0.1, Number.isFinite(sensitivity) ? sensitivity : 0.7));
+  const t = (clamped - 0.1) / 1.4; // 0..1
+  const gamma = 3.0;
+  return 0.1 + Math.pow(t, gamma) * 1.4;
+}
+
 export function getHeatmapUrl(
   slideId: string,
   modelId?: string,
@@ -821,7 +832,8 @@ export function getHeatmapUrl(
   const params = new URLSearchParams();
   if (level !== undefined) params.set('level', String(level));
   if (alphaPower !== undefined) {
-    params.set('alpha_power', alphaPower.toFixed(2));
+    const normalizedAlphaPower = mapSensitivityToAlphaPower(alphaPower);
+    params.set('alpha_power', normalizedAlphaPower.toFixed(2));
   }
   const scopedProjectId = normalizeProjectId(projectId);
   if (scopedProjectId) params.set('project_id', scopedProjectId);

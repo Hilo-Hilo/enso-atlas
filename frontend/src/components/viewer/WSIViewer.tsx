@@ -115,8 +115,8 @@ interface WSIViewerProps {
   // Heatmap resolution level
   heatmapLevel?: number; // 0-4, default 2
   onHeatmapLevelChange?: (level: number) => void;
-  // Heatmap alpha power (controls low-attention patch visibility)
-  heatmapAlphaPower?: number; // 0.1-1.5, default 0.2
+  // Heatmap sensitivity value from UI (normalized to backend alpha_power)
+  heatmapAlphaPower?: number; // 0.1-1.5, default 0.7
   onHeatmapAlphaPowerChange?: (power: number) => void;
   // Optional interpolated visualization mode (visual smoothing only)
   heatmapSmooth?: boolean;
@@ -152,7 +152,7 @@ export function WSIViewer({
   availableModels = [],
   heatmapLevel = 2,
   onHeatmapLevelChange,
-  heatmapAlphaPower = 0.2,
+  heatmapAlphaPower = 0.7,
   onHeatmapAlphaPowerChange,
   heatmapSmooth = false,
   onHeatmapSmoothChange,
