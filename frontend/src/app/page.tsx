@@ -432,7 +432,7 @@ function HomePage() {
   const [heatmapModel, setHeatmapModel] = useState<string | null>(null);
   const [heatmapLevel, setHeatmapLevel] = useState<number>(2); // 0-4, default 2 (512px)
   const [heatmapAlphaPower, setHeatmapAlphaPower] = useState<number>(0.7); // 0.1-1.5 UI sensitivity scale (normalized before backend)
-  const [heatmapSmooth, setHeatmapSmooth] = useState<boolean>(true); // default ON: client-side interpolated view
+  const [heatmapSmooth, setHeatmapSmooth] = useState<boolean>(true); // default ON: backend interpolated heatmap
   // Debounce alpha power so heatmap only re-fetches after user stops sliding
   const [debouncedAlphaPower, setDebouncedAlphaPower] = useState<number>(0.7);
   useEffect(() => {
@@ -2229,9 +2229,8 @@ function HomePage() {
       heatmapLevel,
       debouncedAlphaPower,
       currentProject?.id,
-      // Interpolated view is client-side only (canvas/imageRendering),
-      // so toggling it should not trigger backend heatmap regeneration.
-      false,
+      // Old behavior: interpolated mode uses backend Gaussian smoothing.
+      heatmapSmooth,
     ),
     minValue: 0,
     maxValue: 1,

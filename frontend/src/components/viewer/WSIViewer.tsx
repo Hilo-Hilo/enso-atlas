@@ -118,7 +118,7 @@ interface WSIViewerProps {
   // Heatmap sensitivity value from UI (normalized to backend alpha_power)
   heatmapAlphaPower?: number; // 0.1-1.5, default 0.7
   onHeatmapAlphaPowerChange?: (power: number) => void;
-  // Optional interpolated visualization mode (visual smoothing only)
+  // Optional interpolated visualization mode (backend Gaussian smoothing)
   heatmapSmooth?: boolean;
   onHeatmapSmoothChange?: (smooth: boolean) => void;
   onControlsReady?: (controls: WSIViewerControls) => void;
@@ -678,15 +678,15 @@ export function WSIViewer({
 
           heatmapTiledImageRef.current = event.item;
 
-          // Apply initial interpolation mode immediately on load.
+          // Apply initial rendering mode immediately on load.
+          // Interpolated mode is produced by backend Gaussian smoothing.
           try {
             const smooth = !!heatmapSmoothRef.current;
             const drawer = event.item?._drawer;
             const canvas = drawer?.canvas;
             if (canvas) {
               canvas.style.imageRendering = smooth ? "auto" : "pixelated";
-              // Small blur makes interpolated mode visually obvious, while staying lightweight.
-              canvas.style.filter = smooth ? "blur(0.35px)" : "none";
+              canvas.style.filter = "none";
               const ctx = canvas.getContext("2d");
               if (ctx) ctx.imageSmoothingEnabled = smooth;
             }
@@ -728,7 +728,8 @@ export function WSIViewer({
   }, [heatmapImageUrl, isReady, getSlideTiledImage, extractHeatmapErrorMessage]);
 
   // Keep heatmap layer rendering mode in sync with interpolation toggle.
-  // This is purely client-side and should respond instantly.
+  // Interpolation itself is backend-generated (Gaussian smoothing); this only
+  // controls how the returned layer is sampled by the browser.
   useEffect(() => {
     if (!isReady || !heatmapLoaded) return;
     const item = heatmapTiledImageRef.current;
@@ -741,7 +742,7 @@ export function WSIViewer({
 
       if (canvas) {
         canvas.style.imageRendering = smooth ? "auto" : "pixelated";
-        canvas.style.filter = smooth ? "blur(0.35px)" : "none";
+        canvas.style.filter = "none";
         const ctx = canvas.getContext("2d");
         if (ctx) ctx.imageSmoothingEnabled = smooth;
       }
@@ -1618,7 +1619,7 @@ export function WSIViewer({
                 <div className="flex items-center justify-between">
                   <div className="flex flex-col">
                     <span className="text-xs text-gray-600 dark:text-gray-200">Interpolated view</span>
-                    <span className="text-2xs text-gray-500 dark:text-gray-200">Visual smoothing only</span>
+                    <span className="text-2xs text-gray-500 dark:text-gray-200">Backend Gaussian interpolation</span>
                   </div>
                   <Toggle
                     checked={heatmapSmooth}
@@ -1877,7 +1878,7 @@ export function WSIViewer({
                         <div className="flex items-center justify-between">
                           <div className="flex flex-col">
                             <span className="text-xs text-gray-600 dark:text-gray-200">Interpolated view</span>
-                            <span className="text-2xs text-gray-500 dark:text-gray-200">Visual smoothing only</span>
+                            <span className="text-2xs text-gray-500 dark:text-gray-200">Backend Gaussian interpolation</span>
                           </div>
                           <Toggle
                             checked={heatmapSmooth}
