@@ -324,7 +324,9 @@ import sys
 _project_root = Path(__file__).parent.parent.parent.parent
 sys.path.insert(0, str(_project_root))
 try:
-    from scripts.multi_model_inference import MultiModelInference, MODEL_CONFIGS, score_to_prediction
+    # score_to_prediction is implemented locally in this module so startup
+    # does not hard-fail if scripts.multi_model_inference stops exporting it.
+    from scripts.multi_model_inference import MultiModelInference, MODEL_CONFIGS
     MULTI_MODEL_AVAILABLE = True
 except ImportError:
     logger.warning("MultiModelInference not available - multi-model endpoints disabled")
@@ -332,44 +334,49 @@ except ImportError:
     MultiModelInference = None
     MODEL_CONFIGS = {}
 
-    def score_to_prediction(
-        score: float,
-        decision_threshold: float,
-        positive_label: str,
-        negative_label: str,
-    ) -> Dict[str, Any]:
-        """Fallback threshold-to-label conversion when multi-model module is unavailable."""
-        try:
-            score_f = float(score)
-        except Exception:
-            score_f = 0.0
-        score_f = float(min(1.0, max(0.0, score_f)))
 
-        try:
-            threshold = float(decision_threshold)
-        except Exception:
-            threshold = 0.5
-        threshold = float(min(0.99, max(0.01, threshold)))
+def score_to_prediction(
+    score: float,
+    decision_threshold: float,
+    positive_label: str,
+    negative_label: str,
+) -> Dict[str, Any]:
+    """Convert raw score + threshold into label/confidence for API responses.
 
-        pos_label = str(positive_label or "Positive")
-        neg_label = str(negative_label or "Negative")
-        is_positive = score_f >= threshold
-        label = pos_label if is_positive else neg_label
+    Kept local to avoid coupling API startup to optional helper exports from
+    scripts.multi_model_inference.
+    """
+    try:
+        score_f = float(score)
+    except Exception:
+        score_f = 0.0
+    score_f = float(min(1.0, max(0.0, score_f)))
 
-        if is_positive:
-            denom = max(1e-6, 1.0 - threshold)
-            confidence = (score_f - threshold) / denom
-        else:
-            denom = max(1e-6, threshold)
-            confidence = (threshold - score_f) / denom
-        confidence = float(min(max(confidence, 0.0), 0.99))
+    try:
+        threshold = float(decision_threshold)
+    except Exception:
+        threshold = 0.5
+    threshold = float(min(0.99, max(0.01, threshold)))
 
-        return {
-            "score": score_f,
-            "decision_threshold": threshold,
-            "label": label,
-            "confidence": confidence,
-        }
+    pos_label = str(positive_label or "Positive")
+    neg_label = str(negative_label or "Negative")
+    is_positive = score_f >= threshold
+    label = pos_label if is_positive else neg_label
+
+    if is_positive:
+        denom = max(1e-6, 1.0 - threshold)
+        confidence = (score_f - threshold) / denom
+    else:
+        denom = max(1e-6, threshold)
+        confidence = (threshold - score_f) / denom
+    confidence = float(min(max(confidence, 0.0), 0.99))
+
+    return {
+        "score": score_f,
+        "decision_threshold": threshold,
+        "label": label,
+        "confidence": confidence,
+    }
 
 # Agent workflow for multi-step analysis
 try:
