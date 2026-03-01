@@ -7270,6 +7270,7 @@ DISCLAIMER: This is a research tool. All findings must be validated by qualified
         coords_arr = np.load(coord_path).astype(np.int64, copy=False)
 
         attention: Optional[np.ndarray] = None
+        attention_cache_hit = False
         if attention_cache_path.exists() and not force_refresh:
             try:
                 attention = np.load(attention_cache_path)
@@ -7283,6 +7284,7 @@ DISCLAIMER: This is a research tool. All findings must be validated by qualified
                     )
                     attention = None
                 else:
+                    attention_cache_hit = True
                     logger.info(
                         "Loaded cached attention for %s/%s (checkpoint=%s)",
                         slide_id,
@@ -7316,6 +7318,84 @@ DISCLAIMER: This is a research tool. All findings must be validated by qualified
             except Exception as e:
                 logger.error(f"Model inference failed: {e}")
                 raise HTTPException(status_code=500, detail=str(e))
+
+        # If this request had to run model inference for attention, prewarm sibling
+        # model attentions for this slide/project in the background so heatmap model
+        # switching becomes near-instant after the first model load.
+        if not attention_cache_hit and project_id and not force_refresh:
+            try:
+                allowed_model_ids = await _resolve_project_model_ids(project_id)
+                sibling_model_ids = sorted(mid for mid in (allowed_model_ids or set()) if mid != model_id)
+
+                if sibling_model_ids:
+                    data_signature_bg = data_signature
+                    cache_suffix_bg = cache_suffix
+                    emb_path_bg = emb_path
+                    cache_dir_bg = cache_dir
+                    checkpoint_resolver_bg = _resolve_model_checkpoint_path_and_signature
+                    model_inference_bg = multi_model_inference
+                    slide_id_bg = slide_id
+                    project_id_bg = project_id
+
+                    def _prewarm_sibling_attention_caches() -> None:
+                        try:
+                            embeddings_bg: Optional[np.ndarray] = None
+                            warmed = 0
+                            for sib_mid in sibling_model_ids:
+                                _, sib_sig = checkpoint_resolver_bg(sib_mid)
+                                sib_suffix = hashlib.sha1(sib_sig.encode("utf-8")).hexdigest()[:10]
+                                sib_attn_cache = cache_dir_bg / (
+                                    f"{cache_suffix_bg}_{slide_id_bg}_{sib_mid}_{sib_suffix}_{data_signature_bg}_attn_v1.npy"
+                                )
+                                if sib_attn_cache.exists():
+                                    continue
+
+                                if embeddings_bg is None:
+                                    embeddings_bg = np.load(emb_path_bg)
+
+                                try:
+                                    sib_result = model_inference_bg.predict_single(
+                                        embeddings_bg,
+                                        sib_mid,
+                                        return_attention=True,
+                                    )
+                                    sib_attention = sib_result.get("attention")
+                                    if sib_attention is None:
+                                        continue
+                                    np.save(sib_attn_cache, np.asarray(sib_attention, dtype=np.float32))
+                                    warmed += 1
+                                except Exception as sib_err:
+                                    logger.warning(
+                                        "Sibling attention prewarm failed for %s/%s (%s): %s",
+                                        slide_id_bg,
+                                        sib_mid,
+                                        project_id_bg,
+                                        sib_err,
+                                    )
+
+                            if warmed:
+                                logger.info(
+                                    "Prewarmed %d sibling attention caches for %s (project=%s)",
+                                    warmed,
+                                    slide_id_bg,
+                                    project_id_bg,
+                                )
+                        except Exception as prewarm_err:
+                            logger.warning(
+                                "Background sibling attention prewarm failed for %s (project=%s): %s",
+                                slide_id_bg,
+                                project_id_bg,
+                                prewarm_err,
+                            )
+
+                    asyncio.create_task(asyncio.to_thread(_prewarm_sibling_attention_caches))
+            except Exception as prewarm_setup_err:
+                logger.warning(
+                    "Could not schedule sibling attention prewarm for %s (project=%s): %s",
+                    slide_id,
+                    project_id,
+                    prewarm_setup_err,
+                )
         
         # Per-slide dynamic range normalization for color mapping:
         # map min attention -> 0 (blue) and max attention -> 1 (red)
