@@ -733,20 +733,60 @@ function HomePage() {
   }, [selectedSlide, selectedModels]);
 
   // Load slide list for keyboard navigation and batch mode
+  // Use local cache for instant first paint, then refresh in background.
   const fetchSlideList = useCallback(async () => {
-    setSlideListLoading(true);
+    const cacheKey = `enso-atlas:slides:${currentProject.id}:v1`;
+    let usedCachedSlides = false;
+
+    if (typeof window !== "undefined") {
+      try {
+        const raw = window.localStorage.getItem(cacheKey);
+        if (raw) {
+          const parsed = JSON.parse(raw) as { slides?: SlideInfo[]; cachedAt?: number };
+          if (Array.isArray(parsed?.slides) && parsed.slides.length > 0) {
+            setSlideList(parsed.slides);
+            setSlideListLoading(false);
+            usedCachedSlides = true;
+          }
+        }
+      } catch {
+        // ignore cache parse failures
+      }
+    }
+
+    if (!usedCachedSlides) {
+      setSlideListLoading(true);
+    }
     setSlideListError(null);
+
     try {
       const response = await getSlides({ projectId: currentProject.id });
       // Deduplicate slides (remove non-UUID duplicates) and filter test files
-      setSlideList(deduplicateSlides(response.slides));
+      const deduped = deduplicateSlides(response.slides);
+      setSlideList(deduped);
+
+      if (typeof window !== "undefined") {
+        try {
+          window.localStorage.setItem(
+            cacheKey,
+            JSON.stringify({ slides: deduped, cachedAt: Date.now() })
+          );
+        } catch {
+          // ignore localStorage quota/serialization issues
+        }
+      }
     } catch (err) {
       console.error("Failed to load slide list:", err);
       const isNetworkError = err instanceof TypeError || (err instanceof Error && (err.message.includes("fetch") || err.message.includes("network") || err.message.includes("timeout")));
       const message = err instanceof Error ? err.message : "Failed to load slides";
-      setSlideListError(isNetworkError ? `${message} -- Backend may be restarting (~3.5 min warmup)` : message);
+      // Only show blocking error if we don't already have cached slides on screen.
+      if (!usedCachedSlides) {
+        setSlideListError(isNetworkError ? `${message} -- Backend may be restarting (~3.5 min warmup)` : message);
+      }
     } finally {
-      setSlideListLoading(false);
+      if (!usedCachedSlides) {
+        setSlideListLoading(false);
+      }
     }
   }, [currentProject.id]);
 
