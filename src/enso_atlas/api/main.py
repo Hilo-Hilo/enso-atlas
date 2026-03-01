@@ -7317,6 +7317,39 @@ DISCLAIMER: This is a research tool. All findings must be validated by qualified
                 logger.error(f"Model inference failed: {e}")
                 raise HTTPException(status_code=500, detail=str(e))
         
+        # Per-slide dynamic range normalization for color mapping:
+        # map min attention -> 0 (blue) and max attention -> 1 (red)
+        # for this specific slide/model pair.
+        try:
+            attention = np.asarray(attention, dtype=np.float32)
+            finite_mask = np.isfinite(attention)
+            if not finite_mask.any():
+                raise ValueError("Attention contains no finite values")
+            att_values = attention[finite_mask]
+            att_min = float(att_values.min())
+            att_max = float(att_values.max())
+            if att_max > att_min:
+                attention = (attention - att_min) / (att_max - att_min)
+                attention = np.clip(attention, 0.0, 1.0)
+            else:
+                attention = np.zeros_like(attention, dtype=np.float32)
+
+            logger.info(
+                "Heatmap attention normalized per slide/model: slide=%s model=%s min=%.6g max=%.6g",
+                slide_id,
+                model_id,
+                att_min,
+                att_max,
+            )
+        except Exception as norm_err:
+            logger.warning(
+                "Attention normalization fallback for %s/%s: %s",
+                slide_id,
+                model_id,
+                norm_err,
+            )
+            attention = np.asarray(attention, dtype=np.float32)
+
         # Generate heatmap image using EvidenceGenerator for proper coordinate scaling
         try:
             # Get actual slide dimensions
