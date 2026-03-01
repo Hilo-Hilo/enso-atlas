@@ -368,9 +368,12 @@ export function SlideSelector({
 
         {/* Loading State */}
         {isLoading && (
-          <div className="flex-1 flex items-center justify-center py-8">
-            <div className="text-center">
-              <Spinner size="md" />
+          <div
+            className="w-full grid place-items-center text-center"
+            style={{ minHeight: `${Math.max(caseListHeightPx, 220)}px` }}
+          >
+            <div className="flex flex-col items-center justify-center">
+              <Spinner size="md" className="mx-auto" />
               <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">Loading cases...</p>
             </div>
           </div>
