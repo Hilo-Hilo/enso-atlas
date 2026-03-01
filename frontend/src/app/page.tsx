@@ -431,10 +431,10 @@ function HomePage() {
   const [forceReembed, setForceReembed] = useState(false);
   const [heatmapModel, setHeatmapModel] = useState<string | null>(null);
   const [heatmapLevel, setHeatmapLevel] = useState<number>(2); // 0-4, default 2 (512px)
-  const [heatmapAlphaPower, setHeatmapAlphaPower] = useState<number>(0.3); // 0.1-1.5, controls low-attention visibility
+  const [heatmapAlphaPower, setHeatmapAlphaPower] = useState<number>(0.2); // 0.1-1.5, controls low-attention visibility
   const [heatmapSmooth, setHeatmapSmooth] = useState<boolean>(false); // optional interpolated view (visual only)
   // Debounce alpha power so heatmap only re-fetches after user stops sliding
-  const [debouncedAlphaPower, setDebouncedAlphaPower] = useState<number>(0.3);
+  const [debouncedAlphaPower, setDebouncedAlphaPower] = useState<number>(0.2);
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedAlphaPower(heatmapAlphaPower), 400);
     return () => clearTimeout(timer);
