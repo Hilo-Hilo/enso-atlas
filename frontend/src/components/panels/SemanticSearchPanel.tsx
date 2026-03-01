@@ -88,8 +88,16 @@ export function SemanticSearchPanel({
     onClearResults?.();
   }, [onClearResults]);
 
-  // Not ready to search - no slide analyzed
+  // Not ready to search yet: either no selected patient, or selected but not analyzed.
   if (!slideId || !isAnalyzed) {
+    const title = !slideId
+      ? "Select a patient to start"
+      : "Run analysis to enable search";
+
+    const description = !slideId
+      ? "Choose a case from the left panel to start MedSigLIP semantic search."
+      : "Run analysis on this slide to enable MedSigLIP semantic search by description.";
+
     return (
       <Card>
         <CardHeader>
@@ -104,10 +112,10 @@ export function SemanticSearchPanel({
               <Search className="h-6 w-6 text-gray-400 dark:text-gray-500" />
             </div>
             <p className="text-sm font-medium text-gray-600 dark:text-gray-300">
-              Search unavailable
+              {title}
             </p>
-            <p className="text-xs mt-1.5 text-gray-500 dark:text-gray-400 max-w-[200px] mx-auto">
-              Run analysis on a slide to enable MedSigLIP semantic search by description.
+            <p className="text-xs mt-1.5 text-gray-500 dark:text-gray-400 max-w-[240px] mx-auto">
+              {description}
             </p>
           </div>
         </CardContent>

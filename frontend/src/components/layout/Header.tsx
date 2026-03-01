@@ -25,6 +25,8 @@ import {
   Menu,
   FolderOpen,
   MoreHorizontal,
+  Sun,
+  Moon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useProject } from "@/contexts/ProjectContext";
@@ -318,6 +320,7 @@ export function Header({
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [dismissedTopBanners, setDismissedTopBanners] = useState<string[]>([]);
   const [crossingBannerId, setCrossingBannerId] = useState<string | null>(null);
+  const [isDarkMode, setIsDarkMode] = useState(false);
   const { currentProject } = useProject();
 
   const researchPreviewMessage =
@@ -371,6 +374,31 @@ export function Header({
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
   }, []);
+
+  // Keep header toggle in sync with current root theme class.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const root = document.documentElement;
+    const sync = () => setIsDarkMode(root.classList.contains("dark"));
+
+    sync();
+
+    const observer = new MutationObserver(sync);
+    observer.observe(root, { attributes: true, attributeFilter: ["class"] });
+
+    return () => observer.disconnect();
+  }, []);
+
+  const handleThemeToggle = () => {
+    if (typeof window === "undefined") return;
+
+    const root = document.documentElement;
+    const nextIsDark = !root.classList.contains("dark");
+    root.classList.toggle("dark", nextIsDark);
+    localStorage.setItem("atlas-theme", nextIsDark ? "dark" : "light");
+    setIsDarkMode(nextIsDark);
+  };
 
   const handleReconnect = async () => {
     if (onReconnect) {
@@ -556,6 +584,16 @@ export function Header({
                 isConnected ? "bg-status-positive" : "bg-status-negative"
               )} />
             </div>
+          </button>
+
+          {/* Quick theme toggle */}
+          <button
+            onClick={handleThemeToggle}
+            className="flex items-center justify-center w-8 h-8 rounded-lg text-sky-700 dark:text-gray-300 hover:bg-sky-200/70 dark:hover:bg-navy-700 transition-all"
+            title={isDarkMode ? "Switch to light mode" : "Switch to dark mode"}
+            aria-label={isDarkMode ? "Switch to light mode" : "Switch to dark mode"}
+          >
+            {isDarkMode ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
           </button>
 
           {/* Demo Mode Toggle */}

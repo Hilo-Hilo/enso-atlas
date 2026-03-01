@@ -9,7 +9,8 @@ export function ThemeScript() {
   try {
     var theme = localStorage.getItem('atlas-theme');
     var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-    var shouldBeDark = theme === 'dark' || (theme === 'system' && prefersDark) || (!theme && prefersDark);
+    // Default to LIGHT for first-time visitors; only honor system dark when explicitly selected.
+    var shouldBeDark = theme === 'dark' || (theme === 'system' && prefersDark);
     if (shouldBeDark) {
       document.documentElement.classList.add('dark');
     } else {

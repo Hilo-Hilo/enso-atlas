@@ -40,14 +40,14 @@ function applyTheme(theme: ThemeMode, save = true) {
 }
 
 export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
-  const [theme, setTheme] = useState<ThemeMode>("system");
+  const [theme, setTheme] = useState<ThemeMode>("light");
 
   // Load settings from localStorage on mount and apply theme
   useEffect(() => {
     if (typeof window === "undefined") return;
 
     const savedTheme = localStorage.getItem("atlas-theme") as ThemeMode | null;
-    const initialTheme = savedTheme || "system";
+    const initialTheme = savedTheme || "light";
     setTheme(initialTheme);
     applyTheme(initialTheme, false); // Apply but don't re-save
     
@@ -55,7 +55,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
     const handleChange = () => {
       const currentTheme = localStorage.getItem("atlas-theme") as ThemeMode | null;
-      if (currentTheme === "system" || !currentTheme) {
+      if (currentTheme === "system") {
         applyTheme("system", false);
       }
     };
@@ -99,8 +99,8 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   };
 
   const handleReset = () => {
-    setTheme("system");
-    applyTheme("system");
+    setTheme("light");
+    applyTheme("light");
   };
 
   if (!isOpen) return null;

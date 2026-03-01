@@ -84,35 +84,10 @@ export function useAnalysis(): UseAnalysisReturn {
   }, []);
 
   const startAnalysisProgressSimulation = useCallback(
-    (runId: number) => {
+    (_runId: number) => {
+      // No-op: real progress is driven by backend response timing.
+      // Keeping the function signature so callers don't break.
       clearAnalysisProgressTimers();
-
-      const stepDurations = [400, 800, 600, 500]; // ms per step
-
-      const scheduleStep = (stepIndex: number, delayMs: number) => {
-        const timerId = window.setTimeout(() => {
-          if (analysisRunIdRef.current !== runId) return;
-          const step = ANALYSIS_STEPS[stepIndex];
-          if (!step) return;
-
-          setState((prev) => ({
-            ...prev,
-            analysisStep: stepIndex,
-            analysisStepId: step.id,
-          }));
-
-          if (stepIndex + 1 < ANALYSIS_STEPS.length) {
-            scheduleStep(stepIndex + 1, stepDurations[stepIndex + 1] || 500);
-          }
-        }, delayMs);
-
-        analysisProgressTimersRef.current.push(timerId);
-      };
-
-      // Step 0 is set immediately when analysis starts; advance through later steps on timers.
-      if (ANALYSIS_STEPS.length > 1) {
-        scheduleStep(1, stepDurations[0]);
-      }
     },
     [clearAnalysisProgressTimers]
   );
@@ -150,7 +125,7 @@ export function useAnalysis(): UseAnalysisReturn {
         isAnalyzing: false,
         analysisResult: result,
         report: result.report || null,
-        analysisStep: Math.max(ANALYSIS_STEPS.length - 1, 0),
+        analysisStep: -1,
         analysisStepId: null,
       }));
       return result;

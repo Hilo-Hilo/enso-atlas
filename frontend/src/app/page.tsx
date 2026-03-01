@@ -1459,25 +1459,19 @@ function HomePage() {
 
     setIsAnalyzingMultiModel(true);
     setMultiModelError(null);
-    setEmbeddingProgress({
-      phase: "embedding",
-      progress: 0,
-      message: "Preparing tissue patches for analysis...",
-      startTime: Date.now(),
-    });
+    // Don't show embedding progress yet — wait until we know embeddings need generation.
+    setEmbeddingProgress(null);
 
     const toastId = toast.loading(
       "Starting Analysis",
-      "Checking if slide embeddings exist..."
+      "Running model inference..."
     );
 
     try {
-      // First, ensure embeddings exist (uses background task with polling for level 0)
-      toast.updateToast(toastId, {
-        message: `Generating Path Foundation embeddings at level ${resolutionLevel} (level 0 may take 5-20 min)...`,
-      });
+      // First, ensure embeddings exist (uses background task with polling for level 0).
+      // Only show embedding progress UI if the backend reports they need generation.
+      let embeddingProgressShown = false;
 
-      // Use the new polling-based embed function
       const embedResult = await embedSlideWithPolling(
         slideId,
         resolutionLevel,
@@ -1485,23 +1479,19 @@ function HomePage() {
         (progress) => {
           if (multiModelRequestRef.current !== requestId) return;
 
-          // Update progress UI with real-time status from backend
-          const nextPhase: "embedding" | "analyzing" =
-            progress.phase === "complete" ? "analyzing" : "embedding";
-          const nextProgress = {
-            phase: nextPhase,
-            progress: progress.progress,
-            message: progress.message,
-          };
-
-          setEmbeddingProgress((prev) => ({
-            ...nextProgress,
-            startTime: prev?.startTime ?? Date.now(),
-          }));
-
-          toast.updateToast(toastId, {
-            message: `${progress.message} (${Math.round(progress.progress)}%)`,
-          });
+          // Only show the embedding UI if we're actually generating (not for instant "exists").
+          if (progress.phase !== "complete") {
+            embeddingProgressShown = true;
+            setEmbeddingProgress((prev) => ({
+              phase: "embedding",
+              progress: progress.progress,
+              message: progress.message,
+              startTime: prev?.startTime ?? Date.now(),
+            }));
+            toast.updateToast(toastId, {
+              message: `${progress.message} (${Math.round(progress.progress)}%)`,
+            });
+          }
         }
       );
 
@@ -1512,22 +1502,21 @@ function HomePage() {
         return;
       }
 
-      const embeddingMsg =
-        embedResult.status === "exists"
-          ? "Using cached embeddings"
-          : `Generated embeddings for ${embedResult.numPatches} patches`;
+      if (embeddingProgressShown) {
+        const embeddingMsg = `Generated embeddings for ${embedResult.numPatches} patches`;
+        toast.updateToast(toastId, {
+          title: "Embeddings Ready",
+          message: embeddingMsg + ". Running model inference...",
+        });
+      }
 
-      toast.updateToast(toastId, {
-        title: "Embeddings Ready",
-        message: embeddingMsg + ". Running model inference...",
-      });
-
-      setEmbeddingProgress((prev) => ({
+      // Transition to inference phase (skip embedding animation entirely for cached)
+      setEmbeddingProgress({
         phase: "analyzing",
         progress: 100,
         message: "Running multi-model inference...",
-        startTime: prev?.startTime ?? Date.now(),
-      }));
+        startTime: Date.now(),
+      });
 
       // Then run multi-model analysis with explicit model selection only
       const modelIdsForAnalysis = selectedModels;
