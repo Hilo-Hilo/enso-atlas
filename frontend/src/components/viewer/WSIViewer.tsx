@@ -750,7 +750,9 @@ export function WSIViewer({
   useEffect(() => {
     // Update heatmap layer opacity
     if (heatmapTiledImageRef.current && heatmapLoaded) {
-      const targetOpacity = showHeatmap ? heatmapOpacity : 0;
+      // In heatmap-only mode, force strong opacity so sparse overlays remain visible.
+      const effectiveHeatmapOpacity = heatmapOnly ? Math.max(heatmapOpacity, 0.95) : heatmapOpacity;
+      const targetOpacity = showHeatmap ? effectiveHeatmapOpacity : 0;
       heatmapTiledImageRef.current.setOpacity(targetOpacity);
     }
 
@@ -759,10 +761,13 @@ export function WSIViewer({
     if (viewer && isReady) {
       const tiledImage = getSlideTiledImage();
       if (tiledImage) {
-        tiledImage.setOpacity(heatmapOnly ? 0 : 1);
+        // Avoid black-screen failure mode:
+        // only hide base slide when a heatmap layer is actually loaded and visible.
+        const canHideBaseSlide = heatmapOnly && showHeatmap && heatmapLoaded && !heatmapError;
+        tiledImage.setOpacity(canHideBaseSlide ? 0 : 1);
       }
     }
-  }, [showHeatmap, heatmapOpacity, heatmapLoaded, heatmapOnly, isReady, getSlideTiledImage]);
+  }, [showHeatmap, heatmapOpacity, heatmapLoaded, heatmapOnly, heatmapError, isReady, getSlideTiledImage]);
 
   // Store grid settings in refs so the draw function never gets recreated
   const showGridRef = useRef(showGrid);
