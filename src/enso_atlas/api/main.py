@@ -7003,7 +7003,7 @@ DISCLAIMER: This is a research tool. All findings must be validated by qualified
     async def get_model_heatmap(
         slide_id: str,
         model_id: str,
-        alpha_power: float = 0.7,
+        alpha_power: float = 0.3,
         smooth: bool = Query(
             default=False,
             description="Apply Gaussian blur interpolation for denser visualization (False keeps truthful patch-grid rendering)",
@@ -7134,7 +7134,7 @@ DISCLAIMER: This is a research tool. All findings must be validated by qualified
         # Check disk cache first (only for default alpha_power and no explicit refresh).
         cache_dir = emb_path.parent / "heatmap_cache"
         cache_dir.mkdir(exist_ok=True)
-        is_default_alpha = abs(alpha_power - 0.7) < 0.01
+        is_default_alpha = abs(alpha_power - 0.3) < 0.01
         mode_suffix = "smooth" if smooth else "truthful"
         cache_suffix = project_id if project_id else "global"
         checkpoint_suffix = checkpoint_signature.replace("/", "_").replace(":", "_")

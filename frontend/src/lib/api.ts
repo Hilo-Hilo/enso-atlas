@@ -820,7 +820,7 @@ export function getHeatmapUrl(
 ): string {
   const params = new URLSearchParams();
   if (level !== undefined) params.set('level', String(level));
-  if (alphaPower !== undefined && Math.abs(alphaPower - 0.7) > 0.01) {
+  if (alphaPower !== undefined) {
     params.set('alpha_power', alphaPower.toFixed(2));
   }
   const scopedProjectId = normalizeProjectId(projectId);
