@@ -80,7 +80,12 @@ def test_backend_model_heatmap_cache_key_tracks_model_checkpoint_signature():
     src = _read("src/enso_atlas/api/main.py")
 
     assert "checkpoint_signature" in src
-    assert 'cache_path = cache_dir / f"{cache_suffix}_{slide_id}_{model_id}_{mode_suffix}_{checkpoint_suffix}_v4.png"' in src
+    # Cache key must include checkpoint + data signatures and per-alpha variants.
+    assert "checkpoint_suffix = hashlib.sha1(checkpoint_signature.encode(\"utf-8\")).hexdigest()[:10]" in src
+    assert "data_signature" in src
+    assert "alpha_key = f\"{alpha_power:.2f}\"" in src
+    assert "_a{alpha_key}_v7.png" in src
+    assert "attn_v1.npy" in src
     assert "Detected checkpoint update" in src
 
 

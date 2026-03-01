@@ -15,6 +15,7 @@ import json
 import base64
 import io
 import time
+import hashlib
 from datetime import datetime
 from .embedding_tasks import task_manager, TaskStatus, EmbeddingTask
 from .report_tasks import report_task_manager, ReportTaskStatus, ReportTask
@@ -7131,71 +7132,128 @@ DISCLAIMER: This is a research tool. All findings must be validated by qualified
                 checkpoint_signature,
             )
 
-        # Check disk cache first (only for default alpha_power and no explicit refresh).
+        # Clamp/normalize alpha and cache aggressively by alpha value.
+        # This keeps sensitivity changes responsive after first request.
+        alpha_power = float(min(1.5, max(0.1, alpha_power)))
+        alpha_key = f"{alpha_power:.2f}"
+
         cache_dir = emb_path.parent / "heatmap_cache"
         cache_dir.mkdir(exist_ok=True)
-        is_default_alpha = abs(alpha_power - 0.2) < 0.01
         mode_suffix = "smooth" if smooth else "truthful"
         cache_suffix = project_id if project_id else "global"
-        checkpoint_suffix = checkpoint_signature.replace("/", "_").replace(":", "_")
-        cache_path = cache_dir / f"{cache_suffix}_{slide_id}_{model_id}_{mode_suffix}_{checkpoint_suffix}_v4.png"
+        checkpoint_suffix = hashlib.sha1(checkpoint_signature.encode("utf-8")).hexdigest()[:10]
 
-        if is_default_alpha and cache_path.exists() and not force_refresh:
-            # Serve cached heatmap — still need slide dims for headers
-            slide_path = resolve_slide_path(slide_id, project_id=project_id)
-            _slide_dims = None
-            if slide_path is not None and slide_path.exists():
-                try:
-                    import openslide
-                    with openslide.OpenSlide(str(slide_path)) as _slide:
-                        _slide_dims = _slide.dimensions
-                except Exception:
-                    pass
-            if _slide_dims is None:
-                patch_size_c = 224
-                _ca = np.load(coord_path).astype(np.int64, copy=False)
-                _slide_dims = (int(_ca[:, 0].max()) + patch_size_c, int(_ca[:, 1].max()) + patch_size_c)
-            _coverage = compute_heatmap_grid_coverage(_slide_dims[0], _slide_dims[1], patch_size=224)
-            logger.info(f"Serving cached heatmap for {slide_id}/{model_id} (checkpoint={checkpoint_signature})")
-            return FileResponse(
-                str(cache_path),
-                media_type="image/png",
-                headers={
-                    "X-Model-Id": model_id,
-                    "X-Model-Name": MODEL_CONFIGS[model_id]["display_name"],
-                    "X-Slide-Width": str(_slide_dims[0]),
-                    "X-Slide-Height": str(_slide_dims[1]),
-                    "X-Coverage-Width": str(_coverage.coverage_width),
-                    "X-Coverage-Height": str(_coverage.coverage_height),
-                    "Cache-Control": "no-store, max-age=0",
-                    "Pragma": "no-cache",
-                    "Expires": "0",
-                    "Access-Control-Expose-Headers": "X-Model-Id, X-Model-Name, X-Slide-Width, X-Slide-Height, X-Coverage-Width, X-Coverage-Height",
-                }
-            )
+        emb_stat = emb_path.stat()
+        coord_stat = coord_path.stat()
+        data_sig_raw = f"{emb_stat.st_mtime_ns}:{emb_stat.st_size}:{coord_stat.st_mtime_ns}:{coord_stat.st_size}"
+        data_signature = hashlib.sha1(data_sig_raw.encode("utf-8")).hexdigest()[:12]
 
-        embeddings = np.load(emb_path)
+        cache_path = cache_dir / (
+            f"{cache_suffix}_{slide_id}_{model_id}_{mode_suffix}_{checkpoint_suffix}_{data_signature}_a{alpha_key}_v7.png"
+        )
+        legacy_default_cache_path = cache_dir / f"{cache_suffix}_{slide_id}_{model_id}_{mode_suffix}_{checkpoint_signature.replace('/', '_').replace(':', '_')}_v4.png"
+        attention_cache_path = cache_dir / (
+            f"{cache_suffix}_{slide_id}_{model_id}_{checkpoint_suffix}_{data_signature}_attn_v1.npy"
+        )
+
+        if not force_refresh:
+            cached_path_to_serve: Optional[Path] = None
+            if cache_path.exists():
+                cached_path_to_serve = cache_path
+            elif abs(alpha_power - 0.2) < 0.01 and legacy_default_cache_path.exists():
+                # Backward compatibility with old default-only cache entries.
+                cached_path_to_serve = legacy_default_cache_path
+
+            if cached_path_to_serve is not None:
+                # Serve cached heatmap — still need slide dims for alignment headers.
+                slide_path = resolve_slide_path(slide_id, project_id=project_id)
+                _slide_dims = None
+                if slide_path is not None and slide_path.exists():
+                    try:
+                        import openslide
+                        with openslide.OpenSlide(str(slide_path)) as _slide:
+                            _slide_dims = _slide.dimensions
+                    except Exception:
+                        pass
+                if _slide_dims is None:
+                    patch_size_c = 224
+                    _ca = np.load(coord_path).astype(np.int64, copy=False)
+                    _slide_dims = (int(_ca[:, 0].max()) + patch_size_c, int(_ca[:, 1].max()) + patch_size_c)
+                _coverage = compute_heatmap_grid_coverage(_slide_dims[0], _slide_dims[1], patch_size=224)
+                logger.info(
+                    "Serving cached heatmap for %s/%s (checkpoint=%s, alpha=%s)",
+                    slide_id,
+                    model_id,
+                    checkpoint_signature,
+                    alpha_key,
+                )
+                return FileResponse(
+                    str(cached_path_to_serve),
+                    media_type="image/png",
+                    headers={
+                        "X-Model-Id": model_id,
+                        "X-Model-Name": MODEL_CONFIGS[model_id]["display_name"],
+                        "X-Slide-Width": str(_slide_dims[0]),
+                        "X-Slide-Height": str(_slide_dims[1]),
+                        "X-Coverage-Width": str(_coverage.coverage_width),
+                        "X-Coverage-Height": str(_coverage.coverage_height),
+                        "Cache-Control": "no-store, max-age=0",
+                        "Pragma": "no-cache",
+                        "Expires": "0",
+                        "Access-Control-Expose-Headers": "X-Model-Id, X-Model-Name, X-Slide-Width, X-Slide-Height, X-Coverage-Width, X-Coverage-Height",
+                    }
+                )
 
         patch_size = 224
         coords_arr = np.load(coord_path).astype(np.int64, copy=False)
-        
-        # Get prediction with attention from specific model
-        try:
-            result = multi_model_inference.predict_single(
-                embeddings, 
-                model_id, 
-                return_attention=True
-            )
-            attention = result.get("attention")
-            
-            if attention is None:
-                raise HTTPException(status_code=500, detail="Model did not return attention weights")
-            
-            attention = np.array(attention)
-            
-        except Exception as e:
-            logger.error(f"Model inference failed: {e}")
-            raise HTTPException(status_code=500, detail=str(e))
+
+        attention: Optional[np.ndarray] = None
+        if attention_cache_path.exists() and not force_refresh:
+            try:
+                attention = np.load(attention_cache_path)
+                if attention.shape[0] != coords_arr.shape[0]:
+                    logger.warning(
+                        "Cached attention length mismatch for %s/%s (attn=%s coords=%s); recomputing",
+                        slide_id,
+                        model_id,
+                        attention.shape[0],
+                        coords_arr.shape[0],
+                    )
+                    attention = None
+                else:
+                    logger.info(
+                        "Loaded cached attention for %s/%s (checkpoint=%s)",
+                        slide_id,
+                        model_id,
+                        checkpoint_signature,
+                    )
+            except Exception as attn_err:
+                logger.warning(f"Failed to load cached attention for {slide_id}/{model_id}: {attn_err}")
+                attention = None
+
+        # Get prediction with attention from specific model (only when not cached)
+        if attention is None:
+            embeddings = np.load(emb_path)
+            try:
+                result = multi_model_inference.predict_single(
+                    embeddings,
+                    model_id,
+                    return_attention=True
+                )
+                attention = result.get("attention")
+
+                if attention is None:
+                    raise HTTPException(status_code=500, detail="Model did not return attention weights")
+
+                attention = np.array(attention)
+                try:
+                    np.save(attention_cache_path, attention)
+                except Exception as cache_err:
+                    logger.warning(f"Failed to cache attention for {slide_id}/{model_id}: {cache_err}")
+
+            except Exception as e:
+                logger.error(f"Model inference failed: {e}")
+                raise HTTPException(status_code=500, detail=str(e))
         
         # Generate heatmap image using EvidenceGenerator for proper coordinate scaling
         try:
@@ -7253,14 +7311,13 @@ DISCLAIMER: This is a research tool. All findings must be validated by qualified
             img.save(buf, format="PNG")
             buf.seek(0)
             
-            # Save to disk cache for subsequent requests (only default alpha)
-            if is_default_alpha:
-                try:
-                    with open(cache_path, "wb") as f:
-                        f.write(buf.getvalue())
-                    logger.info(f"Cached heatmap to {cache_path}")
-                except Exception as cache_err:
-                    logger.warning(f"Failed to cache heatmap: {cache_err}")
+            # Save to disk cache for subsequent requests (all alpha values).
+            try:
+                with open(cache_path, "wb") as f:
+                    f.write(buf.getvalue())
+                logger.info(f"Cached heatmap to {cache_path}")
+            except Exception as cache_err:
+                logger.warning(f"Failed to cache heatmap: {cache_err}")
             
             return StreamingResponse(
                 buf,
