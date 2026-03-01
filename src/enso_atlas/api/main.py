@@ -6910,16 +6910,78 @@ DISCLAIMER: This is a research tool. All findings must be validated by qualified
         embeddings = np.load(emb_path)
 
         try:
+            # Always request attention so processed slides can immediately reuse
+            # attention caches for heatmap rendering and sensitivity changes.
             results = multi_model_inference.predict_all(
                 embeddings,
                 model_ids=effective_model_ids,
-                return_attention=request.return_attention,
+                return_attention=True,
             )
         except Exception as e:
             logger.error(f"Multi-model inference failed: {e}")
             raise HTTPException(status_code=500, detail=f"Inference failed: {str(e)}")
 
         processing_time = (time.time() - start_time) * 1000
+
+        # Prime per-slide/model attention cache so post-analysis heatmap interactions
+        # (e.g., sensitivity slider changes) do not need to rerun model inference.
+        try:
+            coord_path = emb_path.with_name(f"{slide_id}_coords.npy")
+            if coord_path.exists():
+                cache_dir = emb_path.parent / "heatmap_cache"
+                cache_dir.mkdir(exist_ok=True)
+                cache_suffix = request.project_id if request.project_id else "global"
+
+                emb_stat = emb_path.stat()
+                coord_stat = coord_path.stat()
+                data_sig_raw = f"{emb_stat.st_mtime_ns}:{emb_stat.st_size}:{coord_stat.st_mtime_ns}:{coord_stat.st_size}"
+                data_signature = hashlib.sha1(data_sig_raw.encode("utf-8")).hexdigest()[:12]
+
+                def _checkpoint_signature_for_model(model_identifier: str) -> str:
+                    cfg = MODEL_CONFIGS.get(model_identifier, {})
+                    model_dir = cfg.get("model_dir")
+                    if not model_dir:
+                        return "model_dir_missing"
+                    checkpoint_path = _project_root / "outputs" / str(model_dir) / "best_model.pt"
+                    if not checkpoint_path.exists():
+                        return "checkpoint_missing"
+                    st = checkpoint_path.stat()
+                    return f"{int(st.st_mtime_ns)}_{int(st.st_size)}"
+
+                cached_count = 0
+                for mid, pred in (results.get("predictions") or {}).items():
+                    att = pred.get("attention")
+                    if att is None:
+                        continue
+                    try:
+                        att_arr = np.asarray(att, dtype=np.float32)
+                        if att_arr.ndim != 1:
+                            att_arr = att_arr.reshape(-1)
+
+                        checkpoint_signature = _checkpoint_signature_for_model(mid)
+                        checkpoint_suffix = hashlib.sha1(checkpoint_signature.encode("utf-8")).hexdigest()[:10]
+                        attention_cache_path = cache_dir / (
+                            f"{cache_suffix}_{slide_id}_{mid}_{checkpoint_suffix}_{data_signature}_attn_v1.npy"
+                        )
+                        np.save(attention_cache_path, att_arr)
+                        cached_count += 1
+                    except Exception as attn_err:
+                        logger.warning(
+                            "Failed to cache attention for %s/%s during analyze-multi: %s",
+                            slide_id,
+                            mid,
+                            attn_err,
+                        )
+
+                if cached_count:
+                    logger.info(
+                        "Primed %d attention caches for %s (project=%s)",
+                        cached_count,
+                        slide_id,
+                        request.project_id,
+                    )
+        except Exception as prewarm_err:
+            logger.warning(f"Attention cache prewarm skipped for {slide_id}: {prewarm_err}")
 
         def _normalize_prediction_dict(p: Dict[str, Any]) -> Dict[str, Any]:
             out = {k: v for k, v in p.items() if k != "attention"}
