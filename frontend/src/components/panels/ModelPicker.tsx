@@ -114,8 +114,6 @@ interface ModelPickerProps {
   onSelectionChange: (models: string[]) => void;
   resolutionLevel: number;
   onResolutionChange: (level: number) => void;
-  forceReembed: boolean;
-  onForceReembedChange: (force: boolean) => void;
   disabled?: boolean;
   className?: string;
   embeddingStatus?: EmbeddingStatus;
@@ -128,8 +126,6 @@ export function ModelPicker({
   onSelectionChange,
   resolutionLevel,
   onResolutionChange,
-  forceReembed,
-  onForceReembedChange,
   disabled = false,
   className,
   embeddingStatus,
@@ -480,26 +476,6 @@ export function ModelPicker({
                 Level 0 embeddings ready. Full-resolution analysis available.
               </p>
             )}
-            <label
-              className={cn(
-                "mt-3 flex items-start gap-2 text-xs text-gray-600 dark:text-gray-400",
-                disabled && "opacity-50 cursor-not-allowed"
-              )}
-            >
-              <input
-                type="checkbox"
-                checked={forceReembed}
-                onChange={(event) => onForceReembedChange(event.target.checked)}
-                disabled={disabled}
-                className="mt-0.5 h-4 w-4 rounded border-gray-300 dark:border-navy-500 text-clinical-600 focus:ring-clinical-500 dark:bg-navy-700"
-              />
-              <span className="flex-1">
-                <span className="font-medium text-gray-700 dark:text-gray-300">Force Re-embed</span>
-                <span className="block text-2xs text-gray-500 dark:text-gray-400">
-                  Regenerate embeddings even if cached.
-                </span>
-              </span>
-            </label>
           </div>
 
           {/* Quick Actions */}

@@ -465,7 +465,6 @@ function HomePage() {
   const [slideQCMetrics, setSlideQCMetrics] = useState<SlideQCMetrics | null>(null);
   const [selectedModels, setSelectedModels] = useState<string[]>([]);
   const [resolutionLevel, setResolutionLevel] = useState<number>(0); // policy default: 0 = full res, dense
-  const [forceReembed, setForceReembed] = useState(false);
   const [heatmapModel, setHeatmapModel] = useState<string | null>(null);
   const [heatmapLevel, setHeatmapLevel] = useState<number>(2); // 0-4, default 2 (512px)
   const [heatmapAlphaPower, setHeatmapAlphaPower] = useState<number>(0.7); // 0.1-1.5 UI sensitivity scale (normalized before backend)
@@ -1448,7 +1447,7 @@ function HomePage() {
       const embedResult = await embedSlideWithPolling(
         slideId,
         resolutionLevel,
-        forceReembed,
+        false,
         (progress) => {
           if (embeddingRequestRef.current !== requestId) return;
 
@@ -1503,7 +1502,7 @@ function HomePage() {
         setEmbeddingProgress(null);
       }
     }
-  }, [selectedSlide, resolutionLevel, forceReembed, toast, currentProject.id]);
+  }, [selectedSlide, resolutionLevel, toast, currentProject.id]);
 
   const prewarmHeatmapsForSlide = useCallback(
     async (
@@ -1627,7 +1626,7 @@ function HomePage() {
       const embedResult = await embedSlideWithPolling(
         slideId,
         resolutionLevel,
-        forceReembed,
+        false,
         (progress) => {
           if (multiModelRequestRef.current !== requestId) return;
 
@@ -1816,7 +1815,6 @@ function HomePage() {
     selectedModels,
     scopedProjectModels.length,
     resolutionLevel,
-    forceReembed,
     toast,
     currentProject.id,
     heatmapModel,
@@ -2460,8 +2458,6 @@ function HomePage() {
         onModelsChange={setSelectedModels}
         resolutionLevel={resolutionLevel}
         onResolutionChange={setResolutionLevel}
-        forceReembed={forceReembed}
-        onForceReembedChange={setForceReembed}
         isGeneratingEmbeddings={isGeneratingEmbeddings}
         embeddingProgress={embeddingProgress}
         embeddingStatus={embeddingStatus}
@@ -2475,8 +2471,6 @@ function HomePage() {
         onModelsChange={setSelectedModels}
         resolutionLevel={resolutionLevel}
         onResolutionChange={setResolutionLevel}
-        forceReembed={forceReembed}
-        onForceReembedChange={setForceReembed}
         onAnalyze={handleAnalyze}
         onGenerateEmbeddings={handleGenerateEmbeddings}
         isAnalyzing={isAnalyzing}
