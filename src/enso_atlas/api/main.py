@@ -1748,7 +1748,13 @@ def create_app(
         return RedirectResponse(url="/api/redoc")
 
     @app.get("/api/slides", response_model=List[SlideInfo])
-    async def list_slides(project_id: Optional[str] = Query(None, description="Filter slides by project")):
+    async def list_slides(
+        project_id: Optional[str] = Query(None, description="Filter slides by project"),
+        include_metadata: bool = Query(
+            default=False,
+            description="Include expensive per-slide metadata (num_patches, dimensions, mpp)."
+        ),
+    ):
         """List all available slides with patient context.
 
         Uses PostgreSQL when available (< 100ms), falls back to flat-file
@@ -1756,6 +1762,10 @@ def create_app(
 
         When project_id is provided, only returns slides assigned to that project
         via the project_slides junction table.
+
+        By default, project-scoped fallback returns a lightweight list for fast
+        UI loads. Set ``include_metadata=true`` when patch counts/dimensions are
+        explicitly needed.
         """
         proj_cfg = _require_project(project_id)
 
@@ -1803,8 +1813,8 @@ def create_app(
         # project validity is enforced above via _require_project(project_id)
 
         # ---- Slow fallback: flat-file scan (with caching) ----
-        # Cache flat-file scan results per project for 60s to avoid re-scanning
-        _cache_key = project_id or "__global__"
+        # Cache flat-file scan results per project + metadata mode for 60s.
+        _cache_key = f"{project_id or '__global__'}|meta={int(include_metadata)}"
         if not hasattr(list_slides, "_cache"):
             list_slides._cache = {}
         _cached = list_slides._cache.get(_cache_key)
@@ -1964,37 +1974,41 @@ def create_app(
                     emb_path = level0_emb_path
 
             num_patches = None
-            if emb_path.exists():
-                try:
-                    emb = np.load(emb_path)
-                    num_patches = len(emb)
-                except Exception:
-                    pass
-
             data = slide_data.get(slide_id, {})
             dims = SlideDimensions()
             mpp = None
+
+            # Resolving slide path is needed for has_wsi flag.
             slide_path = resolve_slide_path(slide_id, project_id=project_id)
-            if slide_path is not None and slide_path.exists():
-                try:
-                    import openslide
-                    with openslide.OpenSlide(str(slide_path)) as slide:
-                        dims = SlideDimensions(
-                            width=slide.dimensions[0],
-                            height=slide.dimensions[1]
-                        )
-                        mpp_x = slide.properties.get(openslide.PROPERTY_NAME_MPP_X)
-                        if mpp_x:
-                            mpp = float(mpp_x)
-                except Exception as e:
-                    logger.warning(f"Could not read slide {slide_id}: {e}")
-            elif num_patches is not None and num_patches > 0:
-                # No WSI on disk — estimate dimensions from patch count.
-                # Assume a roughly square grid of 256×256 px patches (level 0).
-                import math
-                grid_side = int(math.ceil(math.sqrt(num_patches)))
-                estimated_px = grid_side * 256
-                dims = SlideDimensions(width=estimated_px, height=estimated_px)
+
+            if include_metadata:
+                if emb_path.exists():
+                    try:
+                        emb = np.load(emb_path)
+                        num_patches = len(emb)
+                    except Exception:
+                        pass
+
+                if slide_path is not None and slide_path.exists():
+                    try:
+                        import openslide
+                        with openslide.OpenSlide(str(slide_path)) as slide:
+                            dims = SlideDimensions(
+                                width=slide.dimensions[0],
+                                height=slide.dimensions[1]
+                            )
+                            mpp_x = slide.properties.get(openslide.PROPERTY_NAME_MPP_X)
+                            if mpp_x:
+                                mpp = float(mpp_x)
+                    except Exception as e:
+                        logger.warning(f"Could not read slide {slide_id}: {e}")
+                elif num_patches is not None and num_patches > 0:
+                    # No WSI on disk — estimate dimensions from patch count.
+                    # Assume a roughly square grid of 256×256 px patches (level 0).
+                    import math
+                    grid_side = int(math.ceil(math.sqrt(num_patches)))
+                    estimated_px = grid_side * 256
+                    dims = SlideDimensions(width=estimated_px, height=estimated_px)
 
             has_level0 = False
             if _fallback_embeddings_dir.name == "level0":
@@ -2048,7 +2062,9 @@ def create_app(
     ):
         """Search and paginate slides, optionally scoped by ``project_id``."""
         # Get all slides first (reuse existing logic from list_slides)
-        all_slides = await list_slides(project_id=project_id)
+        # Only request expensive metadata when filters need it.
+        needs_patch_counts = min_patches is not None or max_patches is not None
+        all_slides = await list_slides(project_id=project_id, include_metadata=needs_patch_counts)
         
         # Convert SlideInfo objects to dicts for filtering
         slides_data = [
