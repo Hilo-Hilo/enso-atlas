@@ -25,6 +25,7 @@ import { useAnalysis } from "@/hooks/useAnalysis";
 import { useKeyboardShortcuts, type KeyboardShortcut } from "@/hooks/useKeyboardShortcuts";
 import { usePanelSwitchPerf } from "@/hooks/usePerfInstrumentation";
 import { getDziUrl, getHeatmapUrl, healthCheck, semanticSearch, getSlideQC, getAnnotations, saveAnnotation, deleteAnnotation, getSlides, analyzeSlideMultiModel, embedSlideWithPolling, visualSearch, getSlideCachedResults, getPatchCoords, getProjectAvailableModels, type AvailableModelDetail } from "@/lib/api";
+import { fetchHeatmapWithDedupe } from "@/components/viewer/heatmapFetch";
 import { getClientApiBaseUrl } from "@/lib/clientApiBase";
 import { deduplicateSlides } from "@/lib/slideUtils";
 import { useProject } from "@/contexts/ProjectContext";
@@ -1547,16 +1548,12 @@ function HomePage() {
         );
 
         try {
-          const response = await fetch(heatmapUrl, {
-            method: "GET",
+          // Share in-flight requests with the viewer to avoid duplicate heatmap GETs.
+          await fetchHeatmapWithDedupe(heatmapUrl, {
             cache: "no-store",
-            signal: controller.signal,
           });
-          if (!response.ok) {
-            continue;
-          }
-          // Read body to completion so backend generation + cache write fully finishes.
-          await response.blob();
+
+          if (controller.signal.aborted) return;
           heatmapPrewarmedKeysRef.current.add(cacheKey);
         } catch (error) {
           if (!controller.signal.aborted) {
@@ -1826,7 +1823,14 @@ function HomePage() {
 
     // On mobile, switch to results tab when analysis starts
     setMobilePanelTab("results");
-    
+
+    // Multi-model projects should use a single canonical inference path.
+    if (scopedProjectModels.length > 1) {
+      // Default Analyze is cache-first; Retry/Re-analyze still force refresh.
+      await handleMultiModelAnalyze(false);
+      return;
+    }
+
     toast.info("Starting Analysis", "Running TransMIL prediction...");
 
     const startTime = Date.now();
@@ -1852,16 +1856,9 @@ function HomePage() {
       );
     }
 
-    // Only run multi-model analysis when this project actually has multiple scoped models.
-    if (scopedProjectModels.length > 1) {
-      // Hotfix: default Analyze should reuse cached multi-model results when available.
-      // Keep forced recompute only for explicit Retry/Re-analyze actions.
-      handleMultiModelAnalyze(false);
-    } else {
-      setMultiModelResult(null);
-      setMultiModelError(null);
-    }
-  }, [selectedSlide, analyze, toast, handleMultiModelAnalyze, currentProject.id, scopedProjectModels.length]);
+    setMultiModelResult(null);
+    setMultiModelError(null);
+  }, [selectedSlide, scopedProjectModels.length, handleMultiModelAnalyze, toast, analyze, currentProject.id]);
 
   // Retry multi-model analysis (always force)
   const handleRetryMultiModel = useCallback(() => {
@@ -1963,6 +1960,8 @@ function HomePage() {
     });
   }, [selectedSlide, analysisResult, multiModelResult, generateSlideReport, currentProject.id]);
 
+  const isAnyAnalysisRunning = isAnalyzing || isAnalyzingMultiModel;
+
   // Define keyboard shortcuts
   const keyboardShortcuts = useMemo<KeyboardShortcut[]>(() => [
     // Navigation shortcuts
@@ -1983,7 +1982,7 @@ function HomePage() {
       description: "Analyze selected slide",
       category: "Navigation",
       handler: () => {
-        if (selectedSlide && !isAnalyzing) {
+        if (selectedSlide && !isAnyAnalysisRunning) {
           handleAnalyze();
         }
       },
@@ -2082,7 +2081,7 @@ function HomePage() {
       description: "Analyze selected slide",
       category: "Actions",
       handler: () => {
-        if (selectedSlide && !isAnalyzing) {
+        if (selectedSlide && !isAnyAnalysisRunning) {
           handleAnalyze();
         }
       },
@@ -2126,7 +2125,7 @@ function HomePage() {
     handleAnalyze,
     handleGenerateReport,
     selectedSlide,
-    isAnalyzing,
+    isAnyAnalysisRunning,
     analysisResult,
     multiModelResult,
     report,
@@ -2438,10 +2437,12 @@ function HomePage() {
   const analysisStepForControls =
     isCachedResult && !!multiModelResult ? -1 : analysisStep;
 
+  const isAnyAnalysisRunning = isAnalyzing || isAnalyzingMultiModel;
+
   // Determine if we have results to show (cached multi-model counts too)
   const hasResults = useMemo(
-    () => !!analysisResult || !!multiModelResult || isAnalyzing,
-    [analysisResult, multiModelResult, isAnalyzing]
+    () => !!analysisResult || !!multiModelResult || isAnyAnalysisRunning,
+    [analysisResult, multiModelResult, isAnyAnalysisRunning]
   );
 
   // Render left sidebar content
