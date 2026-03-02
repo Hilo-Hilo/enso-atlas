@@ -15,8 +15,6 @@ interface AnalysisControlsProps {
   onModelsChange: (models: string[]) => void;
   resolutionLevel: number;
   onResolutionChange: (level: number) => void;
-  forceReembed: boolean;
-  onForceReembedChange: (force: boolean) => void;
   onAnalyze: () => void;
   onGenerateEmbeddings?: () => void;
   isAnalyzing?: boolean;
@@ -40,8 +38,6 @@ export function AnalysisControls({
   onModelsChange,
   resolutionLevel,
   onResolutionChange,
-  forceReembed,
-  onForceReembedChange,
   onAnalyze,
   onGenerateEmbeddings,
   isAnalyzing = false,
@@ -67,8 +63,6 @@ export function AnalysisControls({
           onSelectionChange={onModelsChange}
           resolutionLevel={resolutionLevel}
           onResolutionChange={onResolutionChange}
-          forceReembed={forceReembed}
-          onForceReembedChange={onForceReembedChange}
           disabled={!hasSlideSelection || isAnalyzing || isGeneratingEmbeddings}
           embeddingStatus={embeddingStatus}
           selectedSlideId={selectedSlideId}

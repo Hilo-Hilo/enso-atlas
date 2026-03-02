@@ -29,7 +29,6 @@ import {
   ChevronUp,
   ChevronRight,
   Activity,
-  RefreshCw,
 } from "lucide-react";
 import {
   getSlides,
@@ -155,7 +154,6 @@ export function BatchAnalysisPanel({
   // Model selection state
   const [selectedModelIds, setSelectedModelIds] = useState<string[]>([]);
   const [resolutionLevel, setResolutionLevel] = useState(0);
-  const [forceReembed, setForceReembed] = useState(false);
   const [modelConfigExpanded, setModelConfigExpanded] = useState(true);
   const [apiModelDetails, setApiModelDetails] = useState<AvailableModelDetail[]>([]);
   const [projectModelIds, setProjectModelIds] = useState<string[]>([]);
@@ -447,7 +445,7 @@ export function BatchAnalysisPanel({
       const response = await startBatchAnalysisAsync(slideIds, concurrency, {
         modelIds: selectedModelIds.length > 0 ? selectedModelIds : undefined,
         level: resolutionLevel,
-        forceReembed,
+        forceReembed: false,
       });
       
       setTaskId(response.task_id);
@@ -463,7 +461,7 @@ export function BatchAnalysisPanel({
       setError(err instanceof Error ? err.message : "Failed to start batch analysis");
       setIsAnalyzing(false);
     }
-  }, [selectedIds, concurrency, selectedModelIds, resolutionLevel, forceReembed, pollStatus]);
+  }, [selectedIds, concurrency, selectedModelIds, resolutionLevel, pollStatus]);
 
   // Cancel batch analysis
   const handleCancel = useCallback(async () => {
@@ -738,24 +736,6 @@ export function BatchAnalysisPanel({
                       </button>
                     </div>
 
-                    {/* Force Re-embed */}
-                    <label className="mt-3 flex items-start gap-2 text-xs text-gray-600">
-                      <input
-                        type="checkbox"
-                        checked={forceReembed}
-                        onChange={(e) => setForceReembed(e.target.checked)}
-                        className="mt-0.5 h-4 w-4 rounded border-gray-300 text-clinical-600 focus:ring-clinical-500"
-                      />
-                      <span className="flex-1">
-                        <span className="font-medium text-gray-700">
-                          <RefreshCw className="h-3 w-3 inline mr-1" />
-                          Force Re-embed
-                        </span>
-                        <span className="block text-gray-500">
-                          Regenerate embeddings even if cached
-                        </span>
-                      </span>
-                    </label>
                   </div>
 
                   {/* Model Selection */}

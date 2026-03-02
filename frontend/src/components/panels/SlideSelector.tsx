@@ -43,8 +43,6 @@ interface SlideSelectorProps {
   onModelsChange: (models: string[]) => void;
   resolutionLevel: number;
   onResolutionChange: (level: number) => void;
-  forceReembed: boolean;
-  onForceReembedChange: (force: boolean) => void;
   selectedSlideId: string | null;
   onSlideSelect: (slide: SlideInfo) => void;
   onAnalyze: () => void;
@@ -166,8 +164,6 @@ export function SlideSelector({
   onModelsChange,
   resolutionLevel,
   onResolutionChange,
-  forceReembed,
-  onForceReembedChange,
   selectedSlideId,
   onSlideSelect,
   onAnalyze,
