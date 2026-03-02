@@ -2433,6 +2433,12 @@ function HomePage() {
   const sidebarPredictionIsCached =
     isCachedResult && (!!primaryMultiModelPrediction || !analysisResult);
 
+  // If multi-model cached predictions are already present, suppress the legacy
+  // single-model stepper copy ("Loading slide embeddings... Step 1 of 4").
+  // We still allow the underlying analyze request state to run/settle.
+  const analysisStepForControls =
+    isCachedResult && !!multiModelResult ? -1 : analysisStep;
+
   // Determine if we have results to show (cached multi-model counts too)
   const hasResults = useMemo(
     () => !!analysisResult || !!multiModelResult || isAnalyzing,
@@ -2473,7 +2479,7 @@ function HomePage() {
         onAnalyze={handleAnalyze}
         onGenerateEmbeddings={handleGenerateEmbeddings}
         isAnalyzing={isAnalyzing}
-        analysisStep={analysisStep}
+        analysisStep={analysisStepForControls}
         isGeneratingEmbeddings={isGeneratingEmbeddings}
         embeddingProgress={embeddingProgress}
         embeddingStatus={embeddingStatus}
