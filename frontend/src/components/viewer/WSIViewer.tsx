@@ -37,6 +37,7 @@ import {
   ChevronUp,
 } from "lucide-react";
 import type { PatchCoordinates, HeatmapData, Annotation, PatchOverlay } from "@/types";
+import { fetchHeatmapWithDedupe, HeatmapFetchError } from "./heatmapFetch";
 
 // Viewer control interface for keyboard shortcuts
 export interface WSIViewerControls {
@@ -594,35 +595,36 @@ export function WSIViewer({
       const bounds = slideImage.getBounds(false);
       const contentSize = slideImage.getContentSize();
 
-      let response: Response;
+      let heatmapPayload: Awaited<ReturnType<typeof fetchHeatmapWithDedupe>>;
       try {
-        response = await fetch(heatmapImageUrl, { method: "GET" });
+        heatmapPayload = await fetchHeatmapWithDedupe(heatmapImageUrl);
       } catch (err) {
         if (!cancelled) {
-          console.error("Failed to fetch heatmap image:", heatmapImageUrl, err);
-          setHeatmapError(true);
-          setHeatmapLoaded(false);
-          setHeatmapErrorMessage("Failed to fetch attention heatmap.");
+          if (err instanceof HeatmapFetchError) {
+            console.error("Heatmap fetch returned non-OK status:", err.status, err.body);
+            setHeatmapError(true);
+            setHeatmapLoaded(false);
+            setHeatmapErrorMessage(extractHeatmapErrorMessage(err.status, err.body));
+          } else {
+            console.error("Failed to fetch heatmap image:", heatmapImageUrl, err);
+            setHeatmapError(true);
+            setHeatmapLoaded(false);
+            setHeatmapErrorMessage("Failed to fetch attention heatmap.");
+          }
         }
         return;
       }
 
-      if (!response.ok) {
-        const errorBody = await response.text();
-        if (!cancelled) {
-          console.error("Heatmap fetch returned non-OK status:", response.status, errorBody);
-          setHeatmapError(true);
-          setHeatmapLoaded(false);
-          setHeatmapErrorMessage(extractHeatmapErrorMessage(response.status, errorBody));
-        }
-        return;
-      }
-
-      const headerCoverageW = parsePositiveHeaderInt(response.headers.get("X-Coverage-Width"));
-      const headerCoverageH = parsePositiveHeaderInt(response.headers.get("X-Coverage-Height"));
-
-      const blob = await response.blob();
       if (cancelled) return;
+
+      const headerCoverageW = parsePositiveHeaderInt(
+        heatmapPayload.headers.get("X-Coverage-Width")
+      );
+      const headerCoverageH = parsePositiveHeaderInt(
+        heatmapPayload.headers.get("X-Coverage-Height")
+      );
+
+      const blob = heatmapPayload.blob;
 
       let imageDims: { width: number; height: number };
       try {
@@ -658,16 +660,14 @@ export function WSIViewer({
       localObjectUrl = URL.createObjectURL(blob);
 
       const widthScale = bounds.width / contentSize.x;
-      const heightScale = bounds.height / contentSize.y;
       const heatmapWorldWidth = coverageW * widthScale;
-      const heatmapWorldHeight = coverageH * heightScale;
 
       viewer.addSimpleImage({
         url: localObjectUrl,
         x: bounds.x,
         y: bounds.y,
+        // OpenSeadragon tiled images accept one explicit dimension.
         width: heatmapWorldWidth,
-        height: heatmapWorldHeight,
         index: viewer.world.getItemCount(),
         opacity: 0, // Start hidden, update via showHeatmap effect
         success: (event: any) => {
