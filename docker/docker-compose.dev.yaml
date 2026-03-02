@@ -7,6 +7,11 @@ services:
       context: ..
       dockerfile: docker/Dockerfile
     container_name: enso-atlas-dev
+    gpus: all
+    ipc: host
+    ulimits:
+      memlock: -1
+      stack: 67108864
     environment:
       NVIDIA_VISIBLE_DEVICES: "${NVIDIA_VISIBLE_DEVICES:-all}"
       NVIDIA_DRIVER_CAPABILITIES: "${NVIDIA_DRIVER_CAPABILITIES:-compute,utility}"
